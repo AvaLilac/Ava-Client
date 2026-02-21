@@ -4,6 +4,7 @@
     window.__AVIA_WEB_LOADED__ = true;
 
     const LINKTREE_URL = "https://linktr.ee/GermanAvaLilac";
+    const STOAT_SERVER_URL = "https://stt.gg/GvBhcejB";
 
     function setIcon(button, type) {
         const oldSvg = button.querySelector('svg');
@@ -35,73 +36,62 @@
             .find(a => a.textContent.trim() === 'Appearance');
         if (!appearanceBtn) return;
 
-        (function injectLinktree() {
-            const targetBtn = document.querySelector(
-                'a.pos_relative.min-w_0.d_flex.ai_center.p_6px_8px.bdr_8px.fw_500.me_12px.fs_15px.us_none.trs_background-color_0\\.1s_ease-in-out.c_var\\(\\--md-sys-color-on-surface\\).fill_var\\(\\--md-sys-color-on-surface\\).bg_unset'
-            );
-            if (!targetBtn) return;
-            if (document.getElementById('stoat-fake-linktree')) return;
+        const targetBtn = document.querySelector(
+            'a.pos_relative.min-w_0.d_flex.ai_center.p_6px_8px.bdr_8px.fw_500.me_12px.fs_15px.us_none.trs_background-color_0\\.1s_ease-in-out.c_var\\(\\--md-sys-color-on-surface\\).fill_var\\(\\--md-sys-color-on-surface\\).bg_unset'
+        );
+        if (!targetBtn) return;
 
+        if (!document.getElementById('stoat-fake-linktree')) {
             const linktreeBtn = appearanceBtn.cloneNode(true);
             linktreeBtn.id = 'stoat-fake-linktree';
-
             const textNode = Array.from(linktreeBtn.querySelectorAll('div'))
                 .find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
-
             if (textNode) textNode.textContent = "(Avia) Ava's Linktree";
-
             setIcon(linktreeBtn, "monitor");
-
-            linktreeBtn.addEventListener('click', () => {
-                window.open(LINKTREE_URL, "_blank");
-            });
-
+            linktreeBtn.addEventListener('click', () => window.open(LINKTREE_URL, "_blank"));
             targetBtn.parentElement.insertBefore(linktreeBtn, targetBtn);
-        })();
 
-        (function injectLoadFont() {
-            const linktreeBtn = document.getElementById('stoat-fake-linktree');
-            if (!linktreeBtn) return;
-            if (document.getElementById('stoat-fake-loadfont')) return;
+            const stoatBtn = appearanceBtn.cloneNode(true);
+            stoatBtn.id = 'stoat-fake-stoatserver';
+            const stoatTextNode = Array.from(stoatBtn.querySelectorAll('div'))
+                .find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
+            if (stoatTextNode) stoatTextNode.textContent = "(Avia) Stoat Server";
+            setIcon(stoatBtn, "monitor");
+            stoatBtn.addEventListener('click', () => window.open(STOAT_SERVER_URL, "_blank"));
+            linktreeBtn.parentElement.insertBefore(stoatBtn, linktreeBtn.nextSibling);
+        }
 
+        if (!document.getElementById('stoat-fake-loadfont')) {
             const newBtn = appearanceBtn.cloneNode(true);
             newBtn.id = 'stoat-fake-loadfont';
-
             const textNode = Array.from(newBtn.querySelectorAll('div'))
                 .find(d => d.children.length === 0);
-
             if (textNode) textNode.textContent = "(Avia) Font Loader";
-
             setIcon(newBtn, "upload");
             newBtn.addEventListener('click', loadFont);
-
-            linktreeBtn.parentElement.insertBefore(newBtn, linktreeBtn.nextSibling);
+            const stoatBtn = document.getElementById('stoat-fake-stoatserver');
+            stoatBtn ? stoatBtn.parentElement.insertBefore(newBtn, stoatBtn.nextSibling) : document.getElementById('stoat-fake-linktree').parentElement.insertBefore(newBtn, document.getElementById('stoat-fake-linktree').nextSibling);
 
             if (!document.getElementById('stoat-fake-removefont')) {
                 const removeBtn = appearanceBtn.cloneNode(true);
                 removeBtn.id = 'stoat-fake-removefont';
-
                 const removeTextNode = Array.from(removeBtn.querySelectorAll('div'))
                     .find(d => d.children.length === 0);
-
                 if (removeTextNode) removeTextNode.textContent = "(Avia) Remove selected font";
-
                 setIcon(removeBtn, "refresh");
-
                 removeBtn.addEventListener('click', removeFont);
-
                 newBtn.parentElement.insertBefore(removeBtn, newBtn.nextSibling);
             }
-        })();
+        }
     }
 
     function loadFont() {
         let savedUrl = localStorage.getItem('avia_custom_font_url');
-        let url = savedUrl || prompt("Paste your .ttf or .otf font link:");
+        let url = savedUrl || prompt(
+            "Paste your font link (.ttf, .otf, .woff, .woff2, .eot, or .css).\n\n⚠️ Warning: Loading a .css file could be dangerous because it may contain arbitrary code or styles that could affect your client. Only use trusted sources!"
+        );
         if (!url) return;
-
         localStorage.setItem('avia_custom_font_url', url);
-
         applyFont(url);
         alert("Font Applied.");
     }
@@ -115,14 +105,24 @@
             document.head.appendChild(styleTag);
         }
 
+        let ext = url.split('.').pop().toLowerCase();
+        let formatMap = {
+            ttf: 'truetype',
+            otf: 'opentype',
+            woff: 'woff',
+            woff2: 'woff2',
+            eot: 'embedded-opentype',
+            css: 'truetype'
+        };
+        let format = formatMap[ext] || '';
+
         styleTag.textContent = `
             @font-face {
                 font-family: '${fontName}';
-                src: url('${url}');
+                src: url('${url}')${format ? " format('" + format + "')" : ""};
                 font-weight: normal;
                 font-style: normal;
             }
-
             body, body *:not(.material-symbols-outlined) {
                 font-family: '${fontName}', sans-serif !important;
             }
@@ -131,18 +131,14 @@
 
     function removeFont() {
         localStorage.removeItem('avia_custom_font_url');
-
         const styleTag = document.getElementById('custom-font-style');
         if (styleTag) styleTag.remove();
-
-        alert("Reverted Font To Orginal Settings.");
+        alert("Reverted Font To Original Settings.");
     }
 
     (function applySavedFont() {
         const savedUrl = localStorage.getItem('avia_custom_font_url');
-        if (savedUrl) {
-            applyFont(savedUrl);
-        }
+        if (savedUrl) applyFont(savedUrl);
     })();
 
     function waitForBody(callback) {
