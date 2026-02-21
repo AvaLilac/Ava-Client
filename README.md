@@ -13,7 +13,7 @@
 2. Open Chrome → `chrome://extensions/`.  
 3. Enable **Developer Mode**.  
 4. Click **Load unpacked** and select the extentions folder. make sure its the one containing the manifest.
-5. The extension should appear in your toolbar with your custom icon.
+5. The extension should appear in your toolbar.
 
 ### Usage
 - Open [Stoat Chat](https://stoat.chat/app) after installing the extension.   
