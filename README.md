@@ -21,5 +21,8 @@
   - **(Avia) Font Loader** → Enter a `.ttf` or `.otf` font URL.  
   - **(Avia) Remove Selected Font** → Restores original fonts.  
 
+### Stoat Support/Updates Server
+- Link [Stoat Server](https://stt.gg/GvBhcejB)
+
 ### License
 This project is released under the MIT License.  
