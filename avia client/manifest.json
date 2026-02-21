@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Avia Client",
+  "version": "1.0",
+  "description": "Enhances Stoat Chat with Avia features: custom fonts, persistent font loading.",
+  "icons": {
+    "16": "avia_icon.png",
+    "32": "avia_icon.png",
+    "48": "avia_icon.png",
+    "128": "avia_icon.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "avia_icon.png",
+      "32": "avia_icon.png",
+      "48": "avia_icon.png"
+    },
+    "default_title": "Avia Client"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://stoat.chat/*"],
+      "js": ["inject.js"]
+    }
+  ]
+}
