@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Avia Client",
   "version": "1.0",
-  "description": "Enhances Stoat Chat with Avia features: custom fonts, persistent font loading.",
+  "description": "Adds custom font support and a QuickCSS editor to enhance Stoat Chat's interface and styling.",
   "icons": {
     "16": "avia_icon.png",
     "32": "avia_icon.png",
@@ -23,4 +23,5 @@
       "js": ["inject.js"]
     }
   ]
+
 }
