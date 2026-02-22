@@ -16,6 +16,8 @@
    - Click **Load unpacked** and select the extension folder (make sure it has `manifest.json`).  
    - The extension should appear in your toolbar.  
 
+**For Now You Can Install Without Developer Without Zip. Use the XPI**
+
 3. **For Firefox Developer Edition**  
    - Download or clone this repository.  
    - Install Firefox Developer Edition.  
