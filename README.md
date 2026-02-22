@@ -1,6 +1,6 @@
 # Avia Client
 
-**Avia Client** is a Chrome/Edge/Brave extension that enhances Stoat Chat with custom Avia features.  
+**Avia Client** is a Chrome/Edge/Brave/Firefox extension that enhances Stoat Chat with custom Avia features.  
 
 ### Features
 - **(Avia) Ava's Linktree** – Quick access to my Linktree.  
