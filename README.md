@@ -32,7 +32,7 @@
   - **(Avia) Ava's Linktree** → Opens Linktree.  
   - **(Avia) Font Loader** → Paste a supported font URL.  
   - **(Avia) Remove Selected Font** → Restores original fonts.  
-
+  - **(Avia) Quick CSS** → CSS support.
 ### Stoat Support/Updates Server
 - Link [Stoat Server](https://stt.gg/GvBhcejB)
 
