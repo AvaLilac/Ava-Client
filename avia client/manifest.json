@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Avia Client - Developer Branch",
+  "name": "Avia Client",
   "version": "1.0",
-  "description": "Adds custom font support and a QuickCSS editor to enhance Stoat Chat's interface and styling.",
+  "description": "Adds custom font support and a QuickCSS editor to enhance Stoat Chat's interface and styling. And Favorite images/links for stoat",
   "icons": {
     "16": "avia_icon.png",
     "32": "avia_icon.png",
@@ -27,3 +27,4 @@
     }
   ]
 }
+
