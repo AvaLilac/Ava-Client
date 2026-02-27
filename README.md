@@ -7,6 +7,8 @@
 - **(Avia) Font Loader** – Load your own custom fonts on Stoat Chat.  
 - **(Avia) Remove Selected Font** – Restore Stoat Chat’s original fonts.  
 - Persistent font loading: your selected font stays applied even after reloads.
+- **(Avia) Quick CSS** - Modify the apps css
+- **(Avia) Plugins - Add your own plugins via javascript
 
 ### Installation
 1. Download or clone this repository.  
