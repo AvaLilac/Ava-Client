@@ -9,6 +9,7 @@
 - Persistent font loading: your selected font stays applied even after reloads.
 - **(Avia) Quick CSS** - Modify the apps css
 - **(Avia) Plugins - Add your own plugins via javascript
+- **(Avia) Themes - Same as QuickCSS. But dedicated for themes
 
 ### Installation
 1. Download or clone this repository.  
