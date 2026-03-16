@@ -30,7 +30,7 @@
    - Select the zipped file you just created.  
    - The extension will now stay installed permanently.
   
-   - **UserScript**
+### Userplugins
    - Install a userscript manager. and after that just click this link. i would choose Tampermonkey. but it works for Violentmonkey
    - https://github.com/AvaLilac/Ava-Client/raw/refs/heads/main/userscript/AviaClient.user.js
 
