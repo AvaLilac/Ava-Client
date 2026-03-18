@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        Avia Client
+// @name        AviaClient
 // @namespace   userscript.builder
 // @version     1.0
 // @description Combined userscript generated locally
