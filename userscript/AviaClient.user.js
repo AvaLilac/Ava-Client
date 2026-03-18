@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        AviaClient
+// @name        Avia Client
 // @namespace   userscript.builder
 // @version     1.0
 // @description Combined userscript generated locally
@@ -9,7 +9,7 @@
 // ==/UserScript==
 
 (function(){
-'@preserve - Built on 2026-03-16T16:38:58.052Z';
+'@preserve - Built on 2026-03-18T09:13:52.038Z';
 
 /* --- inject.js --- */
 if(window.__US_BUILDER_INJECT_JS__){return;}window.__US_BUILDER_INJECT_JS__=true;
@@ -40,19 +40,19 @@ if(window.__US_BUILDER_INJECT_JS__){return;}window.__US_BUILDER_INJECT_JS__=true
 
 
 
-/* --- aviafavsystem.js --- */
-if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSYSTEM_JS__=true;
-'use strict';
-
-(function(){if(window.__AVIA_FAVORITES_LOADED__)return;window.__AVIA_FAVORITES_LOADED__=!0;const x="avia_favorites",b=()=>JSON.parse(localStorage.getItem(x)||"[]"),v=t=>localStorage.setItem(x,JSON.stringify(t));function I(t){const a=/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([^&?/]+)/,s=t.match(a);return s?s[1]:null}function k(){let t=document.getElementById("avia-favorites-panel");if(t){t.style.display=t.style.display==="none"?"flex":"none";return}t=document.createElement("div"),t.id="avia-favorites-panel",Object.assign(t.style,{position:"fixed",bottom:"40px",right:"40px",width:"640px",height:"580px",background:"#1e1e1e",color:"#fff",borderRadius:"20px",boxShadow:"0 12px 35px rgba(0,0,0,0.45)",zIndex:999999,display:"flex",flexDirection:"column",overflow:"hidden",border:"1px solid rgba(255,255,255,0.08)"});const a=document.createElement("div");a.textContent="Favorites",Object.assign(a.style,{padding:"18px",fontWeight:"600",fontSize:"16px",background:"rgba(255,255,255,0.04)",borderBottom:"1px solid rgba(255,255,255,0.08)",cursor:"move",position:"relative",userSelect:"none"});const s=document.createElement("div");s.textContent="✕",Object.assign(s.style,{position:"absolute",right:"18px",top:"16px",cursor:"pointer"}),s.onclick=()=>t.style.display="none",a.appendChild(s);const l=document.createElement("div");Object.assign(l.style,{display:"flex",gap:"8px",padding:"14px 18px"});const c=document.createElement("input");c.placeholder="Paste link...",Object.assign(c.style,{flex:"2",padding:"10px",borderRadius:"10px",border:"none",outline:"none"});const p=document.createElement("input");p.placeholder="Optional title...",Object.assign(p.style,{flex:"1",padding:"10px",borderRadius:"10px",border:"none",outline:"none"});const u=document.createElement("button");u.textContent="Add",Object.assign(u.style,{padding:"10px 16px",borderRadius:"10px",border:"none",cursor:"pointer"}),l.appendChild(c),l.appendChild(p),l.appendChild(u);const g=document.createElement("div");Object.assign(g.style,{flex:"1",minHeight:"0",overflowY:"auto",padding:"18px",display:"grid",gridTemplateColumns:"repeat(auto-fill, 120px)",gap:"14px",alignContent:"start"}),t.appendChild(a),t.appendChild(l),t.appendChild(g),document.body.appendChild(t);let f=!1,y,C;a.addEventListener("mousedown",o=>{f=!0,y=o.clientX-t.offsetLeft,C=o.clientY-t.offsetTop}),document.addEventListener("mouseup",()=>f=!1),document.addEventListener("mousemove",o=>{f&&(t.style.left=o.clientX-y+"px",t.style.top=o.clientY-C+"px",t.style.right="auto",t.style.bottom="auto")});function A(o){const e=document.createElement("div");e.textContent="Copied to clipboard",Object.assign(e.style,{position:"absolute",bottom:"6px",left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.85)",padding:"6px 10px",borderRadius:"8px",fontSize:"11px",opacity:"0",transition:"opacity 0.2s",pointerEvents:"none"}),o.appendChild(e),requestAnimationFrame(()=>e.style.opacity="1"),setTimeout(()=>{e.style.opacity="0",setTimeout(()=>e.remove(),200)},2e3)}function w(o){const e=document.createElement("textarea");e.value=o,e.style.position="fixed",e.style.opacity="0",document.body.appendChild(e),e.focus(),e.select();try{document.execCommand("copy")}catch{}document.body.removeChild(e)}function m(){g.innerHTML="";const o=b();o.forEach(e=>{const i=document.createElement("div");Object.assign(i.style,{position:"relative",width:"120px",height:"120px",borderRadius:"14px",overflow:"hidden",background:"rgba(255,255,255,0.05)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"});const d=document.createElement("div");d.textContent="✕",Object.assign(d.style,{position:"absolute",top:"6px",right:"8px",fontSize:"12px",cursor:"pointer",background:"rgba(0,0,0,0.6)",padding:"2px 6px",borderRadius:"6px",zIndex:2}),d.onclick=n=>{n.stopPropagation(),v(o.filter(S=>S.url!==e.url)),m()},i.appendChild(d);let E=!1;const O=I(e.url);if(O){const n=new Image;n.src=`https://img.youtube.com/vi/${O}/hqdefault.jpg`,Object.assign(n.style,{width:"100%",height:"100%",objectFit:"cover"}),i.appendChild(n),E=!0}if(!E){const n=e.url.split(".").pop().split("?")[0].toLowerCase();if(["mp4","webm","mov","gifv"].includes(n)){const r=document.createElement("video");r.src=e.url.replace(".gifv",".mp4"),r.autoplay=!0,r.loop=!0,r.muted=!0,r.playsInline=!0,Object.assign(r.style,{width:"100%",height:"100%",objectFit:"cover"}),r.onerror=j,i.appendChild(r)}else{const r=new Image;r.src=e.url,Object.assign(r.style,{width:"100%",height:"100%",objectFit:"cover"}),r.onerror=j,i.appendChild(r)}}function j(){i.innerHTML="",i.appendChild(d);const n=document.createElement("div");n.textContent=e.title||e.url,Object.assign(n.style,{padding:"8px",fontSize:"11px",textAlign:"center",wordBreak:"break-word"}),i.appendChild(n)}if(e.title){const n=document.createElement("div");n.textContent=e.title,Object.assign(n.style,{position:"absolute",bottom:"0",width:"100%",background:"rgba(0,0,0,0.6)",fontSize:"11px",padding:"4px",textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}),i.appendChild(n)}i.onclick=()=>{const n=()=>A(i);navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(e.url).then(n).catch(()=>{w(e.url),n()}):(w(e.url),n())},g.appendChild(i)})}u.onclick=()=>{const o=c.value.trim(),e=p.value.trim();if(!o)return;const i=b();i.some(d=>d.url===o)||(i.push({url:o,title:e,addedAt:Date.now()}),v(i),c.value="",p.value="",m())},m()}function h(){if(document.getElementById("avia-favorites-btn"))return;const t=[...document.querySelectorAll("span.material-symbols-outlined")].find(l=>l.textContent.trim()==="gif");if(!t)return;const a=t.closest("div.flex-sh_0");if(!a)return;const s=a.cloneNode(!0);s.id="avia-favorites-btn",s.querySelector("span.material-symbols-outlined").textContent="star",s.querySelector("button").onclick=k,a.parentElement.insertBefore(s,a.nextSibling)}new MutationObserver(h).observe(document.body,{childList:!0,subtree:!0}),h()})();
-
-
-
 /* --- pluginsupport.js --- */
 if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
 'use strict';
 
 (function(){if(window.__AVIA_PLUGINS_LOADED__)return;window.__AVIA_PLUGINS_LOADED__=!0;const I="avia_plugins",u={},m={},b=[],g=()=>JSON.parse(localStorage.getItem(I)||"[]"),h=e=>localStorage.setItem(I,JSON.stringify(e));async function x(){if(!x.running){for(x.running=!0;b.length;){const{plugin:e,force:t}=b.shift();await S(e,t)}x.running=!1}}function E(e,t=!1){b.push({plugin:e,force:t}),x()}async function S(e,t=!1){if(!(u[e.url]&&!t)){t&&v(e);try{const l=await fetch(e.url);if(!l.ok)throw new Error("Fetch failed");const o=await l.text();delete m[e.url];const n=document.createElement("script");n.textContent=o,n.dataset.pluginUrl=e.url,document.body.appendChild(n),u[e.url]=n}catch{m[e.url]=!0}c()}}function v(e){const t=u[e.url];t&&(t.remove(),delete u[e.url],delete m[e.url],c())}function A(){let e=document.getElementById("avia-plugins-panel");if(e){e.style.display=e.style.display==="none"?"flex":"none";return}e=document.createElement("div"),e.id="avia-plugins-panel",e.style.position="fixed",e.style.bottom="24px",e.style.right="24px",e.style.width="520px",e.style.height="460px",e.style.background="var(--md-sys-color-surface, #1e1e1e)",e.style.color="var(--md-sys-color-on-surface, #fff)",e.style.borderRadius="16px",e.style.boxShadow="0 8px 28px rgba(0,0,0,0.35)",e.style.zIndex="999999",e.style.display="flex",e.style.flexDirection="column",e.style.overflow="hidden",e.style.border="1px solid rgba(255,255,255,0.08)",e.style.backdropFilter="blur(12px)";const t=document.createElement("div");t.textContent="Plugins",t.style.padding="14px 16px",t.style.fontWeight="600",t.style.fontSize="14px",t.style.background="var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",t.style.borderBottom="1px solid rgba(255,255,255,0.08)",t.style.cursor="move";const l=document.createElement("div");l.textContent="✕",l.style.position="absolute",l.style.top="12px",l.style.right="16px",l.style.cursor="pointer",l.style.opacity="0.7",l.onclick=()=>e.style.display="none";const o=document.createElement("div");o.style.padding="12px 16px",o.style.display="flex",o.style.gap="8px",o.style.alignItems="center",o.style.borderBottom="1px solid rgba(255,255,255,0.08)",o.style.flex="0 0 auto";const n=document.createElement("div");n.id="avia-plugins-content",n.style.flex="1",n.style.overflow="auto",n.style.padding="16px";const r=document.createElement("input");r.placeholder="Name",k(r),r.style.width="110px";const i=document.createElement("input");i.placeholder="Plugin URL",k(i),i.style.flex="1";const p=document.createElement("button");p.textContent="Add",p.onclick=()=>{const a=r.value.trim(),s=i.value.trim();if(!a||!s)return;const f=g();f.push({name:a,url:s,enabled:!1}),h(f),r.value="",i.value="",c()};const d=document.createElement("button");d.textContent="Refresh",d.onclick=()=>{g().forEach(s=>{s.enabled&&E(s,!0)})},o.appendChild(r),o.appendChild(i),o.appendChild(p),o.appendChild(d),e.appendChild(t),e.appendChild(l),e.appendChild(o),e.appendChild(n),document.body.appendChild(e),P(e,t),c()}function c(){const e=document.getElementById("avia-plugins-content");if(!e)return;e.innerHTML="";const t=g(),l={...u},o={...m};t.forEach((n,r)=>{const i=!!l[n.url],p=!!o[n.url],d=document.createElement("div");d.style.display="flex",d.style.justifyContent="space-between",d.style.alignItems="center",d.style.marginBottom="12px";const a=document.createElement("div");a.style.display="flex",a.style.alignItems="center",a.style.gap="10px";const s=document.createElement("div");s.style.width="10px",s.style.height="10px",s.style.borderRadius="50%",p?(s.style.background="#ff4d4d",s.style.boxShadow="0 0 6px #ff4d4d"):i?(s.style.background="#4dff88",s.style.boxShadow="0 0 6px #4dff88"):s.style.background="#777";const f=document.createElement("div");f.textContent=n.name,a.appendChild(s),a.appendChild(f);const y=document.createElement("div");y.style.display="flex",y.style.gap="6px";const C=document.createElement("button");C.textContent=n.enabled?"Disable":"Enable",C.onclick=()=>{n.enabled=!n.enabled,h(t),n.enabled?E(n):v(n),c()};const w=document.createElement("button");w.textContent="✕",w.onclick=()=>{v(n),t.splice(r,1),h(t),c()},y.appendChild(C),y.appendChild(w),d.appendChild(a),d.appendChild(y),e.appendChild(d)})}function k(e){e.style.padding="6px 8px",e.style.borderRadius="8px",e.style.border="1px solid rgba(255,255,255,0.1)",e.style.background="rgba(255,255,255,0.05)",e.style.color="#fff"}function P(e,t){let l=!1,o,n;t.addEventListener("mousedown",r=>{l=!0,o=r.clientX-e.offsetLeft,n=r.clientY-e.offsetTop}),document.addEventListener("mouseup",()=>l=!1),document.addEventListener("mousemove",r=>{l&&(e.style.left=r.clientX-o+"px",e.style.top=r.clientY-n+"px",e.style.right="auto",e.style.bottom="auto")})}function B(){const e=Array.from(document.querySelectorAll("a")).find(n=>n.textContent.trim()==="Appearance");if(!e||document.getElementById("stoat-fake-plugins"))return;const t=e.cloneNode(!0);t.id="stoat-fake-plugins";const l=Array.from(t.querySelectorAll("div")).find(n=>n.children.length===0&&n.textContent.trim()==="Appearance");l&&(l.textContent="(Avia) Plugins"),typeof setIcon=="function"&&setIcon(t,"extension"),t.addEventListener("click",A);const o=document.getElementById("stoat-fake-quickcss")||document.getElementById("stoat-fake-removefont")||document.getElementById("stoat-fake-loadfont")||document.getElementById("stoat-fake-stoatserver")||document.getElementById("stoat-fake-linktree");o?o.parentElement.insertBefore(t,o.nextSibling):e.parentElement.insertBefore(t,e.nextSibling)}function _(e){document.body?e():new MutationObserver(t=>{document.body&&(t.disconnect(),e())}).observe(document.documentElement,{childList:!0})}_(()=>{new MutationObserver(()=>B()).observe(document.body,{childList:!0,subtree:!0}),B()}),g().forEach(e=>{e.enabled&&E(e)})})();
+
+
+
+/* --- aviafavsystem.js --- */
+if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSYSTEM_JS__=true;
+'use strict';
+
+(function(){if(window.__AVIA_FAVORITES_LOADED__)return;window.__AVIA_FAVORITES_LOADED__=!0;const x="avia_favorites",b=()=>JSON.parse(localStorage.getItem(x)||"[]"),v=t=>localStorage.setItem(x,JSON.stringify(t));function I(t){const a=/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([^&?/]+)/,s=t.match(a);return s?s[1]:null}function k(){let t=document.getElementById("avia-favorites-panel");if(t){t.style.display=t.style.display==="none"?"flex":"none";return}t=document.createElement("div"),t.id="avia-favorites-panel",Object.assign(t.style,{position:"fixed",bottom:"40px",right:"40px",width:"640px",height:"580px",background:"#1e1e1e",color:"#fff",borderRadius:"20px",boxShadow:"0 12px 35px rgba(0,0,0,0.45)",zIndex:999999,display:"flex",flexDirection:"column",overflow:"hidden",border:"1px solid rgba(255,255,255,0.08)"});const a=document.createElement("div");a.textContent="Favorites",Object.assign(a.style,{padding:"18px",fontWeight:"600",fontSize:"16px",background:"rgba(255,255,255,0.04)",borderBottom:"1px solid rgba(255,255,255,0.08)",cursor:"move",position:"relative",userSelect:"none"});const s=document.createElement("div");s.textContent="✕",Object.assign(s.style,{position:"absolute",right:"18px",top:"16px",cursor:"pointer"}),s.onclick=()=>t.style.display="none",a.appendChild(s);const l=document.createElement("div");Object.assign(l.style,{display:"flex",gap:"8px",padding:"14px 18px"});const c=document.createElement("input");c.placeholder="Paste link...",Object.assign(c.style,{flex:"2",padding:"10px",borderRadius:"10px",border:"none",outline:"none"});const p=document.createElement("input");p.placeholder="Optional title...",Object.assign(p.style,{flex:"1",padding:"10px",borderRadius:"10px",border:"none",outline:"none"});const u=document.createElement("button");u.textContent="Add",Object.assign(u.style,{padding:"10px 16px",borderRadius:"10px",border:"none",cursor:"pointer"}),l.appendChild(c),l.appendChild(p),l.appendChild(u);const g=document.createElement("div");Object.assign(g.style,{flex:"1",minHeight:"0",overflowY:"auto",padding:"18px",display:"grid",gridTemplateColumns:"repeat(auto-fill, 120px)",gap:"14px",alignContent:"start"}),t.appendChild(a),t.appendChild(l),t.appendChild(g),document.body.appendChild(t);let f=!1,y,C;a.addEventListener("mousedown",o=>{f=!0,y=o.clientX-t.offsetLeft,C=o.clientY-t.offsetTop}),document.addEventListener("mouseup",()=>f=!1),document.addEventListener("mousemove",o=>{f&&(t.style.left=o.clientX-y+"px",t.style.top=o.clientY-C+"px",t.style.right="auto",t.style.bottom="auto")});function A(o){const e=document.createElement("div");e.textContent="Copied to clipboard",Object.assign(e.style,{position:"absolute",bottom:"6px",left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.85)",padding:"6px 10px",borderRadius:"8px",fontSize:"11px",opacity:"0",transition:"opacity 0.2s",pointerEvents:"none"}),o.appendChild(e),requestAnimationFrame(()=>e.style.opacity="1"),setTimeout(()=>{e.style.opacity="0",setTimeout(()=>e.remove(),200)},2e3)}function w(o){const e=document.createElement("textarea");e.value=o,e.style.position="fixed",e.style.opacity="0",document.body.appendChild(e),e.focus(),e.select();try{document.execCommand("copy")}catch{}document.body.removeChild(e)}function m(){g.innerHTML="";const o=b();o.forEach(e=>{const i=document.createElement("div");Object.assign(i.style,{position:"relative",width:"120px",height:"120px",borderRadius:"14px",overflow:"hidden",background:"rgba(255,255,255,0.05)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"});const d=document.createElement("div");d.textContent="✕",Object.assign(d.style,{position:"absolute",top:"6px",right:"8px",fontSize:"12px",cursor:"pointer",background:"rgba(0,0,0,0.6)",padding:"2px 6px",borderRadius:"6px",zIndex:2}),d.onclick=n=>{n.stopPropagation(),v(o.filter(S=>S.url!==e.url)),m()},i.appendChild(d);let E=!1;const O=I(e.url);if(O){const n=new Image;n.src=`https://img.youtube.com/vi/${O}/hqdefault.jpg`,Object.assign(n.style,{width:"100%",height:"100%",objectFit:"cover"}),i.appendChild(n),E=!0}if(!E){const n=e.url.split(".").pop().split("?")[0].toLowerCase();if(["mp4","webm","mov","gifv"].includes(n)){const r=document.createElement("video");r.src=e.url.replace(".gifv",".mp4"),r.autoplay=!0,r.loop=!0,r.muted=!0,r.playsInline=!0,Object.assign(r.style,{width:"100%",height:"100%",objectFit:"cover"}),r.onerror=j,i.appendChild(r)}else{const r=new Image;r.src=e.url,Object.assign(r.style,{width:"100%",height:"100%",objectFit:"cover"}),r.onerror=j,i.appendChild(r)}}function j(){i.innerHTML="",i.appendChild(d);const n=document.createElement("div");n.textContent=e.title||e.url,Object.assign(n.style,{padding:"8px",fontSize:"11px",textAlign:"center",wordBreak:"break-word"}),i.appendChild(n)}if(e.title){const n=document.createElement("div");n.textContent=e.title,Object.assign(n.style,{position:"absolute",bottom:"0",width:"100%",background:"rgba(0,0,0,0.6)",fontSize:"11px",padding:"4px",textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}),i.appendChild(n)}i.onclick=()=>{const n=()=>A(i);navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(e.url).then(n).catch(()=>{w(e.url),n()}):(w(e.url),n())},g.appendChild(i)})}u.onclick=()=>{const o=c.value.trim(),e=p.value.trim();if(!o)return;const i=b();i.some(d=>d.url===o)||(i.push({url:o,title:e,addedAt:Date.now()}),v(i),c.value="",p.value="",m())},m()}function h(){if(document.getElementById("avia-favorites-btn"))return;const t=[...document.querySelectorAll("span.material-symbols-outlined")].find(l=>l.textContent.trim()==="gif");if(!t)return;const a=t.closest("div.flex-sh_0");if(!a)return;const s=a.cloneNode(!0);s.id="avia-favorites-btn",s.querySelector("span.material-symbols-outlined").textContent="star",s.querySelector("button").onclick=k,a.parentElement.insertBefore(s,a.nextSibling)}new MutationObserver(h).observe(document.body,{childList:!0,subtree:!0}),h()})();
 
 
 
@@ -66,6 +66,335 @@ if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true
             <div style="font-size:11px;opacity:.6">${d.description}</div>
             `;const _=document.createElement("div"),f=document.createElement("button");f.textContent=r.enabled?"Disable":"Enable",f.onclick=()=>{r.enabled=!r.enabled,u(a),l(),s()};const x=document.createElement("button");x.textContent="Edit",x.onclick=()=>w(r);const g=document.createElement("button");g.textContent="Delete",g.onclick=()=>{const m=a.filter(S=>S.id!==r.id);u(m),l(),s()},[f,x,g].forEach(m=>{Object.assign(m.style,{marginLeft:"6px",padding:"4px 8px",borderRadius:"6px",border:"none",cursor:"pointer"}),_.appendChild(m)}),c.appendChild(E),c.appendChild(_),i.appendChild(c)})}window.__avia_refresh_themes_panel=s,o.onclick=()=>{const a=document.createElement("input");a.type="file",a.accept=".css,.txt",a.onchange=async()=>{const r=a.files[0];if(!r)return;const d=await r.text(),c=p();c.push({id:crypto.randomUUID(),css:d,enabled:!0}),u(c),l(),s()},a.click()},s()}function v(){if(document.getElementById("avia-themes-btn"))return;const e=[...document.querySelectorAll("a")].find(i=>i.textContent.trim()==="Appearance"),t=document.getElementById("stoat-fake-quickcss");if(!e||!t)return;const n=e.cloneNode(!0);n.id="avia-themes-btn";const o=[...n.querySelectorAll("div")].find(i=>i.children.length===0);o&&(o.textContent="(Avia) Themes"),n.onclick=k,t.parentElement.insertBefore(n,t.nextSibling)}new MutationObserver(v).observe(document.body,{childList:!0,subtree:!0}),v(),l()})();
 
+
+
+/* --- Official Plugin Repo.js --- */
+if(window.__US_BUILDER_OFFICIAL_PLUGIN_REPO_JS__){return;}window.__US_BUILDER_OFFICIAL_PLUGIN_REPO_JS__=true;
+
+(function () {
+
+if (window.__AVIA_OFFICIAL_REPO_LOADED__) return;
+window.__AVIA_OFFICIAL_REPO_LOADED__ = true;
+
+const STORAGE_KEY = "avia_plugins";
+const OFFICIAL_REPO_URL = "https://avalilac.github.io/PluginRepo/pluginrepobackend.js";
+
+const getPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+const setPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+let repoContent;
+let currentRepoData = [];
+let searchInput;
+
+document.getElementById("avia-official-repo-btn")?.remove();
+
+function triggerManagerRefresh() {
+    const panel = document.getElementById("avia-plugins-panel");
+    if (!panel) return;
+    const refreshBtn = Array.from(panel.querySelectorAll("button"))
+        .find(b => b.textContent.trim() === "Refresh");
+    if (refreshBtn) refreshBtn.click();
+}
+
+function updateInstallStates() {
+    if (!repoContent) return;
+    const installed = getPlugins().map(p => p.url);
+    repoContent.querySelectorAll("[data-link]").forEach(row => {
+        const link = row.getAttribute("data-link");
+        const btn = row.querySelector("button.install-btn");
+        if (!btn) return;
+        if (installed.includes(link)) {
+            btn.textContent = "Installed";
+            btn.disabled = true;
+        } else {
+            btn.textContent = "Install";
+            btn.disabled = false;
+        }
+    });
+}
+
+function renderRepo(data, filter = "") {
+    if (!repoContent) return;
+
+    currentRepoData = data.plugins;
+    repoContent.innerHTML = "";
+
+    const filtered = currentRepoData.filter(p =>
+        (p.name + " " + (p.author || "") + " " + (p.description || ""))
+            .toLowerCase()
+            .includes(filter.toLowerCase())
+    );
+
+    filtered.forEach(repoPlugin => {
+
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "center";
+        row.style.marginBottom = "10px";
+        row.style.width = "100%";
+        row.style.minWidth = "0";
+        row.setAttribute("data-link", repoPlugin.link);
+
+        const left = document.createElement("div");
+        left.style.display = "flex";
+        left.style.flexDirection = "column";
+        left.style.flex = "1";
+        left.style.minWidth = "0";
+
+        const title = document.createElement("div");
+        title.textContent = `${repoPlugin.name} — ${repoPlugin.author || "Unknown"}`;
+        title.style.fontWeight = "500";
+        title.style.wordBreak = "break-word";
+
+        const desc = document.createElement("div");
+        desc.textContent = repoPlugin.description;
+        desc.style.fontSize = "12px";
+        desc.style.opacity = "0.7";
+        desc.style.wordBreak = "break-word";
+
+        left.appendChild(title);
+        left.appendChild(desc);
+
+        const installBtn = document.createElement("button");
+        installBtn.className = "install-btn";
+
+        Object.assign(installBtn.style, {
+            padding: "6px 10px",
+            borderRadius: "8px",
+            border: "none",
+            cursor: "pointer",
+            background: "rgba(255,255,255,0.08)",
+            color: "#fff",
+            flexShrink: "0"
+        });
+
+        installBtn.onclick = () => {
+            const plugins = getPlugins();
+            if (!plugins.some(p => p.url === repoPlugin.link)) {
+                plugins.push({
+                    name: repoPlugin.name,
+                    url: repoPlugin.link,
+                    enabled: false
+                });
+                setPlugins(plugins);
+                window.dispatchEvent(new Event("avia-plugin-list-changed"));
+                triggerManagerRefresh();
+                renderRepo({ plugins: currentRepoData }, searchInput.value);
+            }
+        };
+
+        row.appendChild(left);
+        row.appendChild(installBtn);
+        repoContent.appendChild(row);
+    });
+
+    updateInstallStates();
+}
+
+function refetchRepo() {
+    if (!repoContent) return;
+    repoContent.innerHTML = "Loading...";
+
+    function electronFetch() {
+        try {
+            const https = require("https");
+            https.get(OFFICIAL_REPO_URL, res => {
+                let data = "";
+                res.on("data", chunk => data += chunk);
+                res.on("end", () => {
+                    renderRepo(JSON.parse(data));
+                });
+            }).on("error", () => {
+                repoContent.innerHTML = "Failed to fetch repo.";
+            });
+        } catch {
+            repoContent.innerHTML = "Failed to fetch repo.";
+        }
+    }
+
+    try {
+        fetch(OFFICIAL_REPO_URL)
+            .then(res => res.json())
+            .then(data => renderRepo(data))
+            .catch(() => electronFetch());
+    } catch {
+        electronFetch();
+    }
+}
+
+function openWindow() {
+
+    let panel = document.getElementById("avia-official-repo-window");
+
+    if (panel) {
+        panel.style.display = panel.style.display === "none" ? "flex" : "none";
+        return;
+    }
+
+    panel = document.createElement("div");
+    panel.id = "avia-official-repo-window";
+
+    Object.assign(panel.style, {
+        position: "fixed",
+        bottom: "40px",
+        right: "40px",
+        width: "420px",
+        height: "500px",
+        background: "#1e1e1e",
+        color: "#fff",
+        borderRadius: "20px",
+        boxShadow: "0 12px 35px rgba(0,0,0,0.45)",
+        zIndex: 999999,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        border: "1px solid rgba(255,255,255,0.08)"
+    });
+
+    const header = document.createElement("div");
+    header.textContent = "Trusted Plugins Repo";
+
+    Object.assign(header.style, {
+        padding: "18px",
+        fontWeight: "600",
+        fontSize: "16px",
+        background: "rgba(255,255,255,0.04)",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        cursor: "move",
+        position: "relative",
+        textAlign: "center",
+        userSelect: "none"
+    });
+
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    header.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        const rect = panel.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        panel.style.bottom = "auto";
+        panel.style.right = "auto";
+        panel.style.left = rect.left + "px";
+        panel.style.top = rect.top + "px";
+        document.body.style.userSelect = "none";
+    });
+
+    document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        panel.style.left = e.clientX - offsetX + "px";
+        panel.style.top = e.clientY - offsetY + "px";
+    });
+
+    document.addEventListener("mouseup", () => {
+        isDragging = false;
+        document.body.style.userSelect = "";
+    });
+
+    const close = document.createElement("div");
+    close.textContent = "✕";
+
+    Object.assign(close.style, {
+        position: "absolute",
+        right: "18px",
+        top: "16px",
+        cursor: "pointer"
+    });
+
+    close.onclick = () => panel.style.display = "none";
+    header.appendChild(close);
+
+    const container = document.createElement("div");
+
+    Object.assign(container.style, {
+        flex: "1",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden"
+    });
+
+    searchInput = document.createElement("input");
+    searchInput.placeholder = "Search plugins...";
+
+    Object.assign(searchInput.style, {
+        margin: "12px",
+        padding: "8px",
+        borderRadius: "8px",
+        border: "none",
+        outline: "none",
+        background: "rgba(255,255,255,0.06)",
+        color: "#fff"
+    });
+
+    repoContent = document.createElement("div");
+
+    Object.assign(repoContent.style, {
+        flex: "1",
+        overflowY: "auto",
+        overflowX: "hidden",
+        padding: "12px"
+    });
+
+    searchInput.addEventListener("input", () => {
+        renderRepo({ plugins: currentRepoData }, searchInput.value);
+    });
+
+    container.appendChild(searchInput);
+    container.appendChild(repoContent);
+
+    panel.appendChild(header);
+    panel.appendChild(container);
+    document.body.appendChild(panel);
+
+    refetchRepo();
+}
+
+function injectSettingsButton() {
+
+    if (document.getElementById("avia-official-repo-btn-settings")) return;
+
+    const appearanceBtn = [...document.querySelectorAll("a")]
+        .find(a => a.textContent.trim() === "Appearance");
+
+    const referenceNode = document.getElementById("stoat-fake-quickcss");
+
+    if (!appearanceBtn || !referenceNode) return;
+
+    const clone = appearanceBtn.cloneNode(true);
+    clone.id = "avia-official-repo-btn-settings";
+
+    const label = [...clone.querySelectorAll("div")]
+        .find(d => d.children.length === 0);
+
+    if (label) label.textContent = "(Avia) Trusted Plugins Repo";
+
+    const iconSpan = clone.querySelector("span.material-symbols-outlined");
+    if (iconSpan) {
+        iconSpan.textContent = "extension";
+        iconSpan.style.fontVariationSettings = "'FILL' 0,'wght' 400,'GRAD' 0";
+    }
+
+    clone.onclick = openWindow;
+
+    referenceNode.parentElement.insertBefore(clone, referenceNode.nextSibling);
+}
+
+window.addEventListener("avia-plugin-list-changed", () => {
+    if (document.getElementById("avia-official-repo-window")) {
+        updateInstallStates();
+    }
+});
+
+new MutationObserver(() => {
+    injectSettingsButton();
+}).observe(document.body, { childList: true, subtree: true });
+
+injectSettingsButton();
+
+})();
 
 
 })();
