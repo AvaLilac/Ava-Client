@@ -24,7 +24,8 @@
         "inject.js",
         "aviafavsystem.js",
         "userbadges.js",
-        "themes.js"
+        "themes.js",
+        "aviaclientcategory.js"
       ]
     }
   ]
