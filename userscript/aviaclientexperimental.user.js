@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AviaClient Experimental
 // @namespace   userscript.builder
-// @version     1.0
+// @version     1.1
 // @description Combined userscript generated locally
 // @match       https://stoat.chat/*
 // @grant       none
@@ -9,9 +9,9 @@
 // ==/UserScript==
 
 (function(){
-'@preserve - Built on 2026-03-18T12:14:35.724Z';
+'@preserve - Built on 2026-03-18T15:16:04.451Z';
 
-/* --- AviaClientCategory.js --- */
+/* --- aviaclientcategory.js --- */
 if(window.__US_BUILDER_AVIACLIENTCATEGORY_JS__){return;}window.__US_BUILDER_AVIACLIENTCATEGORY_JS__=true;
 
 (function(){
@@ -397,6 +397,14 @@ targetParent.appendChild(quickCssBtn);        }
 })();
 
 
+/* --- aviafavsystem.js --- */
+if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSYSTEM_JS__=true;
+'use strict';
+
+(function(){if(window.__AVIA_FAVORITES_LOADED__)return;window.__AVIA_FAVORITES_LOADED__=!0;const x="avia_favorites",b=()=>JSON.parse(localStorage.getItem(x)||"[]"),v=t=>localStorage.setItem(x,JSON.stringify(t));function I(t){const a=/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([^&?/]+)/,s=t.match(a);return s?s[1]:null}function k(){let t=document.getElementById("avia-favorites-panel");if(t){t.style.display=t.style.display==="none"?"flex":"none";return}t=document.createElement("div"),t.id="avia-favorites-panel",Object.assign(t.style,{position:"fixed",bottom:"40px",right:"40px",width:"640px",height:"580px",background:"#1e1e1e",color:"#fff",borderRadius:"20px",boxShadow:"0 12px 35px rgba(0,0,0,0.45)",zIndex:999999,display:"flex",flexDirection:"column",overflow:"hidden",border:"1px solid rgba(255,255,255,0.08)"});const a=document.createElement("div");a.textContent="Favorites",Object.assign(a.style,{padding:"18px",fontWeight:"600",fontSize:"16px",background:"rgba(255,255,255,0.04)",borderBottom:"1px solid rgba(255,255,255,0.08)",cursor:"move",position:"relative",userSelect:"none"});const s=document.createElement("div");s.textContent="✕",Object.assign(s.style,{position:"absolute",right:"18px",top:"16px",cursor:"pointer"}),s.onclick=()=>t.style.display="none",a.appendChild(s);const l=document.createElement("div");Object.assign(l.style,{display:"flex",gap:"8px",padding:"14px 18px"});const c=document.createElement("input");c.placeholder="Paste link...",Object.assign(c.style,{flex:"2",padding:"10px",borderRadius:"10px",border:"none",outline:"none"});const p=document.createElement("input");p.placeholder="Optional title...",Object.assign(p.style,{flex:"1",padding:"10px",borderRadius:"10px",border:"none",outline:"none"});const u=document.createElement("button");u.textContent="Add",Object.assign(u.style,{padding:"10px 16px",borderRadius:"10px",border:"none",cursor:"pointer"}),l.appendChild(c),l.appendChild(p),l.appendChild(u);const g=document.createElement("div");Object.assign(g.style,{flex:"1",minHeight:"0",overflowY:"auto",padding:"18px",display:"grid",gridTemplateColumns:"repeat(auto-fill, 120px)",gap:"14px",alignContent:"start"}),t.appendChild(a),t.appendChild(l),t.appendChild(g),document.body.appendChild(t);let f=!1,y,C;a.addEventListener("mousedown",o=>{f=!0,y=o.clientX-t.offsetLeft,C=o.clientY-t.offsetTop}),document.addEventListener("mouseup",()=>f=!1),document.addEventListener("mousemove",o=>{f&&(t.style.left=o.clientX-y+"px",t.style.top=o.clientY-C+"px",t.style.right="auto",t.style.bottom="auto")});function A(o){const e=document.createElement("div");e.textContent="Copied to clipboard",Object.assign(e.style,{position:"absolute",bottom:"6px",left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.85)",padding:"6px 10px",borderRadius:"8px",fontSize:"11px",opacity:"0",transition:"opacity 0.2s",pointerEvents:"none"}),o.appendChild(e),requestAnimationFrame(()=>e.style.opacity="1"),setTimeout(()=>{e.style.opacity="0",setTimeout(()=>e.remove(),200)},2e3)}function w(o){const e=document.createElement("textarea");e.value=o,e.style.position="fixed",e.style.opacity="0",document.body.appendChild(e),e.focus(),e.select();try{document.execCommand("copy")}catch{}document.body.removeChild(e)}function m(){g.innerHTML="";const o=b();o.forEach(e=>{const i=document.createElement("div");Object.assign(i.style,{position:"relative",width:"120px",height:"120px",borderRadius:"14px",overflow:"hidden",background:"rgba(255,255,255,0.05)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"});const d=document.createElement("div");d.textContent="✕",Object.assign(d.style,{position:"absolute",top:"6px",right:"8px",fontSize:"12px",cursor:"pointer",background:"rgba(0,0,0,0.6)",padding:"2px 6px",borderRadius:"6px",zIndex:2}),d.onclick=n=>{n.stopPropagation(),v(o.filter(S=>S.url!==e.url)),m()},i.appendChild(d);let E=!1;const O=I(e.url);if(O){const n=new Image;n.src=`https://img.youtube.com/vi/${O}/hqdefault.jpg`,Object.assign(n.style,{width:"100%",height:"100%",objectFit:"cover"}),i.appendChild(n),E=!0}if(!E){const n=e.url.split(".").pop().split("?")[0].toLowerCase();if(["mp4","webm","mov","gifv"].includes(n)){const r=document.createElement("video");r.src=e.url.replace(".gifv",".mp4"),r.autoplay=!0,r.loop=!0,r.muted=!0,r.playsInline=!0,Object.assign(r.style,{width:"100%",height:"100%",objectFit:"cover"}),r.onerror=j,i.appendChild(r)}else{const r=new Image;r.src=e.url,Object.assign(r.style,{width:"100%",height:"100%",objectFit:"cover"}),r.onerror=j,i.appendChild(r)}}function j(){i.innerHTML="",i.appendChild(d);const n=document.createElement("div");n.textContent=e.title||e.url,Object.assign(n.style,{padding:"8px",fontSize:"11px",textAlign:"center",wordBreak:"break-word"}),i.appendChild(n)}if(e.title){const n=document.createElement("div");n.textContent=e.title,Object.assign(n.style,{position:"absolute",bottom:"0",width:"100%",background:"rgba(0,0,0,0.6)",fontSize:"11px",padding:"4px",textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}),i.appendChild(n)}i.onclick=()=>{const n=()=>A(i);navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(e.url).then(n).catch(()=>{w(e.url),n()}):(w(e.url),n())},g.appendChild(i)})}u.onclick=()=>{const o=c.value.trim(),e=p.value.trim();if(!o)return;const i=b();i.some(d=>d.url===o)||(i.push({url:o,title:e,addedAt:Date.now()}),v(i),c.value="",p.value="",m())},m()}function h(){if(document.getElementById("avia-favorites-btn"))return;const t=[...document.querySelectorAll("span.material-symbols-outlined")].find(l=>l.textContent.trim()==="gif");if(!t)return;const a=t.closest("div.flex-sh_0");if(!a)return;const s=a.cloneNode(!0);s.id="avia-favorites-btn",s.querySelector("span.material-symbols-outlined").textContent="star",s.querySelector("button").onclick=k,a.parentElement.insertBefore(s,a.nextSibling)}new MutationObserver(h).observe(document.body,{childList:!0,subtree:!0}),h()})();
+
+
+
 /* --- pluginsupport.js --- */
 if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
 
@@ -417,12 +425,10 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
     async function processQueue() {
         if (processQueue.running) return;
         processQueue.running = true;
-
         while (injectionQueue.length) {
             const { plugin, force } = injectionQueue.shift();
             await loadPluginInternal(plugin, force);
         }
-
         processQueue.running = false;
     }
 
@@ -434,25 +440,19 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
     async function loadPluginInternal(plugin, force = false) {
         if (runningPlugins[plugin.url] && !force) return;
         if (force) stopPlugin(plugin);
-
         try {
             const res = await fetch(plugin.url);
             if (!res.ok) throw new Error("Fetch failed");
             const code = await res.text();
-
             delete pluginErrors[plugin.url];
-
             const script = document.createElement("script");
             script.textContent = code;
             script.dataset.pluginUrl = plugin.url;
             document.body.appendChild(script);
-
             runningPlugins[plugin.url] = script;
-
         } catch {
             pluginErrors[plugin.url] = true;
         }
-
         renderPanel();
     }
 
@@ -471,7 +471,6 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
             panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
             return;
         }
-
         panel = document.createElement('div');
         panel.id = 'avia-plugins-panel';
         panel.style.position = 'fixed';
@@ -489,7 +488,6 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
         panel.style.overflow = 'hidden';
         panel.style.border = '1px solid rgba(255,255,255,0.08)';
         panel.style.backdropFilter = 'blur(12px)';
-
         const header = document.createElement('div');
         header.textContent = 'Plugins';
         header.style.padding = '14px 16px';
@@ -498,7 +496,6 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
         header.style.background = 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))';
         header.style.borderBottom = '1px solid rgba(255,255,255,0.08)';
         header.style.cursor = 'move';
-
         const closeBtn = document.createElement('div');
         closeBtn.textContent = '✕';
         closeBtn.style.position = 'absolute';
@@ -507,7 +504,6 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
         closeBtn.style.cursor = 'pointer';
         closeBtn.style.opacity = '0.7';
         closeBtn.onclick = () => panel.style.display = 'none';
-
         const controlsBar = document.createElement('div');
         controlsBar.style.padding = '12px 16px';
         controlsBar.style.display = 'flex';
@@ -515,23 +511,19 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
         controlsBar.style.alignItems = 'center';
         controlsBar.style.borderBottom = '1px solid rgba(255,255,255,0.08)';
         controlsBar.style.flex = '0 0 auto';
-
         const content = document.createElement('div');
         content.id = 'avia-plugins-content';
         content.style.flex = '1';
         content.style.overflow = 'auto';
         content.style.padding = '16px';
-
         const nameInput = document.createElement('input');
         nameInput.placeholder = 'Name';
         styleInput(nameInput);
         nameInput.style.width = '110px';
-
         const urlInput = document.createElement('input');
         urlInput.placeholder = 'Plugin URL';
         styleInput(urlInput);
         urlInput.style.flex = '1';
-
         const addBtn = document.createElement('button');
         addBtn.textContent = 'Add';
         addBtn.onclick = () => {
@@ -545,7 +537,6 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
             urlInput.value = '';
             renderPanel();
         };
-
         const refreshAll = document.createElement('button');
         refreshAll.textContent = 'Refresh';
         refreshAll.onclick = () => {
@@ -554,18 +545,15 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
                 if (p.enabled) queuePlugin(p, true);
             });
         };
-
         controlsBar.appendChild(nameInput);
         controlsBar.appendChild(urlInput);
         controlsBar.appendChild(addBtn);
         controlsBar.appendChild(refreshAll);
-
         panel.appendChild(header);
         panel.appendChild(closeBtn);
         panel.appendChild(controlsBar);
         panel.appendChild(content);
         document.body.appendChild(panel);
-
         enableDrag(panel, header);
         renderPanel();
     }
@@ -573,34 +561,26 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
     function renderPanel() {
         const content = document.getElementById('avia-plugins-content');
         if (!content) return;
-
         content.innerHTML = '';
-
         const plugins = getPlugins();
         const runningSnapshot = { ...runningPlugins };
         const errorSnapshot = { ...pluginErrors };
-
         plugins.forEach((plugin, index) => {
-
             const isRunning = !!runningSnapshot[plugin.url];
             const hasError = !!errorSnapshot[plugin.url];
-
             const row = document.createElement('div');
             row.style.display = 'flex';
             row.style.justifyContent = 'space-between';
             row.style.alignItems = 'center';
             row.style.marginBottom = '12px';
-
             const left = document.createElement('div');
             left.style.display = 'flex';
             left.style.alignItems = 'center';
             left.style.gap = '10px';
-
             const statusDot = document.createElement('div');
             statusDot.style.width = '10px';
             statusDot.style.height = '10px';
             statusDot.style.borderRadius = '50%';
-
             if (hasError) {
                 statusDot.style.background = '#ff4d4d';
                 statusDot.style.boxShadow = '0 0 6px #ff4d4d';
@@ -610,17 +590,13 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
             } else {
                 statusDot.style.background = '#777';
             }
-
             const name = document.createElement('div');
             name.textContent = plugin.name;
-
             left.appendChild(statusDot);
             left.appendChild(name);
-
             const controls = document.createElement('div');
             controls.style.display = 'flex';
             controls.style.gap = '6px';
-
             const toggle = document.createElement('button');
             toggle.textContent = plugin.enabled ? 'Disable' : 'Enable';
             toggle.onclick = () => {
@@ -630,7 +606,6 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
                 else stopPlugin(plugin);
                 renderPanel();
             };
-
             const remove = document.createElement('button');
             remove.textContent = '✕';
             remove.onclick = () => {
@@ -639,10 +614,8 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
                 setPlugins(plugins);
                 renderPanel();
             };
-
             controls.appendChild(toggle);
             controls.appendChild(remove);
-
             row.appendChild(left);
             row.appendChild(controls);
             content.appendChild(row);
@@ -675,34 +648,20 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
     }
 
     function injectButtons() {
-        const appearanceBtn = Array.from(document.querySelectorAll('a'))
+        if (document.getElementById('stoat-fake-plugins')) return;
+        const appearanceBtn = [...document.querySelectorAll('a')]
             .find(a => a.textContent.trim() === 'Appearance');
         if (!appearanceBtn) return;
-        if (document.getElementById('stoat-fake-plugins')) return;
-
+        const referenceNode = document.getElementById('stoat-fake-quickcss');
+        if (!referenceNode) return;
         const pluginsBtn = appearanceBtn.cloneNode(true);
         pluginsBtn.id = 'stoat-fake-plugins';
-
-        const textNode = Array.from(pluginsBtn.querySelectorAll('div'))
+        const textNode = [...pluginsBtn.querySelectorAll('div')]
             .find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
         if (textNode) textNode.textContent = "(Avia) Plugins";
-
         if (typeof setIcon === "function") setIcon(pluginsBtn, "extension");
-
         pluginsBtn.addEventListener('click', togglePluginsPanel);
-
-        const lastBtn =
-            document.getElementById('stoat-fake-quickcss') ||
-            document.getElementById('stoat-fake-removefont') ||
-            document.getElementById('stoat-fake-loadfont') ||
-            document.getElementById('stoat-fake-stoatserver') ||
-            document.getElementById('stoat-fake-linktree');
-
-        if (lastBtn) {
-            lastBtn.parentElement.insertBefore(pluginsBtn, lastBtn.nextSibling);
-        } else {
-            appearanceBtn.parentElement.insertBefore(pluginsBtn, appearanceBtn.nextSibling);
-        }
+        referenceNode.parentElement.insertBefore(pluginsBtn, referenceNode.nextSibling);
     }
 
     function waitForBody(callback) {
@@ -728,14 +687,6 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
 })();
 
 
-/* --- aviafavsystem.js --- */
-if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSYSTEM_JS__=true;
-'use strict';
-
-(function(){if(window.__AVIA_FAVORITES_LOADED__)return;window.__AVIA_FAVORITES_LOADED__=!0;const x="avia_favorites",b=()=>JSON.parse(localStorage.getItem(x)||"[]"),v=t=>localStorage.setItem(x,JSON.stringify(t));function I(t){const a=/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([^&?/]+)/,s=t.match(a);return s?s[1]:null}function k(){let t=document.getElementById("avia-favorites-panel");if(t){t.style.display=t.style.display==="none"?"flex":"none";return}t=document.createElement("div"),t.id="avia-favorites-panel",Object.assign(t.style,{position:"fixed",bottom:"40px",right:"40px",width:"640px",height:"580px",background:"#1e1e1e",color:"#fff",borderRadius:"20px",boxShadow:"0 12px 35px rgba(0,0,0,0.45)",zIndex:999999,display:"flex",flexDirection:"column",overflow:"hidden",border:"1px solid rgba(255,255,255,0.08)"});const a=document.createElement("div");a.textContent="Favorites",Object.assign(a.style,{padding:"18px",fontWeight:"600",fontSize:"16px",background:"rgba(255,255,255,0.04)",borderBottom:"1px solid rgba(255,255,255,0.08)",cursor:"move",position:"relative",userSelect:"none"});const s=document.createElement("div");s.textContent="✕",Object.assign(s.style,{position:"absolute",right:"18px",top:"16px",cursor:"pointer"}),s.onclick=()=>t.style.display="none",a.appendChild(s);const l=document.createElement("div");Object.assign(l.style,{display:"flex",gap:"8px",padding:"14px 18px"});const c=document.createElement("input");c.placeholder="Paste link...",Object.assign(c.style,{flex:"2",padding:"10px",borderRadius:"10px",border:"none",outline:"none"});const p=document.createElement("input");p.placeholder="Optional title...",Object.assign(p.style,{flex:"1",padding:"10px",borderRadius:"10px",border:"none",outline:"none"});const u=document.createElement("button");u.textContent="Add",Object.assign(u.style,{padding:"10px 16px",borderRadius:"10px",border:"none",cursor:"pointer"}),l.appendChild(c),l.appendChild(p),l.appendChild(u);const g=document.createElement("div");Object.assign(g.style,{flex:"1",minHeight:"0",overflowY:"auto",padding:"18px",display:"grid",gridTemplateColumns:"repeat(auto-fill, 120px)",gap:"14px",alignContent:"start"}),t.appendChild(a),t.appendChild(l),t.appendChild(g),document.body.appendChild(t);let f=!1,y,C;a.addEventListener("mousedown",o=>{f=!0,y=o.clientX-t.offsetLeft,C=o.clientY-t.offsetTop}),document.addEventListener("mouseup",()=>f=!1),document.addEventListener("mousemove",o=>{f&&(t.style.left=o.clientX-y+"px",t.style.top=o.clientY-C+"px",t.style.right="auto",t.style.bottom="auto")});function A(o){const e=document.createElement("div");e.textContent="Copied to clipboard",Object.assign(e.style,{position:"absolute",bottom:"6px",left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.85)",padding:"6px 10px",borderRadius:"8px",fontSize:"11px",opacity:"0",transition:"opacity 0.2s",pointerEvents:"none"}),o.appendChild(e),requestAnimationFrame(()=>e.style.opacity="1"),setTimeout(()=>{e.style.opacity="0",setTimeout(()=>e.remove(),200)},2e3)}function w(o){const e=document.createElement("textarea");e.value=o,e.style.position="fixed",e.style.opacity="0",document.body.appendChild(e),e.focus(),e.select();try{document.execCommand("copy")}catch{}document.body.removeChild(e)}function m(){g.innerHTML="";const o=b();o.forEach(e=>{const i=document.createElement("div");Object.assign(i.style,{position:"relative",width:"120px",height:"120px",borderRadius:"14px",overflow:"hidden",background:"rgba(255,255,255,0.05)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"});const d=document.createElement("div");d.textContent="✕",Object.assign(d.style,{position:"absolute",top:"6px",right:"8px",fontSize:"12px",cursor:"pointer",background:"rgba(0,0,0,0.6)",padding:"2px 6px",borderRadius:"6px",zIndex:2}),d.onclick=n=>{n.stopPropagation(),v(o.filter(S=>S.url!==e.url)),m()},i.appendChild(d);let E=!1;const O=I(e.url);if(O){const n=new Image;n.src=`https://img.youtube.com/vi/${O}/hqdefault.jpg`,Object.assign(n.style,{width:"100%",height:"100%",objectFit:"cover"}),i.appendChild(n),E=!0}if(!E){const n=e.url.split(".").pop().split("?")[0].toLowerCase();if(["mp4","webm","mov","gifv"].includes(n)){const r=document.createElement("video");r.src=e.url.replace(".gifv",".mp4"),r.autoplay=!0,r.loop=!0,r.muted=!0,r.playsInline=!0,Object.assign(r.style,{width:"100%",height:"100%",objectFit:"cover"}),r.onerror=j,i.appendChild(r)}else{const r=new Image;r.src=e.url,Object.assign(r.style,{width:"100%",height:"100%",objectFit:"cover"}),r.onerror=j,i.appendChild(r)}}function j(){i.innerHTML="",i.appendChild(d);const n=document.createElement("div");n.textContent=e.title||e.url,Object.assign(n.style,{padding:"8px",fontSize:"11px",textAlign:"center",wordBreak:"break-word"}),i.appendChild(n)}if(e.title){const n=document.createElement("div");n.textContent=e.title,Object.assign(n.style,{position:"absolute",bottom:"0",width:"100%",background:"rgba(0,0,0,0.6)",fontSize:"11px",padding:"4px",textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}),i.appendChild(n)}i.onclick=()=>{const n=()=>A(i);navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(e.url).then(n).catch(()=>{w(e.url),n()}):(w(e.url),n())},g.appendChild(i)})}u.onclick=()=>{const o=c.value.trim(),e=p.value.trim();if(!o)return;const i=b();i.some(d=>d.url===o)||(i.push({url:o,title:e,addedAt:Date.now()}),v(i),c.value="",p.value="",m())},m()}function h(){if(document.getElementById("avia-favorites-btn"))return;const t=[...document.querySelectorAll("span.material-symbols-outlined")].find(l=>l.textContent.trim()==="gif");if(!t)return;const a=t.closest("div.flex-sh_0");if(!a)return;const s=a.cloneNode(!0);s.id="avia-favorites-btn",s.querySelector("span.material-symbols-outlined").textContent="star",s.querySelector("button").onclick=k,a.parentElement.insertBefore(s,a.nextSibling)}new MutationObserver(h).observe(document.body,{childList:!0,subtree:!0}),h()})();
-
-
-
 /* --- themes.js --- */
 if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true;
 
@@ -759,65 +710,45 @@ function parseMeta(css){
 }
 
 function applyThemes(){
-
     document.querySelectorAll(".avia-theme-style").forEach(e=>e.remove());
-
     const themes = getThemes();
-
     themes.forEach(theme=>{
         if(!theme.enabled) return;
-
         const style=document.createElement("style");
         style.className="avia-theme-style";
         style.textContent=theme.css;
-
         document.head.appendChild(style);
     });
-
 }
 
 function makeDraggable(panel, handle){
-
     let dragging=false,offsetX,offsetY;
-
     handle.addEventListener("mousedown",e=>{
         dragging=true;
         offsetX=e.clientX-panel.offsetLeft;
         offsetY=e.clientY-panel.offsetTop;
         document.body.style.userSelect="none";
     });
-
-    document.addEventListener("mouseup",()=>{
-        dragging=false;
-        document.body.style.userSelect="";
-    });
-
+    document.addEventListener("mouseup",()=>{dragging=false;document.body.style.userSelect="";});
     document.addEventListener("mousemove",e=>{
         if(!dragging) return;
-
         panel.style.left=(e.clientX-offsetX)+"px";
         panel.style.top=(e.clientY-offsetY)+"px";
         panel.style.right="auto";
         panel.style.bottom="auto";
     });
-
 }
 
 function openThemeEditor(theme){
-
     editingTheme = theme;
-
     let panel = document.getElementById('avia-theme-editor');
-
     if(panel){
         panel.style.display="flex";
         panel.querySelector("textarea").value = theme.css;
         return;
     }
-
     panel=document.createElement("div");
     panel.id="avia-theme-editor";
-
     Object.assign(panel.style,{
         position:"fixed",
         bottom:"24px",
@@ -834,10 +765,8 @@ function openThemeEditor(theme){
         overflow:"hidden",
         border:"1px solid rgba(255,255,255,0.08)"
     });
-
     const header=document.createElement("div");
     header.textContent="Theme Editor";
-
     Object.assign(header.style,{
         padding:"14px 16px",
         fontWeight:"600",
@@ -846,23 +775,12 @@ function openThemeEditor(theme){
         borderBottom:"1px solid rgba(255,255,255,0.08)",
         cursor:"move"
     });
-
     makeDraggable(panel,header);
-
     const close=document.createElement("div");
     close.textContent="✕";
-
-    Object.assign(close.style,{
-        position:"absolute",
-        right:"16px",
-        top:"12px",
-        cursor:"pointer"
-    });
-
+    Object.assign(close.style,{position:"absolute",right:"16px",top:"12px",cursor:"pointer"});
     close.onclick=()=>panel.style.display="none";
-
     const textarea=document.createElement("textarea");
-
     Object.assign(textarea.style,{
         flex:"1",
         border:"none",
@@ -874,46 +792,30 @@ function openThemeEditor(theme){
         fontFamily:"monospace",
         fontSize:"13px"
     });
-
     textarea.value=theme.css;
-
     textarea.addEventListener("input",()=>{
-
         const themes=getThemes();
         const t=themes.find(x=>x.id===editingTheme.id);
         if(!t) return;
-
         t.css=textarea.value;
-
         setThemes(themes);
         applyThemes();
-
-        if(window.__avia_refresh_themes_panel){
-            window.__avia_refresh_themes_panel();
-        }
-
+        if(window.__avia_refresh_themes_panel){window.__avia_refresh_themes_panel();}
     });
-
     panel.appendChild(header);
     panel.appendChild(close);
     panel.appendChild(textarea);
-
     document.body.appendChild(panel);
-
 }
 
 function toggleThemesPanel(){
-
     let panel=document.getElementById("avia-themes-panel");
-
     if(panel){
         panel.style.display = panel.style.display==="none"?"flex":"none";
         return;
     }
-
     panel=document.createElement("div");
     panel.id="avia-themes-panel";
-
     Object.assign(panel.style,{
         position:"fixed",
         bottom:"40px",
@@ -930,10 +832,8 @@ function toggleThemesPanel(){
         overflow:"hidden",
         border:"1px solid rgba(255,255,255,0.08)"
     });
-
     const header=document.createElement("div");
     header.textContent="Themes";
-
     Object.assign(header.style,{
         padding:"14px 16px",
         fontWeight:"600",
@@ -942,24 +842,13 @@ function toggleThemesPanel(){
         borderBottom:"1px solid rgba(255,255,255,0.08)",
         cursor:"move"
     });
-
     makeDraggable(panel,header);
-
     const close=document.createElement("div");
     close.textContent="✕";
-
-    Object.assign(close.style,{
-        position:"absolute",
-        right:"16px",
-        top:"12px",
-        cursor:"pointer"
-    });
-
+    Object.assign(close.style,{position:"absolute",right:"16px",top:"12px",cursor:"pointer"});
     close.onclick=()=>panel.style.display="none";
-
     const importBtn=document.createElement("button");
     importBtn.textContent="Import Theme";
-
     Object.assign(importBtn.style,{
         margin:"10px",
         padding:"10px",
@@ -971,17 +860,9 @@ function toggleThemesPanel(){
         cursor:"pointer",
         transition:"all .15s ease"
     });
-
-    importBtn.onmouseenter=()=>{
-        importBtn.style.background="rgba(255,255,255,0.12)";
-    };
-
-    importBtn.onmouseleave=()=>{
-        importBtn.style.background="rgba(255,255,255,0.06)";
-    };
-
+    importBtn.onmouseenter=()=>{importBtn.style.background="rgba(255,255,255,0.12)";};
+    importBtn.onmouseleave=()=>{importBtn.style.background="rgba(255,255,255,0.06)";};
     const list=document.createElement("div");
-
     Object.assign(list.style,{
         flex:"1",
         overflowY:"auto",
@@ -990,26 +871,17 @@ function toggleThemesPanel(){
         flexDirection:"column",
         gap:"8px"
     });
-
     panel.appendChild(header);
     panel.appendChild(close);
     panel.appendChild(importBtn);
     panel.appendChild(list);
-
     document.body.appendChild(panel);
-
     function render(){
-
         list.innerHTML="";
-
         const themes=getThemes();
-
         themes.forEach(theme=>{
-
             const meta=parseMeta(theme.css);
-
             const card=document.createElement("div");
-
             Object.assign(card.style,{
                 padding:"10px",
                 borderRadius:"10px",
@@ -1018,142 +890,76 @@ function toggleThemesPanel(){
                 justifyContent:"space-between",
                 alignItems:"center"
             });
-
             const info=document.createElement("div");
-            info.innerHTML=`
-            <div style="font-weight:600">${meta.name}</div>
-            <div style="font-size:11px;opacity:.7">${meta.author} • v${meta.version}</div>
-            <div style="font-size:11px;opacity:.6">${meta.description}</div>
-            `;
-
+            info.innerHTML=`<div style="font-weight:600">${meta.name}</div><div style="font-size:11px;opacity:.7">${meta.author} • v${meta.version}</div><div style="font-size:11px;opacity:.6">${meta.description}</div>`;
             const controls=document.createElement("div");
-
             const toggle=document.createElement("button");
             toggle.textContent=theme.enabled?"Disable":"Enable";
-
             toggle.onclick=()=>{
                 theme.enabled=!theme.enabled;
                 setThemes(themes);
                 applyThemes();
                 render();
             };
-
             const edit=document.createElement("button");
             edit.textContent="Edit";
             edit.onclick=()=>openThemeEditor(theme);
-
             const del=document.createElement("button");
             del.textContent="Delete";
-
             del.onclick=()=>{
                 const updated=themes.filter(t=>t.id!==theme.id);
                 setThemes(updated);
                 applyThemes();
                 render();
             };
-
-            [toggle,edit,del].forEach(b=>{
-                Object.assign(b.style,{
-                    marginLeft:"6px",
-                    padding:"4px 8px",
-                    borderRadius:"6px",
-                    border:"none",
-                    cursor:"pointer"
-                });
-                controls.appendChild(b);
-            });
-
+            [toggle,edit,del].forEach(b=>{Object.assign(b.style,{marginLeft:"6px",padding:"4px 8px",borderRadius:"6px",border:"none",cursor:"pointer"});controls.appendChild(b);});
             card.appendChild(info);
             card.appendChild(controls);
             list.appendChild(card);
-
         });
-
     }
-
     window.__avia_refresh_themes_panel = render;
-
     importBtn.onclick=()=>{
-
         const input=document.createElement("input");
         input.type="file";
         input.accept=".css,.txt";
-
         input.onchange=async()=>{
-
             const file=input.files[0];
             if(!file) return;
-
             const css=await file.text();
-
             const themes=getThemes();
-
-            themes.push({
-                id:crypto.randomUUID(),
-                css,
-                enabled:true
-            });
-
+            themes.push({id:crypto.randomUUID(),css,enabled:true});
             setThemes(themes);
             applyThemes();
             render();
-
         };
-
         input.click();
-
     };
-
     render();
-
 }
 
 function injectButton(){
-
     if(document.getElementById("avia-themes-btn")) return;
-
-    const appearanceBtn=[...document.querySelectorAll("a")]
-        .find(a=>a.textContent.trim()==="Appearance");
-
+    const appearanceBtn=[...document.querySelectorAll("a")].find(a=>a.textContent.trim()==="Appearance");
     const quickCSS=document.getElementById("stoat-fake-quickcss");
-
-    if(!appearanceBtn) return;
-
+    if(!appearanceBtn || !quickCSS) return;
     const clone=appearanceBtn.cloneNode(true);
     clone.id="avia-themes-btn";
-
-    const text=[...clone.querySelectorAll("div")]
-        .find(d=>d.children.length===0);
-
+    const text=[...clone.querySelectorAll("div")].find(d=>d.children.length===0);
     if(text) text.textContent="(Avia) Themes";
-
     clone.onclick=toggleThemesPanel;
-
-    const aviaHeader = [...document.querySelectorAll('span')]
-    .find(s => s.textContent.trim() === "AVIA CLIENT SETTINGS");
-if (!aviaHeader) return;
-
-const aviaContainer = aviaHeader.closest('.d_flex.flex-d_column');
-if (!aviaContainer) return;
-
-const targetParent = aviaContainer.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
-if (!targetParent) return;
-
-targetParent.appendChild(clone);
-
+    quickCSS.parentElement.insertBefore(clone, quickCSS.nextSibling);
 }
 
-new MutationObserver(injectButton)
-.observe(document.body,{childList:true,subtree:true});
-
+new MutationObserver(injectButton).observe(document.body,{childList:true,subtree:true});
 injectButton();
 applyThemes();
 
 })();
 
 
-/* --- Official Plugin Repo.js --- */
-if(window.__US_BUILDER_OFFICIAL_PLUGIN_REPO_JS__){return;}window.__US_BUILDER_OFFICIAL_PLUGIN_REPO_JS__=true;
+/* --- officialpluginrepo.js --- */
+if(window.__US_BUILDER_OFFICIALPLUGINREPO_JS__){return;}window.__US_BUILDER_OFFICIALPLUGINREPO_JS__=true;
 
 (function () {
 
