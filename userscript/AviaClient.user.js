@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AviaClient
 // @namespace   userscript.builder
-// @version     1.1
+// @version     1.2
 // @description Combined userscript generated locally
 // @match       https://stoat.chat/*
 // @grant       none
@@ -9,43 +9,392 @@
 // ==/UserScript==
 
 (function(){
-'@preserve - Built on 2026-03-18T09:13:52.038Z';
+'@preserve - Built on 2026-03-18T15:16:04.451Z';
+
+/* --- aviaclientcategory.js --- */
+if(window.__US_BUILDER_AVIACLIENTCATEGORY_JS__){return;}window.__US_BUILDER_AVIACLIENTCATEGORY_JS__=true;
+
+(function(){
+if(window.__AVIA_CATEGORY_SETTINGS__) return;
+window.__AVIA_CATEGORY_SETTINGS__ = true;
+
+function inject(){
+
+  if(document.getElementById('avia-cloned-settings')) return;
+
+  const spans = [...document.querySelectorAll('span')];
+  const target = spans.find(s => s.textContent.trim() === "User Settings");
+  if(!target) return;
+
+  const container = target.closest('.d_flex.flex-d_column');
+  if(!container) return;
+
+  const clone = container.cloneNode(true);
+  clone.id = "avia-cloned-settings";
+
+  const header = clone.querySelector('span');
+  if(header) header.textContent = "AVIA CLIENT SETTINGS";
+
+  const list = clone.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
+  if(list) list.innerHTML = "";
+
+  container.parentNode.insertBefore(clone, container.nextSibling);
+}
+
+new MutationObserver(() => {
+  inject();
+}).observe(document.body, { childList: true, subtree: true });
+
+inject();
+
+})();
+
 
 /* --- inject.js --- */
 if(window.__US_BUILDER_INJECT_JS__){return;}window.__US_BUILDER_INJECT_JS__=true;
-'use strict';
 
-(function(){if(window.__AVIA_WEB_LOADED__)return;window.__AVIA_WEB_LOADED__=!0;const p="https://linktr.ee/GermanAvaLilac",f="https://stt.gg/GvBhcejB";function y(){let e=document.getElementById("avia-quickcss-panel");if(e){e.style.display=e.style.display==="none"?"flex":"none";return}e=document.createElement("div"),e.id="avia-quickcss-panel",e.style.position="fixed",e.style.bottom="24px",e.style.right="24px",e.style.width="420px",e.style.height="340px",e.style.background="var(--md-sys-color-surface, #1e1e1e)",e.style.color="var(--md-sys-color-on-surface, #fff)",e.style.borderRadius="16px",e.style.boxShadow="0 8px 28px rgba(0,0,0,0.35)",e.style.zIndex="999999",e.style.display="flex",e.style.flexDirection="column",e.style.overflow="hidden",e.style.border="1px solid rgba(255,255,255,0.08)",e.style.backdropFilter="blur(12px)";const o=document.createElement("div");o.textContent="QuickCSS",o.style.padding="14px 16px",o.style.fontWeight="600",o.style.fontSize="14px",o.style.letterSpacing="0.3px",o.style.background="var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",o.style.borderBottom="1px solid rgba(255,255,255,0.08)",o.style.cursor="move";const t=document.createElement("div");t.textContent="✕",t.style.position="absolute",t.style.top="12px",t.style.right="16px",t.style.cursor="pointer",t.style.opacity="0.7",t.onmouseenter=()=>t.style.opacity="1",t.onmouseleave=()=>t.style.opacity="0.7",t.onclick=()=>e.style.display="none";const n=document.createElement("textarea");n.style.flex="1",n.style.border="none",n.style.outline="none",n.style.resize="none",n.style.padding="16px",n.style.background="transparent",n.style.color="inherit",n.style.fontFamily="monospace",n.style.fontSize="13px",n.style.lineHeight="1.4",n.value=localStorage.getItem("avia_quickcss")||"",n.addEventListener("input",()=>{localStorage.setItem("avia_quickcss",n.value),m(n.value)}),e.appendChild(o),e.appendChild(t),e.appendChild(n),document.body.appendChild(e);let l=!1,i,a;o.addEventListener("mousedown",r=>{l=!0,i=r.clientX-e.offsetLeft,a=r.clientY-e.offsetTop,document.body.style.userSelect="none"}),document.addEventListener("mouseup",()=>{l=!1,document.body.style.userSelect=""}),document.addEventListener("mousemove",r=>{l&&(e.style.left=r.clientX-i+"px",e.style.top=r.clientY-a+"px",e.style.right="auto",e.style.bottom="auto")})}function s(e,o){const t=e.querySelector("svg");t&&t.remove();const n={monitor:"M3 4h18v12H3V4zm2 2v8h14V6H5zm3 12h8v2H8v-2z",upload:"M5 20h14v-2H5v2zm7-18L5.33 9h3.84v4h4.66V9h3.84L12 2z",refresh:"M17.65 6.35A7.95 7.95 0 0012 4V1L7 6l5 5V7a5 5 0 11-5 5H5a7 7 0 107.75-6.65z",code:"M8.7 16.3L4.4 12l4.3-4.3 1.4 1.4L7.2 12l2.9 2.9-1.4 1.4zm6.6 0l-1.4-1.4L16.8 12l-2.9-2.9 1.4-1.4L19.6 12l-4.3 4.3z"},l="http://www.w3.org/2000/svg",i=document.createElementNS(l,"svg");i.setAttribute("viewBox","0 0 24 24"),i.setAttribute("width","20"),i.setAttribute("height","20"),i.setAttribute("fill","currentColor"),i.style.marginRight="8px";const a=document.createElementNS(l,"path");a.setAttribute("d",n[o]),i.appendChild(a),e.insertBefore(i,e.firstChild)}function v(){d();const e=document.createElement("div");e.id="avia-font-loader-popup",Object.assign(e.style,{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%, -50%)",padding:"16px",background:"#1e1e1e",color:"#fff",borderRadius:"12px",boxShadow:"0 8px 20px rgba(0,0,0,0.5)",zIndex:999999,minWidth:"320px"}),e.innerHTML=`
+(function () {
+
+    if (window.__AVIA_WEB_LOADED__) return;
+    window.__AVIA_WEB_LOADED__ = true;
+
+    const LINKTREE_URL = "https://linktr.ee/GermanAvaLilac";
+    const STOAT_SERVER_URL = "https://stt.gg/GvBhcejB";
+
+    function toggleQuickCSSPanel() {
+        let panel = document.getElementById('avia-quickcss-panel');
+        if (panel) {
+            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+            return;
+        }
+
+        panel = document.createElement('div');
+        panel.id = 'avia-quickcss-panel';
+        panel.style.position = 'fixed';
+        panel.style.bottom = '24px';
+        panel.style.right = '24px';
+        panel.style.width = '420px';
+        panel.style.height = '340px';
+        panel.style.background = 'var(--md-sys-color-surface, #1e1e1e)';
+        panel.style.color = 'var(--md-sys-color-on-surface, #fff)';
+        panel.style.borderRadius = '16px';
+        panel.style.boxShadow = '0 8px 28px rgba(0,0,0,0.35)';
+        panel.style.zIndex = '999999';
+        panel.style.display = 'flex';
+        panel.style.flexDirection = 'column';
+        panel.style.overflow = 'hidden';
+        panel.style.border = '1px solid rgba(255,255,255,0.08)';
+        panel.style.backdropFilter = 'blur(12px)';
+
+        const header = document.createElement('div');
+        header.textContent = 'QuickCSS';
+        header.style.padding = '14px 16px';
+        header.style.fontWeight = '600';
+        header.style.fontSize = '14px';
+        header.style.letterSpacing = '0.3px';
+        header.style.background = 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))';
+        header.style.borderBottom = '1px solid rgba(255,255,255,0.08)';
+        header.style.cursor = 'move';
+
+        const closeBtn = document.createElement('div');
+        closeBtn.textContent = '✕';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '12px';
+        closeBtn.style.right = '16px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.opacity = '0.7';
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.7';
+        closeBtn.onclick = () => panel.style.display = 'none';
+
+        const textarea = document.createElement('textarea');
+        textarea.style.flex = '1';
+        textarea.style.border = 'none';
+        textarea.style.outline = 'none';
+        textarea.style.resize = 'none';
+        textarea.style.padding = '16px';
+        textarea.style.background = 'transparent';
+        textarea.style.color = 'inherit';
+        textarea.style.fontFamily = 'monospace';
+        textarea.style.fontSize = '13px';
+        textarea.style.lineHeight = '1.4';
+        textarea.value = localStorage.getItem('avia_quickcss') || '';
+
+        textarea.addEventListener('input', () => {
+            localStorage.setItem('avia_quickcss', textarea.value);
+            applyQuickCSS(textarea.value);
+        });
+
+        panel.appendChild(header);
+        panel.appendChild(closeBtn);
+        panel.appendChild(textarea);
+        document.body.appendChild(panel);
+
+        let isDragging = false, offsetX, offsetY;
+        header.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            document.body.style.userSelect = '';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            panel.style.left = (e.clientX - offsetX) + 'px';
+            panel.style.top = (e.clientY - offsetY) + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+        });
+    }
+
+    function setIcon(button, type) {
+        const oldSvg = button.querySelector('svg');
+        if (oldSvg) oldSvg.remove();
+
+        const icons = {
+            monitor: "M3 4h18v12H3V4zm2 2v8h14V6H5zm3 12h8v2H8v-2z",
+            upload: "M5 20h14v-2H5v2zm7-18L5.33 9h3.84v4h4.66V9h3.84L12 2z",
+            refresh: "M17.65 6.35A7.95 7.95 0 0012 4V1L7 6l5 5V7a5 5 0 11-5 5H5a7 7 0 107.75-6.65z",
+            code: "M8.7 16.3L4.4 12l4.3-4.3 1.4 1.4L7.2 12l2.9 2.9-1.4 1.4zm6.6 0l-1.4-1.4L16.8 12l-2.9-2.9 1.4-1.4L19.6 12l-4.3 4.3z"
+        };
+
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "currentColor");
+        svg.style.marginRight = "8px";
+
+        const path = document.createElementNS(svgNS, "path");
+        path.setAttribute("d", icons[type]);
+        svg.appendChild(path);
+
+        button.insertBefore(svg, button.firstChild);
+    }
+
+    function showFontLoaderPopup() {
+        removeExistingPopup();
+        const popup = document.createElement('div');
+        popup.id = 'avia-font-loader-popup';
+        Object.assign(popup.style, {
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            padding: '16px',
+            background: '#1e1e1e',
+            color: '#fff',
+            borderRadius: '12px',
+            boxShadow: '0 8px 20px rgba(0,0,0,0.5)',
+            zIndex: 999999,
+            minWidth: '320px'
+        });
+        popup.innerHTML = `
             <div style="margin-bottom:8px;">Paste font URL (.ttf, .woff, etc.)</div>
             <input id="avia-font-url" type="text" style="width:100%; padding:6px; margin-bottom:8px; border-radius:6px; border:none; outline:none;"/>
             <div style="display:flex; justify-content:flex-end; gap:8px;">
                 <button id="avia-font-apply" style="padding:6px 12px;">Apply</button>
                 <button id="avia-font-cancel" style="padding:6px 12px;">Cancel</button>
             </div>
-        `,document.body.appendChild(e),document.getElementById("avia-font-apply").onclick=()=>{const o=document.getElementById("avia-font-url").value;o&&(localStorage.setItem("avia_custom_font_url",o),c(o),alert("Font Applied."),e.remove())},document.getElementById("avia-font-cancel").onclick=()=>e.remove()}function g(){d();const e=document.createElement("div");e.id="avia-remove-font-popup",Object.assign(e.style,{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%, -50%)",padding:"16px",background:"#1e1e1e",color:"#fff",borderRadius:"12px",boxShadow:"0 8px 20px rgba(0,0,0,0.5)",zIndex:999999,minWidth:"280px",textAlign:"center"}),e.innerHTML=`
+        `;
+        document.body.appendChild(popup);
+        document.getElementById('avia-font-apply').onclick = () => {
+            const url = document.getElementById('avia-font-url').value;
+            if (!url) return;
+            localStorage.setItem('avia_custom_font_url', url);
+            applyFont(url);
+            alert("Font Applied.");
+            popup.remove();
+        };
+        document.getElementById('avia-font-cancel').onclick = () => popup.remove();
+    }
+
+    function showRemoveFontPopup() {
+        removeExistingPopup();
+        const popup = document.createElement('div');
+        popup.id = 'avia-remove-font-popup';
+        Object.assign(popup.style, {
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            padding: '16px',
+            background: '#1e1e1e',
+            color: '#fff',
+            borderRadius: '12px',
+            boxShadow: '0 8px 20px rgba(0,0,0,0.5)',
+            zIndex: 999999,
+            minWidth: '280px',
+            textAlign: 'center'
+        });
+        popup.innerHTML = `
             <div style="margin-bottom:12px;">Are you sure you want to remove the custom font?</div>
             <button id="avia-font-remove" style="padding:6px 12px;">Remove Font</button>
             <button id="avia-font-cancel" style="padding:6px 12px; margin-left:6px;">Cancel</button>
-        `,document.body.appendChild(e),document.getElementById("avia-font-remove").onclick=()=>{x(),e.remove()},document.getElementById("avia-font-cancel").onclick=()=>e.remove()}function d(){const e=document.getElementById("avia-font-loader-popup")||document.getElementById("avia-remove-font-popup");e&&e.remove()}function c(e){const o="CustomFont"+Date.now();let t=document.getElementById("custom-font-style");t||(t=document.createElement("style"),t.id="custom-font-style",document.head.appendChild(t));let n=e.split(".").pop().toLowerCase(),i={ttf:"truetype",otf:"opentype",woff:"woff",woff2:"woff2",eot:"embedded-opentype",css:"truetype"}[n]||"";t.textContent=`
+        `;
+        document.body.appendChild(popup);
+        document.getElementById('avia-font-remove').onclick = () => {
+            removeFont();
+            popup.remove();
+        };
+        document.getElementById('avia-font-cancel').onclick = () => popup.remove();
+    }
+
+    function removeExistingPopup() {
+        const existing = document.getElementById('avia-font-loader-popup') || document.getElementById('avia-remove-font-popup');
+        if (existing) existing.remove();
+    }
+
+    function applyFont(url) {
+        const fontName = "CustomFont" + Date.now();
+        let styleTag = document.getElementById('custom-font-style');
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = 'custom-font-style';
+            document.head.appendChild(styleTag);
+        }
+        let ext = url.split('.').pop().toLowerCase();
+        let formatMap = {
+            ttf: 'truetype',
+            otf: 'opentype',
+            woff: 'woff',
+            woff2: 'woff2',
+            eot: 'embedded-opentype',
+            css: 'truetype'
+        };
+        let format = formatMap[ext] || '';
+        styleTag.textContent = `
             @font-face {
-                font-family: '${o}';
-                src: url('${e}')${i?" format('"+i+"')":""};
+                font-family: '${fontName}';
+                src: url('${url}')${format ? " format('" + format + "')" : ""};
                 font-weight: normal;
                 font-style: normal;
             }
             body, body *:not(.material-symbols-outlined) {
-                font-family: '${o}', sans-serif !important;
+                font-family: '${fontName}', sans-serif !important;
             }
-        `}function x(){localStorage.removeItem("avia_custom_font_url");const e=document.getElementById("custom-font-style");e&&e.remove(),alert("Reverted Font To Original Settings.")}(function(){const o=localStorage.getItem("avia_custom_font_url");o&&c(o)})();function u(){const e=Array.from(document.querySelectorAll("a")).find(t=>t.textContent.trim()==="Appearance");if(!e)return;const o=document.querySelector("a.pos_relative.min-w_0.d_flex.ai_center.p_6px_8px.bdr_8px.fw_500.me_12px.fs_15px.us_none.trs_background-color_0\\.1s_ease-in-out.c_var\\(\\--md-sys-color-on-surface\\).fill_var\\(\\--md-sys-color-on-surface\\).bg_unset");if(o){if(!document.getElementById("stoat-fake-linktree")){const t=e.cloneNode(!0);t.id="stoat-fake-linktree";const n=Array.from(t.querySelectorAll("div")).find(a=>a.children.length===0&&a.textContent.trim()==="Appearance");n&&(n.textContent="(Avia) Ava's Linktree"),s(t,"monitor"),t.addEventListener("click",()=>window.open(p,"_blank")),o.parentElement.insertBefore(t,o);const l=e.cloneNode(!0);l.id="stoat-fake-stoatserver";const i=Array.from(l.querySelectorAll("div")).find(a=>a.children.length===0&&a.textContent.trim()==="Appearance");i&&(i.textContent="(Avia) Stoat Server"),s(l,"monitor"),l.addEventListener("click",()=>window.open(f,"_blank")),t.parentElement.insertBefore(l,t.nextSibling)}if(!document.getElementById("stoat-fake-loadfont")){const t=e.cloneNode(!0);t.id="stoat-fake-loadfont";const n=Array.from(t.querySelectorAll("div")).find(i=>i.children.length===0);n&&(n.textContent="(Avia) Font Loader"),s(t,"upload"),t.addEventListener("click",v);const l=document.getElementById("stoat-fake-stoatserver");if(l?l.parentElement.insertBefore(t,l.nextSibling):document.getElementById("stoat-fake-linktree").parentElement.insertBefore(t,document.getElementById("stoat-fake-linktree").nextSibling),!document.getElementById("stoat-fake-removefont")){const i=e.cloneNode(!0);i.id="stoat-fake-removefont";const a=Array.from(i.querySelectorAll("div")).find(r=>r.children.length===0);a&&(a.textContent="(Avia) Remove selected font"),s(i,"refresh"),i.addEventListener("click",g),t.parentElement.insertBefore(i,t.nextSibling)}}if(!document.getElementById("stoat-fake-quickcss")){const t=e.cloneNode(!0);t.id="stoat-fake-quickcss";const n=Array.from(t.querySelectorAll("div")).find(i=>i.children.length===0);n&&(n.textContent="(Avia) QuickCSS"),s(t,"code"),t.addEventListener("click",y);const l=document.getElementById("stoat-fake-removefont")||document.getElementById("stoat-fake-loadfont")||document.getElementById("stoat-fake-stoatserver")||document.getElementById("stoat-fake-linktree");l.parentElement.insertBefore(t,l.nextSibling)}}}function m(e){let o=document.getElementById("avia-quickcss-style");o||(o=document.createElement("style"),o.id="avia-quickcss-style",document.head.appendChild(o)),o.textContent=e}(function(){const o=localStorage.getItem("avia_quickcss");o&&m(o)})();function b(e){document.body?e():new MutationObserver(o=>{document.body&&(o.disconnect(),e())}).observe(document.documentElement,{childList:!0})}b(()=>{new MutationObserver(()=>u()).observe(document.body,{childList:!0,subtree:!0}),u()})})();
+        `;
+    }
 
+    function removeFont() {
+        localStorage.removeItem('avia_custom_font_url');
+        const styleTag = document.getElementById('custom-font-style');
+        if (styleTag) styleTag.remove();
+        alert("Reverted Font To Original Settings.");
+    }
 
+    (function applySavedFont() {
+        const savedUrl = localStorage.getItem('avia_custom_font_url');
+        if (savedUrl) applyFont(savedUrl);
+    })();
 
-/* --- pluginsupport.js --- */
-if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
-'use strict';
+    function injectButtons() {
+        const appearanceBtn = Array.from(document.querySelectorAll('a')).find(a => a.textContent.trim() === 'Appearance');
+        if (!appearanceBtn) return;
 
-(function(){if(window.__AVIA_PLUGINS_LOADED__)return;window.__AVIA_PLUGINS_LOADED__=!0;const I="avia_plugins",u={},m={},b=[],g=()=>JSON.parse(localStorage.getItem(I)||"[]"),h=e=>localStorage.setItem(I,JSON.stringify(e));async function x(){if(!x.running){for(x.running=!0;b.length;){const{plugin:e,force:t}=b.shift();await S(e,t)}x.running=!1}}function E(e,t=!1){b.push({plugin:e,force:t}),x()}async function S(e,t=!1){if(!(u[e.url]&&!t)){t&&v(e);try{const l=await fetch(e.url);if(!l.ok)throw new Error("Fetch failed");const o=await l.text();delete m[e.url];const n=document.createElement("script");n.textContent=o,n.dataset.pluginUrl=e.url,document.body.appendChild(n),u[e.url]=n}catch{m[e.url]=!0}c()}}function v(e){const t=u[e.url];t&&(t.remove(),delete u[e.url],delete m[e.url],c())}function A(){let e=document.getElementById("avia-plugins-panel");if(e){e.style.display=e.style.display==="none"?"flex":"none";return}e=document.createElement("div"),e.id="avia-plugins-panel",e.style.position="fixed",e.style.bottom="24px",e.style.right="24px",e.style.width="520px",e.style.height="460px",e.style.background="var(--md-sys-color-surface, #1e1e1e)",e.style.color="var(--md-sys-color-on-surface, #fff)",e.style.borderRadius="16px",e.style.boxShadow="0 8px 28px rgba(0,0,0,0.35)",e.style.zIndex="999999",e.style.display="flex",e.style.flexDirection="column",e.style.overflow="hidden",e.style.border="1px solid rgba(255,255,255,0.08)",e.style.backdropFilter="blur(12px)";const t=document.createElement("div");t.textContent="Plugins",t.style.padding="14px 16px",t.style.fontWeight="600",t.style.fontSize="14px",t.style.background="var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",t.style.borderBottom="1px solid rgba(255,255,255,0.08)",t.style.cursor="move";const l=document.createElement("div");l.textContent="✕",l.style.position="absolute",l.style.top="12px",l.style.right="16px",l.style.cursor="pointer",l.style.opacity="0.7",l.onclick=()=>e.style.display="none";const o=document.createElement("div");o.style.padding="12px 16px",o.style.display="flex",o.style.gap="8px",o.style.alignItems="center",o.style.borderBottom="1px solid rgba(255,255,255,0.08)",o.style.flex="0 0 auto";const n=document.createElement("div");n.id="avia-plugins-content",n.style.flex="1",n.style.overflow="auto",n.style.padding="16px";const r=document.createElement("input");r.placeholder="Name",k(r),r.style.width="110px";const i=document.createElement("input");i.placeholder="Plugin URL",k(i),i.style.flex="1";const p=document.createElement("button");p.textContent="Add",p.onclick=()=>{const a=r.value.trim(),s=i.value.trim();if(!a||!s)return;const f=g();f.push({name:a,url:s,enabled:!1}),h(f),r.value="",i.value="",c()};const d=document.createElement("button");d.textContent="Refresh",d.onclick=()=>{g().forEach(s=>{s.enabled&&E(s,!0)})},o.appendChild(r),o.appendChild(i),o.appendChild(p),o.appendChild(d),e.appendChild(t),e.appendChild(l),e.appendChild(o),e.appendChild(n),document.body.appendChild(e),P(e,t),c()}function c(){const e=document.getElementById("avia-plugins-content");if(!e)return;e.innerHTML="";const t=g(),l={...u},o={...m};t.forEach((n,r)=>{const i=!!l[n.url],p=!!o[n.url],d=document.createElement("div");d.style.display="flex",d.style.justifyContent="space-between",d.style.alignItems="center",d.style.marginBottom="12px";const a=document.createElement("div");a.style.display="flex",a.style.alignItems="center",a.style.gap="10px";const s=document.createElement("div");s.style.width="10px",s.style.height="10px",s.style.borderRadius="50%",p?(s.style.background="#ff4d4d",s.style.boxShadow="0 0 6px #ff4d4d"):i?(s.style.background="#4dff88",s.style.boxShadow="0 0 6px #4dff88"):s.style.background="#777";const f=document.createElement("div");f.textContent=n.name,a.appendChild(s),a.appendChild(f);const y=document.createElement("div");y.style.display="flex",y.style.gap="6px";const C=document.createElement("button");C.textContent=n.enabled?"Disable":"Enable",C.onclick=()=>{n.enabled=!n.enabled,h(t),n.enabled?E(n):v(n),c()};const w=document.createElement("button");w.textContent="✕",w.onclick=()=>{v(n),t.splice(r,1),h(t),c()},y.appendChild(C),y.appendChild(w),d.appendChild(a),d.appendChild(y),e.appendChild(d)})}function k(e){e.style.padding="6px 8px",e.style.borderRadius="8px",e.style.border="1px solid rgba(255,255,255,0.1)",e.style.background="rgba(255,255,255,0.05)",e.style.color="#fff"}function P(e,t){let l=!1,o,n;t.addEventListener("mousedown",r=>{l=!0,o=r.clientX-e.offsetLeft,n=r.clientY-e.offsetTop}),document.addEventListener("mouseup",()=>l=!1),document.addEventListener("mousemove",r=>{l&&(e.style.left=r.clientX-o+"px",e.style.top=r.clientY-n+"px",e.style.right="auto",e.style.bottom="auto")})}function B(){const e=Array.from(document.querySelectorAll("a")).find(n=>n.textContent.trim()==="Appearance");if(!e||document.getElementById("stoat-fake-plugins"))return;const t=e.cloneNode(!0);t.id="stoat-fake-plugins";const l=Array.from(t.querySelectorAll("div")).find(n=>n.children.length===0&&n.textContent.trim()==="Appearance");l&&(l.textContent="(Avia) Plugins"),typeof setIcon=="function"&&setIcon(t,"extension"),t.addEventListener("click",A);const o=document.getElementById("stoat-fake-quickcss")||document.getElementById("stoat-fake-removefont")||document.getElementById("stoat-fake-loadfont")||document.getElementById("stoat-fake-stoatserver")||document.getElementById("stoat-fake-linktree");o?o.parentElement.insertBefore(t,o.nextSibling):e.parentElement.insertBefore(t,e.nextSibling)}function _(e){document.body?e():new MutationObserver(t=>{document.body&&(t.disconnect(),e())}).observe(document.documentElement,{childList:!0})}_(()=>{new MutationObserver(()=>B()).observe(document.body,{childList:!0,subtree:!0}),B()}),g().forEach(e=>{e.enabled&&E(e)})})();
+const aviaHeader = [...document.querySelectorAll('span')]
+    .find(s => s.textContent.trim() === "AVIA CLIENT SETTINGS");
+if (!aviaHeader) return;
 
+const aviaContainer = aviaHeader.closest('.d_flex.flex-d_column');
+if (!aviaContainer) return;
+
+const targetParent = aviaContainer.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
+if (!targetParent) return;
+
+        if (!document.getElementById('stoat-fake-linktree')) {
+            const linktreeBtn = appearanceBtn.cloneNode(true);
+            linktreeBtn.id = 'stoat-fake-linktree';
+            const textNode = Array.from(linktreeBtn.querySelectorAll('div')).find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
+            if (textNode) textNode.textContent = "(Avia) Ava's Linktree";
+            setIcon(linktreeBtn, "monitor");
+            linktreeBtn.addEventListener('click', () => window.open(LINKTREE_URL, "_blank"));
+            targetParent.appendChild(linktreeBtn);
+
+            const stoatBtn = appearanceBtn.cloneNode(true);
+            stoatBtn.id = 'stoat-fake-stoatserver';
+            const stoatTextNode = Array.from(stoatBtn.querySelectorAll('div')).find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
+            if (stoatTextNode) stoatTextNode.textContent = "(Avia) Stoat Server";
+            setIcon(stoatBtn, "monitor");
+            stoatBtn.addEventListener('click', () => window.open(STOAT_SERVER_URL, "_blank"));
+            targetParent.appendChild(stoatBtn);
+        }
+
+        if (!document.getElementById('stoat-fake-loadfont')) {
+            const newBtn = appearanceBtn.cloneNode(true);
+            newBtn.id = 'stoat-fake-loadfont';
+            const textNode = Array.from(newBtn.querySelectorAll('div')).find(d => d.children.length === 0);
+            if (textNode) textNode.textContent = "(Avia) Font Loader";
+            setIcon(newBtn, "upload");
+            newBtn.addEventListener('click', showFontLoaderPopup);
+
+            const stoatBtn = document.getElementById('stoat-fake-stoatserver');
+            targetParent.appendChild(newBtn);
+
+            if (!document.getElementById('stoat-fake-removefont')) {
+                const removeBtn = appearanceBtn.cloneNode(true);
+                removeBtn.id = 'stoat-fake-removefont';
+                const removeTextNode = Array.from(removeBtn.querySelectorAll('div')).find(d => d.children.length === 0);
+                if (removeTextNode) removeTextNode.textContent = "(Avia) Remove selected font";
+                setIcon(removeBtn, "refresh");
+                removeBtn.addEventListener('click', showRemoveFontPopup);
+                targetParent.appendChild(removeBtn);
+            }
+        }
+
+        if (!document.getElementById('stoat-fake-quickcss')) {
+            const quickCssBtn = appearanceBtn.cloneNode(true);
+            quickCssBtn.id = 'stoat-fake-quickcss';
+            const quickCssTextNode = Array.from(quickCssBtn.querySelectorAll('div')).find(d => d.children.length === 0);
+            if (quickCssTextNode) quickCssTextNode.textContent = "(Avia) QuickCSS";
+            setIcon(quickCssBtn, "code");
+            quickCssBtn.addEventListener('click', toggleQuickCSSPanel);
+
+            const lastBtn = document.getElementById('stoat-fake-removefont') ||
+                            document.getElementById('stoat-fake-loadfont') ||
+                            document.getElementById('stoat-fake-stoatserver') ||
+                            document.getElementById('stoat-fake-linktree');
+targetParent.appendChild(quickCssBtn);        }
+    }
+
+    function applyQuickCSS(css) {
+        let styleTag = document.getElementById('avia-quickcss-style');
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = 'avia-quickcss-style';
+            document.head.appendChild(styleTag);
+        }
+        styleTag.textContent = css;
+    }
+
+    (function applySavedQuickCSS() {
+        const savedCSS = localStorage.getItem('avia_quickcss');
+        if (savedCSS) applyQuickCSS(savedCSS);
+    })();
+
+    function waitForBody(callback) {
+        if (document.body) callback();
+        else new MutationObserver((obs) => {
+            if (document.body) {
+                obs.disconnect();
+                callback();
+            }
+        }).observe(document.documentElement, { childList: true });
+    }
+
+    waitForBody(() => {
+        const observer = new MutationObserver(() => injectButtons());
+        observer.observe(document.body, { childList: true, subtree: true });
+        injectButtons();
+    });
+
+})();
 
 
 /* --- aviafavsystem.js --- */
@@ -56,20 +405,561 @@ if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSY
 
 
 
+/* --- pluginsupport.js --- */
+if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
+
+(function () {
+
+    if (window.__AVIA_PLUGINS_LOADED__) return;
+    window.__AVIA_PLUGINS_LOADED__ = true;
+
+    const STORAGE_KEY = "avia_plugins";
+
+    const runningPlugins = {};
+    const pluginErrors = {};
+    const injectionQueue = [];
+
+    const getPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const setPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    async function processQueue() {
+        if (processQueue.running) return;
+        processQueue.running = true;
+        while (injectionQueue.length) {
+            const { plugin, force } = injectionQueue.shift();
+            await loadPluginInternal(plugin, force);
+        }
+        processQueue.running = false;
+    }
+
+    function queuePlugin(plugin, force = false) {
+        injectionQueue.push({ plugin, force });
+        processQueue();
+    }
+
+    async function loadPluginInternal(plugin, force = false) {
+        if (runningPlugins[plugin.url] && !force) return;
+        if (force) stopPlugin(plugin);
+        try {
+            const res = await fetch(plugin.url);
+            if (!res.ok) throw new Error("Fetch failed");
+            const code = await res.text();
+            delete pluginErrors[plugin.url];
+            const script = document.createElement("script");
+            script.textContent = code;
+            script.dataset.pluginUrl = plugin.url;
+            document.body.appendChild(script);
+            runningPlugins[plugin.url] = script;
+        } catch {
+            pluginErrors[plugin.url] = true;
+        }
+        renderPanel();
+    }
+
+    function stopPlugin(plugin) {
+        const script = runningPlugins[plugin.url];
+        if (!script) return;
+        script.remove();
+        delete runningPlugins[plugin.url];
+        delete pluginErrors[plugin.url];
+        renderPanel();
+    }
+
+    function togglePluginsPanel() {
+        let panel = document.getElementById('avia-plugins-panel');
+        if (panel) {
+            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+            return;
+        }
+        panel = document.createElement('div');
+        panel.id = 'avia-plugins-panel';
+        panel.style.position = 'fixed';
+        panel.style.bottom = '24px';
+        panel.style.right = '24px';
+        panel.style.width = '520px';
+        panel.style.height = '460px';
+        panel.style.background = 'var(--md-sys-color-surface, #1e1e1e)';
+        panel.style.color = 'var(--md-sys-color-on-surface, #fff)';
+        panel.style.borderRadius = '16px';
+        panel.style.boxShadow = '0 8px 28px rgba(0,0,0,0.35)';
+        panel.style.zIndex = '999999';
+        panel.style.display = 'flex';
+        panel.style.flexDirection = 'column';
+        panel.style.overflow = 'hidden';
+        panel.style.border = '1px solid rgba(255,255,255,0.08)';
+        panel.style.backdropFilter = 'blur(12px)';
+        const header = document.createElement('div');
+        header.textContent = 'Plugins';
+        header.style.padding = '14px 16px';
+        header.style.fontWeight = '600';
+        header.style.fontSize = '14px';
+        header.style.background = 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))';
+        header.style.borderBottom = '1px solid rgba(255,255,255,0.08)';
+        header.style.cursor = 'move';
+        const closeBtn = document.createElement('div');
+        closeBtn.textContent = '✕';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '12px';
+        closeBtn.style.right = '16px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.opacity = '0.7';
+        closeBtn.onclick = () => panel.style.display = 'none';
+        const controlsBar = document.createElement('div');
+        controlsBar.style.padding = '12px 16px';
+        controlsBar.style.display = 'flex';
+        controlsBar.style.gap = '8px';
+        controlsBar.style.alignItems = 'center';
+        controlsBar.style.borderBottom = '1px solid rgba(255,255,255,0.08)';
+        controlsBar.style.flex = '0 0 auto';
+        const content = document.createElement('div');
+        content.id = 'avia-plugins-content';
+        content.style.flex = '1';
+        content.style.overflow = 'auto';
+        content.style.padding = '16px';
+        const nameInput = document.createElement('input');
+        nameInput.placeholder = 'Name';
+        styleInput(nameInput);
+        nameInput.style.width = '110px';
+        const urlInput = document.createElement('input');
+        urlInput.placeholder = 'Plugin URL';
+        styleInput(urlInput);
+        urlInput.style.flex = '1';
+        const addBtn = document.createElement('button');
+        addBtn.textContent = 'Add';
+        addBtn.onclick = () => {
+            const name = nameInput.value.trim();
+            const url = urlInput.value.trim();
+            if (!name || !url) return;
+            const plugins = getPlugins();
+            plugins.push({ name, url, enabled: false });
+            setPlugins(plugins);
+            nameInput.value = '';
+            urlInput.value = '';
+            renderPanel();
+        };
+        const refreshAll = document.createElement('button');
+        refreshAll.textContent = 'Refresh';
+        refreshAll.onclick = () => {
+            const plugins = getPlugins();
+            plugins.forEach(p => {
+                if (p.enabled) queuePlugin(p, true);
+            });
+        };
+        controlsBar.appendChild(nameInput);
+        controlsBar.appendChild(urlInput);
+        controlsBar.appendChild(addBtn);
+        controlsBar.appendChild(refreshAll);
+        panel.appendChild(header);
+        panel.appendChild(closeBtn);
+        panel.appendChild(controlsBar);
+        panel.appendChild(content);
+        document.body.appendChild(panel);
+        enableDrag(panel, header);
+        renderPanel();
+    }
+
+    function renderPanel() {
+        const content = document.getElementById('avia-plugins-content');
+        if (!content) return;
+        content.innerHTML = '';
+        const plugins = getPlugins();
+        const runningSnapshot = { ...runningPlugins };
+        const errorSnapshot = { ...pluginErrors };
+        plugins.forEach((plugin, index) => {
+            const isRunning = !!runningSnapshot[plugin.url];
+            const hasError = !!errorSnapshot[plugin.url];
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+            row.style.alignItems = 'center';
+            row.style.marginBottom = '12px';
+            const left = document.createElement('div');
+            left.style.display = 'flex';
+            left.style.alignItems = 'center';
+            left.style.gap = '10px';
+            const statusDot = document.createElement('div');
+            statusDot.style.width = '10px';
+            statusDot.style.height = '10px';
+            statusDot.style.borderRadius = '50%';
+            if (hasError) {
+                statusDot.style.background = '#ff4d4d';
+                statusDot.style.boxShadow = '0 0 6px #ff4d4d';
+            } else if (isRunning) {
+                statusDot.style.background = '#4dff88';
+                statusDot.style.boxShadow = '0 0 6px #4dff88';
+            } else {
+                statusDot.style.background = '#777';
+            }
+            const name = document.createElement('div');
+            name.textContent = plugin.name;
+            left.appendChild(statusDot);
+            left.appendChild(name);
+            const controls = document.createElement('div');
+            controls.style.display = 'flex';
+            controls.style.gap = '6px';
+            const toggle = document.createElement('button');
+            toggle.textContent = plugin.enabled ? 'Disable' : 'Enable';
+            toggle.onclick = () => {
+                plugin.enabled = !plugin.enabled;
+                setPlugins(plugins);
+                if (plugin.enabled) queuePlugin(plugin);
+                else stopPlugin(plugin);
+                renderPanel();
+            };
+            const remove = document.createElement('button');
+            remove.textContent = '✕';
+            remove.onclick = () => {
+                stopPlugin(plugin);
+                plugins.splice(index, 1);
+                setPlugins(plugins);
+                renderPanel();
+            };
+            controls.appendChild(toggle);
+            controls.appendChild(remove);
+            row.appendChild(left);
+            row.appendChild(controls);
+            content.appendChild(row);
+        });
+    }
+
+    function styleInput(input) {
+        input.style.padding = '6px 8px';
+        input.style.borderRadius = '8px';
+        input.style.border = '1px solid rgba(255,255,255,0.1)';
+        input.style.background = 'rgba(255,255,255,0.05)';
+        input.style.color = '#fff';
+    }
+
+    function enableDrag(panel, header) {
+        let isDragging = false, offsetX, offsetY;
+        header.addEventListener('mousedown', e => {
+            isDragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+        });
+        document.addEventListener('mouseup', () => isDragging = false);
+        document.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panel.style.left = (e.clientX - offsetX) + 'px';
+            panel.style.top = (e.clientY - offsetY) + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+        });
+    }
+
+    function injectButtons() {
+        if (document.getElementById('stoat-fake-plugins')) return;
+        const appearanceBtn = [...document.querySelectorAll('a')]
+            .find(a => a.textContent.trim() === 'Appearance');
+        if (!appearanceBtn) return;
+        const referenceNode = document.getElementById('stoat-fake-quickcss');
+        if (!referenceNode) return;
+        const pluginsBtn = appearanceBtn.cloneNode(true);
+        pluginsBtn.id = 'stoat-fake-plugins';
+        const textNode = [...pluginsBtn.querySelectorAll('div')]
+            .find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
+        if (textNode) textNode.textContent = "(Avia) Plugins";
+        if (typeof setIcon === "function") setIcon(pluginsBtn, "extension");
+        pluginsBtn.addEventListener('click', togglePluginsPanel);
+        referenceNode.parentElement.insertBefore(pluginsBtn, referenceNode.nextSibling);
+    }
+
+    function waitForBody(callback) {
+        if (document.body) callback();
+        else new MutationObserver((obs) => {
+            if (document.body) {
+                obs.disconnect();
+                callback();
+            }
+        }).observe(document.documentElement, { childList: true });
+    }
+
+    waitForBody(() => {
+        const observer = new MutationObserver(() => injectButtons());
+        observer.observe(document.body, { childList: true, subtree: true });
+        injectButtons();
+    });
+
+    getPlugins().forEach(plugin => {
+        if (plugin.enabled) queuePlugin(plugin);
+    });
+
+})();
+
+
 /* --- themes.js --- */
 if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true;
-'use strict';
 
-(function(){if(window.__AVIA_THEMES_LOADED__)return;window.__AVIA_THEMES_LOADED__=!0;const h="avia_themes";let b=null;const p=()=>JSON.parse(localStorage.getItem(h)||"[]"),u=e=>localStorage.setItem(h,JSON.stringify(e));function C(e){var s,a,r,d;const t=((s=e.match(/@name\s+(.+)/))==null?void 0:s[1])||"Unknown Theme",n=((a=e.match(/@author\s+(.+)/))==null?void 0:a[1])||"Unknown",o=((r=e.match(/@version\s+(.+)/))==null?void 0:r[1])||"1.0",i=((d=e.match(/@description\s+(.+)/))==null?void 0:d[1])||"No description";return{name:t,author:n,version:o,description:i}}function l(){document.querySelectorAll(".avia-theme-style").forEach(t=>t.remove()),p().forEach(t=>{if(!t.enabled)return;const n=document.createElement("style");n.className="avia-theme-style",n.textContent=t.css,document.head.appendChild(n)})}function y(e,t){let n=!1,o,i;t.addEventListener("mousedown",s=>{n=!0,o=s.clientX-e.offsetLeft,i=s.clientY-e.offsetTop,document.body.style.userSelect="none"}),document.addEventListener("mouseup",()=>{n=!1,document.body.style.userSelect=""}),document.addEventListener("mousemove",s=>{n&&(e.style.left=s.clientX-o+"px",e.style.top=s.clientY-i+"px",e.style.right="auto",e.style.bottom="auto")})}function w(e){b=e;let t=document.getElementById("avia-theme-editor");if(t){t.style.display="flex",t.querySelector("textarea").value=e.css;return}t=document.createElement("div"),t.id="avia-theme-editor",Object.assign(t.style,{position:"fixed",bottom:"24px",right:"24px",width:"420px",height:"340px",background:"var(--md-sys-color-surface,#1e1e1e)",color:"var(--md-sys-color-on-surface,#fff)",borderRadius:"16px",boxShadow:"0 8px 28px rgba(0,0,0,0.35)",zIndex:999999,display:"flex",flexDirection:"column",overflow:"hidden",border:"1px solid rgba(255,255,255,0.08)"});const n=document.createElement("div");n.textContent="Theme Editor",Object.assign(n.style,{padding:"14px 16px",fontWeight:"600",fontSize:"14px",background:"rgba(255,255,255,0.04)",borderBottom:"1px solid rgba(255,255,255,0.08)",cursor:"move"}),y(t,n);const o=document.createElement("div");o.textContent="✕",Object.assign(o.style,{position:"absolute",right:"16px",top:"12px",cursor:"pointer"}),o.onclick=()=>t.style.display="none";const i=document.createElement("textarea");Object.assign(i.style,{flex:"1",border:"none",outline:"none",resize:"none",padding:"16px",background:"transparent",color:"inherit",fontFamily:"monospace",fontSize:"13px"}),i.value=e.css,i.addEventListener("input",()=>{const s=p(),a=s.find(r=>r.id===b.id);a&&(a.css=i.value,u(s),l(),window.__avia_refresh_themes_panel&&window.__avia_refresh_themes_panel())}),t.appendChild(n),t.appendChild(o),t.appendChild(i),document.body.appendChild(t)}function k(){let e=document.getElementById("avia-themes-panel");if(e){e.style.display=e.style.display==="none"?"flex":"none";return}e=document.createElement("div"),e.id="avia-themes-panel",Object.assign(e.style,{position:"fixed",bottom:"40px",right:"40px",width:"500px",height:"380px",background:"#1e1e1e",color:"#fff",borderRadius:"16px",boxShadow:"0 12px 35px rgba(0,0,0,0.45)",zIndex:999999,display:"flex",flexDirection:"column",overflow:"hidden",border:"1px solid rgba(255,255,255,0.08)"});const t=document.createElement("div");t.textContent="Themes",Object.assign(t.style,{padding:"14px 16px",fontWeight:"600",fontSize:"14px",background:"rgba(255,255,255,0.04)",borderBottom:"1px solid rgba(255,255,255,0.08)",cursor:"move"}),y(e,t);const n=document.createElement("div");n.textContent="✕",Object.assign(n.style,{position:"absolute",right:"16px",top:"12px",cursor:"pointer"}),n.onclick=()=>e.style.display="none";const o=document.createElement("button");o.textContent="Import Theme",Object.assign(o.style,{margin:"10px",padding:"10px",borderRadius:"8px",border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.06)",color:"#fff",fontWeight:"500",cursor:"pointer",transition:"all .15s ease"}),o.onmouseenter=()=>{o.style.background="rgba(255,255,255,0.12)"},o.onmouseleave=()=>{o.style.background="rgba(255,255,255,0.06)"};const i=document.createElement("div");Object.assign(i.style,{flex:"1",overflowY:"auto",padding:"12px",display:"flex",flexDirection:"column",gap:"8px"}),e.appendChild(t),e.appendChild(n),e.appendChild(o),e.appendChild(i),document.body.appendChild(e);function s(){i.innerHTML="";const a=p();a.forEach(r=>{const d=C(r.css),c=document.createElement("div");Object.assign(c.style,{padding:"10px",borderRadius:"10px",background:"rgba(255,255,255,0.05)",display:"flex",justifyContent:"space-between",alignItems:"center"});const E=document.createElement("div");E.innerHTML=`
-            <div style="font-weight:600">${d.name}</div>
-            <div style="font-size:11px;opacity:.7">${d.author} • v${d.version}</div>
-            <div style="font-size:11px;opacity:.6">${d.description}</div>
-            `;const _=document.createElement("div"),f=document.createElement("button");f.textContent=r.enabled?"Disable":"Enable",f.onclick=()=>{r.enabled=!r.enabled,u(a),l(),s()};const x=document.createElement("button");x.textContent="Edit",x.onclick=()=>w(r);const g=document.createElement("button");g.textContent="Delete",g.onclick=()=>{const m=a.filter(S=>S.id!==r.id);u(m),l(),s()},[f,x,g].forEach(m=>{Object.assign(m.style,{marginLeft:"6px",padding:"4px 8px",borderRadius:"6px",border:"none",cursor:"pointer"}),_.appendChild(m)}),c.appendChild(E),c.appendChild(_),i.appendChild(c)})}window.__avia_refresh_themes_panel=s,o.onclick=()=>{const a=document.createElement("input");a.type="file",a.accept=".css,.txt",a.onchange=async()=>{const r=a.files[0];if(!r)return;const d=await r.text(),c=p();c.push({id:crypto.randomUUID(),css:d,enabled:!0}),u(c),l(),s()},a.click()},s()}function v(){if(document.getElementById("avia-themes-btn"))return;const e=[...document.querySelectorAll("a")].find(i=>i.textContent.trim()==="Appearance"),t=document.getElementById("stoat-fake-quickcss");if(!e||!t)return;const n=e.cloneNode(!0);n.id="avia-themes-btn";const o=[...n.querySelectorAll("div")].find(i=>i.children.length===0);o&&(o.textContent="(Avia) Themes"),n.onclick=k,t.parentElement.insertBefore(n,t.nextSibling)}new MutationObserver(v).observe(document.body,{childList:!0,subtree:!0}),v(),l()})();
+(function () {
+
+if (window.__AVIA_THEMES_LOADED__) return;
+window.__AVIA_THEMES_LOADED__ = true;
+
+const STORAGE_KEY = "avia_themes";
+let editingTheme = null;
+
+const getThemes = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+const setThemes = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+function parseMeta(css){
+    const name = css.match(/@name\s+(.+)/)?.[1] || "Unknown Theme";
+    const author = css.match(/@author\s+(.+)/)?.[1] || "Unknown";
+    const version = css.match(/@version\s+(.+)/)?.[1] || "1.0";
+    const description = css.match(/@description\s+(.+)/)?.[1] || "No description";
+    return {name,author,version,description};
+}
+
+function applyThemes(){
+    document.querySelectorAll(".avia-theme-style").forEach(e=>e.remove());
+    const themes = getThemes();
+    themes.forEach(theme=>{
+        if(!theme.enabled) return;
+        const style=document.createElement("style");
+        style.className="avia-theme-style";
+        style.textContent=theme.css;
+        document.head.appendChild(style);
+    });
+}
+
+function makeDraggable(panel, handle){
+    let dragging=false,offsetX,offsetY;
+    handle.addEventListener("mousedown",e=>{
+        dragging=true;
+        offsetX=e.clientX-panel.offsetLeft;
+        offsetY=e.clientY-panel.offsetTop;
+        document.body.style.userSelect="none";
+    });
+    document.addEventListener("mouseup",()=>{dragging=false;document.body.style.userSelect="";});
+    document.addEventListener("mousemove",e=>{
+        if(!dragging) return;
+        panel.style.left=(e.clientX-offsetX)+"px";
+        panel.style.top=(e.clientY-offsetY)+"px";
+        panel.style.right="auto";
+        panel.style.bottom="auto";
+    });
+}
+
+function openThemeEditor(theme){
+    editingTheme = theme;
+    let panel = document.getElementById('avia-theme-editor');
+    if(panel){
+        panel.style.display="flex";
+        panel.querySelector("textarea").value = theme.css;
+        return;
+    }
+    panel=document.createElement("div");
+    panel.id="avia-theme-editor";
+    Object.assign(panel.style,{
+        position:"fixed",
+        bottom:"24px",
+        right:"24px",
+        width:"420px",
+        height:"340px",
+        background:"var(--md-sys-color-surface,#1e1e1e)",
+        color:"var(--md-sys-color-on-surface,#fff)",
+        borderRadius:"16px",
+        boxShadow:"0 8px 28px rgba(0,0,0,0.35)",
+        zIndex:999999,
+        display:"flex",
+        flexDirection:"column",
+        overflow:"hidden",
+        border:"1px solid rgba(255,255,255,0.08)"
+    });
+    const header=document.createElement("div");
+    header.textContent="Theme Editor";
+    Object.assign(header.style,{
+        padding:"14px 16px",
+        fontWeight:"600",
+        fontSize:"14px",
+        background:"rgba(255,255,255,0.04)",
+        borderBottom:"1px solid rgba(255,255,255,0.08)",
+        cursor:"move"
+    });
+    makeDraggable(panel,header);
+    const close=document.createElement("div");
+    close.textContent="✕";
+    Object.assign(close.style,{position:"absolute",right:"16px",top:"12px",cursor:"pointer"});
+    close.onclick=()=>panel.style.display="none";
+    const textarea=document.createElement("textarea");
+    Object.assign(textarea.style,{
+        flex:"1",
+        border:"none",
+        outline:"none",
+        resize:"none",
+        padding:"16px",
+        background:"transparent",
+        color:"inherit",
+        fontFamily:"monospace",
+        fontSize:"13px"
+    });
+    textarea.value=theme.css;
+    textarea.addEventListener("input",()=>{
+        const themes=getThemes();
+        const t=themes.find(x=>x.id===editingTheme.id);
+        if(!t) return;
+        t.css=textarea.value;
+        setThemes(themes);
+        applyThemes();
+        if(window.__avia_refresh_themes_panel){window.__avia_refresh_themes_panel();}
+    });
+    panel.appendChild(header);
+    panel.appendChild(close);
+    panel.appendChild(textarea);
+    document.body.appendChild(panel);
+}
+
+function toggleThemesPanel(){
+    let panel=document.getElementById("avia-themes-panel");
+    if(panel){
+        panel.style.display = panel.style.display==="none"?"flex":"none";
+        return;
+    }
+    panel=document.createElement("div");
+    panel.id="avia-themes-panel";
+    Object.assign(panel.style,{
+        position:"fixed",
+        bottom:"40px",
+        right:"40px",
+        width:"500px",
+        height:"380px",
+        background:"#1e1e1e",
+        color:"#fff",
+        borderRadius:"16px",
+        boxShadow:"0 12px 35px rgba(0,0,0,0.45)",
+        zIndex:999999,
+        display:"flex",
+        flexDirection:"column",
+        overflow:"hidden",
+        border:"1px solid rgba(255,255,255,0.08)"
+    });
+    const header=document.createElement("div");
+    header.textContent="Themes";
+    Object.assign(header.style,{
+        padding:"14px 16px",
+        fontWeight:"600",
+        fontSize:"14px",
+        background:"rgba(255,255,255,0.04)",
+        borderBottom:"1px solid rgba(255,255,255,0.08)",
+        cursor:"move"
+    });
+    makeDraggable(panel,header);
+    const close=document.createElement("div");
+    close.textContent="✕";
+    Object.assign(close.style,{position:"absolute",right:"16px",top:"12px",cursor:"pointer"});
+    close.onclick=()=>panel.style.display="none";
+    const importBtn=document.createElement("button");
+    importBtn.textContent="Import Theme";
+    Object.assign(importBtn.style,{
+        margin:"10px",
+        padding:"10px",
+        borderRadius:"8px",
+        border:"1px solid rgba(255,255,255,0.1)",
+        background:"rgba(255,255,255,0.06)",
+        color:"#fff",
+        fontWeight:"500",
+        cursor:"pointer",
+        transition:"all .15s ease"
+    });
+    importBtn.onmouseenter=()=>{importBtn.style.background="rgba(255,255,255,0.12)";};
+    importBtn.onmouseleave=()=>{importBtn.style.background="rgba(255,255,255,0.06)";};
+    const list=document.createElement("div");
+    Object.assign(list.style,{
+        flex:"1",
+        overflowY:"auto",
+        padding:"12px",
+        display:"flex",
+        flexDirection:"column",
+        gap:"8px"
+    });
+    panel.appendChild(header);
+    panel.appendChild(close);
+    panel.appendChild(importBtn);
+    panel.appendChild(list);
+    document.body.appendChild(panel);
+    function render(){
+        list.innerHTML="";
+        const themes=getThemes();
+        themes.forEach(theme=>{
+            const meta=parseMeta(theme.css);
+            const card=document.createElement("div");
+            Object.assign(card.style,{
+                padding:"10px",
+                borderRadius:"10px",
+                background:"rgba(255,255,255,0.05)",
+                display:"flex",
+                justifyContent:"space-between",
+                alignItems:"center"
+            });
+            const info=document.createElement("div");
+            info.innerHTML=`<div style="font-weight:600">${meta.name}</div><div style="font-size:11px;opacity:.7">${meta.author} • v${meta.version}</div><div style="font-size:11px;opacity:.6">${meta.description}</div>`;
+            const controls=document.createElement("div");
+            const toggle=document.createElement("button");
+            toggle.textContent=theme.enabled?"Disable":"Enable";
+            toggle.onclick=()=>{
+                theme.enabled=!theme.enabled;
+                setThemes(themes);
+                applyThemes();
+                render();
+            };
+            const edit=document.createElement("button");
+            edit.textContent="Edit";
+            edit.onclick=()=>openThemeEditor(theme);
+            const del=document.createElement("button");
+            del.textContent="Delete";
+            del.onclick=()=>{
+                const updated=themes.filter(t=>t.id!==theme.id);
+                setThemes(updated);
+                applyThemes();
+                render();
+            };
+            [toggle,edit,del].forEach(b=>{Object.assign(b.style,{marginLeft:"6px",padding:"4px 8px",borderRadius:"6px",border:"none",cursor:"pointer"});controls.appendChild(b);});
+            card.appendChild(info);
+            card.appendChild(controls);
+            list.appendChild(card);
+        });
+    }
+    window.__avia_refresh_themes_panel = render;
+    importBtn.onclick=()=>{
+        const input=document.createElement("input");
+        input.type="file";
+        input.accept=".css,.txt";
+        input.onchange=async()=>{
+            const file=input.files[0];
+            if(!file) return;
+            const css=await file.text();
+            const themes=getThemes();
+            themes.push({id:crypto.randomUUID(),css,enabled:true});
+            setThemes(themes);
+            applyThemes();
+            render();
+        };
+        input.click();
+    };
+    render();
+}
+
+function injectButton(){
+    if(document.getElementById("avia-themes-btn")) return;
+    const appearanceBtn=[...document.querySelectorAll("a")].find(a=>a.textContent.trim()==="Appearance");
+    const quickCSS=document.getElementById("stoat-fake-quickcss");
+    if(!appearanceBtn || !quickCSS) return;
+    const clone=appearanceBtn.cloneNode(true);
+    clone.id="avia-themes-btn";
+    const text=[...clone.querySelectorAll("div")].find(d=>d.children.length===0);
+    if(text) text.textContent="(Avia) Themes";
+    clone.onclick=toggleThemesPanel;
+    quickCSS.parentElement.insertBefore(clone, quickCSS.nextSibling);
+}
+
+new MutationObserver(injectButton).observe(document.body,{childList:true,subtree:true});
+injectButton();
+applyThemes();
+
+})();
 
 
-
-/* --- Official Plugin Repo.js --- */
-if(window.__US_BUILDER_OFFICIAL_PLUGIN_REPO_JS__){return;}window.__US_BUILDER_OFFICIAL_PLUGIN_REPO_JS__=true;
+/* --- officialpluginrepo.js --- */
+if(window.__US_BUILDER_OFFICIALPLUGINREPO_JS__){return;}window.__US_BUILDER_OFFICIALPLUGINREPO_JS__=true;
 
 (function () {
 
@@ -361,7 +1251,7 @@ function injectSettingsButton() {
 
     const referenceNode = document.getElementById("stoat-fake-quickcss");
 
-    if (!appearanceBtn || !referenceNode) return;
+    if (!appearanceBtn) return;
 
     const clone = appearanceBtn.cloneNode(true);
     clone.id = "avia-official-repo-btn-settings";
@@ -379,7 +1269,17 @@ function injectSettingsButton() {
 
     clone.onclick = openWindow;
 
-    referenceNode.parentElement.insertBefore(clone, referenceNode.nextSibling);
+    const aviaHeader = [...document.querySelectorAll('span')]
+    .find(s => s.textContent.trim() === "AVIA CLIENT SETTINGS");
+if (!aviaHeader) return;
+
+const aviaContainer = aviaHeader.closest('.d_flex.flex-d_column');
+if (!aviaContainer) return;
+
+const targetParent = aviaContainer.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
+if (!targetParent) return;
+
+targetParent.appendChild(clone);
 }
 
 window.addEventListener("avia-plugin-list-changed", () => {
