@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AviaClient
 // @namespace   userscript.builder
-// @version     1.0
+// @version     1.3
 // @description Combined userscript generated locally
 // @match       https://stoat.chat/*
 // @grant       none
