@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AviaClient
 // @namespace   userscript.builder
-// @version     1.3
+// @version     1.4
 // @description Combined userscript generated locally
 // @match       https://stoat.chat/*
 // @grant       none
@@ -9,7 +9,1817 @@
 // ==/UserScript==
 
 (function(){
-'@preserve - Built on 2026-03-22T19:15:36.006Z';
+'@preserve - Built on 2026-03-23T00:08:18.271Z';
+
+/* --- LocalPlugins.js --- */
+if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGINS_JS__=true;
+
+(function () {
+
+    if (window.__AVIA_LOCAL_PLUGINS_LOADED__) return;
+    window.__AVIA_LOCAL_PLUGINS_LOADED__ = true;
+
+    const STORAGE_KEY = "avia_local_plugins";
+
+    const runningLocalPlugins = {};
+    const localPluginErrors = {};
+
+    const getLocalPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const setLocalPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    function preloadMonaco() {
+        return new Promise(resolve => {
+            if (window.monaco) return resolve();
+            const loader = document.createElement("script");
+            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js";
+            loader.onload = function () {
+                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs" } });
+                require(["vs/editor/editor.main"], () => resolve());
+            };
+            document.head.appendChild(loader);
+        });
+    }
+
+    function runLocalPlugin(plugin) {
+        stopLocalPlugin(plugin);
+        try {
+            const script = document.createElement("script");
+            script.textContent = plugin.code || "";
+            script.dataset.localPluginId = plugin.id;
+            document.body.appendChild(script);
+            runningLocalPlugins[plugin.id] = script;
+            delete localPluginErrors[plugin.id];
+        } catch (e) {
+            localPluginErrors[plugin.id] = true;
+        }
+        renderLocalPanel();
+    }
+
+    function stopLocalPlugin(plugin) {
+        const script = runningLocalPlugins[plugin.id];
+        if (!script) return;
+        script.remove();
+        delete runningLocalPlugins[plugin.id];
+        delete localPluginErrors[plugin.id];
+        renderLocalPanel();
+    }
+
+    async function openEditorPanel(plugin, onSave) {
+        await preloadMonaco();
+
+        const existing = document.getElementById("avia-local-editor-panel");
+        if (existing) existing.remove();
+
+        const panel = document.createElement("div");
+        panel.id = "avia-local-editor-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "24px",
+            left: "24px",
+            width: "680px",
+            height: "460px",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+            zIndex: "9999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)"
+        });
+
+        const header = document.createElement("div");
+        header.textContent = `Editing: ${plugin.name}`;
+        Object.assign(header.style, {
+            padding: "14px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move",
+            color: "#fff",
+            flex: "0 0 auto"
+        });
+
+        const closeBtn = document.createElement("div");
+        closeBtn.textContent = "✕";
+        Object.assign(closeBtn.style, {
+            position: "absolute",
+            top: "12px",
+            right: "16px",
+            cursor: "pointer",
+            opacity: "0.7",
+            color: "#fff",
+            zIndex: "1"
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.7";
+        closeBtn.onclick = () => panel.remove();
+
+        const toolbar = document.createElement("div");
+        Object.assign(toolbar.style, {
+            padding: "8px 16px",
+            display: "flex",
+            gap: "8px",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            flex: "0 0 auto"
+        });
+
+        const saveBtn = document.createElement("button");
+        saveBtn.textContent = "💾 Save";
+        styleEditorBtn(saveBtn, "#2d6a4f");
+
+        const saveRunBtn = document.createElement("button");
+        saveRunBtn.textContent = "▶ Save & Run";
+        styleEditorBtn(saveRunBtn, "#1b4332");
+
+        toolbar.appendChild(saveBtn);
+        toolbar.appendChild(saveRunBtn);
+
+        const editorContainer = document.createElement("div");
+        editorContainer.style.flex = "1";
+
+        panel.appendChild(header);
+        panel.appendChild(closeBtn);
+        panel.appendChild(toolbar);
+        panel.appendChild(editorContainer);
+        document.body.appendChild(panel);
+
+        const editor = monaco.editor.create(editorContainer, {
+            value: plugin.code || "// Write your plugin code here\n",
+            language: "javascript",
+            theme: "vs-dark",
+            automaticLayout: true,
+            minimap: { enabled: false },
+            fontSize: 13,
+            scrollBeyondLastLine: false,
+            wordWrap: "on"
+        });
+
+        saveBtn.onclick = () => {
+            onSave(editor.getValue(), false);
+
+            saveBtn.textContent = "✓ Saved";
+            setTimeout(() => saveBtn.textContent = "💾 Save", 1200);
+        };
+
+        saveRunBtn.onclick = () => {
+            onSave(editor.getValue(), true);
+            saveRunBtn.textContent = "✓ Ran!";
+            setTimeout(() => saveRunBtn.textContent = "▶ Save & Run", 1200);
+        };
+
+        enableEditorDrag(panel, header);
+    }
+
+    function styleEditorBtn(btn, bg) {
+        Object.assign(btn.style, {
+            padding: "5px 14px",
+            borderRadius: "8px",
+            border: "none",
+            background: bg || "rgba(255,255,255,0.1)",
+            color: "#fff",
+            cursor: "pointer",
+            fontSize: "12px",
+            fontWeight: "500"
+        });
+        btn.onmouseenter = () => btn.style.opacity = "0.8";
+        btn.onmouseleave = () => btn.style.opacity = "1";
+    }
+
+    function enableEditorDrag(panel, handle) {
+        let isDragging = false, offsetX, offsetY;
+        handle.addEventListener("mousedown", e => {
+            isDragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+            document.body.style.userSelect = "none";
+        });
+        document.addEventListener("mouseup", () => {
+            isDragging = false;
+            document.body.style.userSelect = "";
+        });
+        document.addEventListener("mousemove", e => {
+            if (!isDragging) return;
+            panel.style.left = (e.clientX - offsetX) + "px";
+            panel.style.top = (e.clientY - offsetY) + "px";
+            panel.style.right = "auto";
+            panel.style.bottom = "auto";
+        });
+    }
+
+    function toggleLocalPanel() {
+        let panel = document.getElementById("avia-local-plugins-panel");
+        if (panel) {
+            panel.style.display = panel.style.display === "none" ? "flex" : "none";
+            return;
+        }
+
+        panel = document.createElement("div");
+        panel.id = "avia-local-plugins-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "24px",
+            right: "560px", 
+            width: "520px",
+            height: "460px",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            color: "var(--md-sys-color-on-surface, #fff)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+            zIndex: "999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)"
+        });
+
+        const header = document.createElement("div");
+        header.textContent = "Local Plugins";
+        Object.assign(header.style, {
+            padding: "14px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move"
+        });
+
+        const closeBtn = document.createElement("div");
+        closeBtn.textContent = "✕";
+        Object.assign(closeBtn.style, {
+            position: "absolute",
+            top: "12px",
+            right: "16px",
+            cursor: "pointer",
+            opacity: "0.7"
+        });
+        closeBtn.onclick = () => panel.style.display = "none";
+
+        const controlsBar = document.createElement("div");
+        Object.assign(controlsBar.style, {
+            padding: "12px 16px",
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            flex: "0 0 auto"
+        });
+
+        const nameInput = document.createElement("input");
+        nameInput.placeholder = "Plugin name";
+        styleLocalInput(nameInput);
+        nameInput.style.flex = "1";
+
+        const addBtn = document.createElement("button");
+        addBtn.textContent = "+ New";
+        styleLocalBtn(addBtn);
+        addBtn.onclick = () => {
+            const name = nameInput.value.trim();
+            if (!name) return;
+            const plugins = getLocalPlugins();
+            const newPlugin = {
+                id: "local_" + Date.now(),
+                name,
+                code: "// " + name + "\n",
+                enabled: false
+            };
+            plugins.push(newPlugin);
+            setLocalPlugins(plugins);
+            nameInput.value = "";
+            renderLocalPanel();
+        };
+
+        controlsBar.appendChild(nameInput);
+        controlsBar.appendChild(addBtn);
+
+        const content = document.createElement("div");
+        content.id = "avia-local-plugins-content";
+        Object.assign(content.style, {
+            flex: "1",
+            overflow: "auto",
+            padding: "16px"
+        });
+
+        panel.appendChild(header);
+        panel.appendChild(closeBtn);
+        panel.appendChild(controlsBar);
+        panel.appendChild(content);
+        document.body.appendChild(panel);
+
+        let isDragging = false, offsetX, offsetY;
+        header.addEventListener("mousedown", e => {
+            isDragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+        });
+        document.addEventListener("mouseup", () => isDragging = false);
+        document.addEventListener("mousemove", e => {
+            if (!isDragging) return;
+            panel.style.left = (e.clientX - offsetX) + "px";
+            panel.style.top = (e.clientY - offsetY) + "px";
+            panel.style.right = "auto";
+            panel.style.bottom = "auto";
+        });
+
+        renderLocalPanel();
+    }
+
+    function renderLocalPanel() {
+        const content = document.getElementById("avia-local-plugins-content");
+        if (!content) return;
+        content.innerHTML = "";
+        const plugins = getLocalPlugins();
+
+        if (plugins.length === 0) {
+            const empty = document.createElement("div");
+            empty.textContent = "No local plugins yet. Add one above.";
+            empty.style.opacity = "0.4";
+            empty.style.fontSize = "13px";
+            content.appendChild(empty);
+            return;
+        }
+
+        plugins.forEach((plugin, index) => {
+            const isRunning = !!runningLocalPlugins[plugin.id];
+            const hasError = !!localPluginErrors[plugin.id];
+
+            const row = document.createElement("div");
+            Object.assign(row.style, {
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "12px",
+                padding: "10px 12px",
+                borderRadius: "10px",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.06)"
+            });
+
+            const left = document.createElement("div");
+            Object.assign(left.style, { display: "flex", alignItems: "center", gap: "10px" });
+
+            const statusDot = document.createElement("div");
+            Object.assign(statusDot.style, { width: "10px", height: "10px", borderRadius: "50%", flexShrink: "0" });
+            if (hasError) {
+                statusDot.style.background = "#ff4d4d";
+                statusDot.style.boxShadow = "0 0 6px #ff4d4d";
+            } else if (isRunning) {
+                statusDot.style.background = "#4dff88";
+                statusDot.style.boxShadow = "0 0 6px #4dff88";
+            } else {
+                statusDot.style.background = "#777";
+            }
+
+            const name = document.createElement("div");
+            name.textContent = plugin.name;
+            name.style.fontSize = "13px";
+
+            left.appendChild(statusDot);
+            left.appendChild(name);
+
+            const controls = document.createElement("div");
+            Object.assign(controls.style, { display: "flex", gap: "6px" });
+
+            const editBtn = document.createElement("button");
+            editBtn.textContent = "✏ Edit";
+            styleLocalBtn(editBtn, "rgba(100,140,255,0.2)");
+            editBtn.onclick = () => {
+                openEditorPanel(plugin, (newCode, andRun) => {
+                    const all = getLocalPlugins();
+                    const target = all.find(p => p.id === plugin.id);
+                    if (target) {
+                        target.code = newCode;
+                        plugin.code = newCode; 
+                        setLocalPlugins(all);
+                    }
+                    if (andRun) {
+                        plugin.enabled = true;
+                        if (target) target.enabled = true;
+                        setLocalPlugins(getLocalPlugins().map(p => p.id === plugin.id ? { ...p, code: newCode, enabled: true } : p));
+                        runLocalPlugin(plugin);
+                    }
+                    renderLocalPanel();
+                });
+            };
+
+            const toggleBtn = document.createElement("button");
+            toggleBtn.textContent = plugin.enabled ? "Disable" : "Enable";
+            styleLocalBtn(toggleBtn);
+            toggleBtn.onclick = () => {
+                const all = getLocalPlugins();
+                const target = all.find(p => p.id === plugin.id);
+                if (!target) return;
+                target.enabled = !target.enabled;
+                plugin.enabled = target.enabled;
+                setLocalPlugins(all);
+                if (target.enabled) runLocalPlugin(plugin);
+                else stopLocalPlugin(plugin);
+                renderLocalPanel();
+            };
+
+            const removeBtn = document.createElement("button");
+            removeBtn.textContent = "✕";
+            styleLocalBtn(removeBtn, "rgba(255,80,80,0.15)");
+            removeBtn.onclick = () => {
+                stopLocalPlugin(plugin);
+
+                const editorPanel = document.getElementById("avia-local-editor-panel");
+                if (editorPanel) editorPanel.remove();
+                const all = getLocalPlugins();
+                all.splice(all.findIndex(p => p.id === plugin.id), 1);
+                setLocalPlugins(all);
+                renderLocalPanel();
+            };
+
+            controls.appendChild(editBtn);
+            controls.appendChild(toggleBtn);
+            controls.appendChild(removeBtn);
+            row.appendChild(left);
+            row.appendChild(controls);
+            content.appendChild(row);
+        });
+    }
+
+    function styleLocalInput(input) {
+        Object.assign(input.style, {
+            padding: "6px 8px",
+            borderRadius: "8px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.05)",
+            color: "#fff",
+            fontSize: "13px"
+        });
+    }
+
+    function styleLocalBtn(btn, bg) {
+        Object.assign(btn.style, {
+            padding: "5px 12px",
+            borderRadius: "8px",
+            border: "none",
+            background: bg || "rgba(255,255,255,0.08)",
+            color: "#fff",
+            cursor: "pointer",
+            fontSize: "12px",
+            whiteSpace: "nowrap"
+        });
+        btn.onmouseenter = () => btn.style.opacity = "0.75";
+        btn.onmouseleave = () => btn.style.opacity = "1";
+    }
+
+    function injectLocalButton() {
+        if (document.getElementById("avia-local-plugins-btn")) return;
+        const appearanceBtn = [...document.querySelectorAll("a")]
+            .find(a => a.textContent.trim() === "Appearance");
+        if (!appearanceBtn) return;
+
+        const aviaPluginsBtn = document.getElementById("stoat-fake-plugins");
+        if (!aviaPluginsBtn) return;
+
+        const localBtn = appearanceBtn.cloneNode(true);
+        localBtn.id = "avia-local-plugins-btn";
+
+        const textNode = [...localBtn.querySelectorAll("div")]
+            .find(d => d.children.length === 0 && d.textContent.trim() === "Appearance");
+        if (textNode) textNode.textContent = "(Avia) Local Plugins";
+
+
+        const oldSvg = localBtn.querySelector("svg");
+        if (oldSvg) oldSvg.remove();
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "currentColor");
+        svg.style.marginRight = "8px";
+        const path = document.createElementNS(svgNS, "path");
+
+        path.setAttribute("d", "M20.5 11H19V7a2 2 0 00-2-2h-4V3.5a2.5 2.5 0 00-5 0V5H4a2 2 0 00-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 002 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7V22H17a2 2 0 002-2v-4h1.5a2.5 2.5 0 000-5z");
+        svg.appendChild(path);
+        localBtn.insertBefore(svg, localBtn.firstChild);
+
+        localBtn.addEventListener("click", toggleLocalPanel);
+        aviaPluginsBtn.parentElement.insertBefore(localBtn, aviaPluginsBtn.nextSibling);
+    }
+
+
+    function waitForBody(callback) {
+        if (document.body) callback();
+        else new MutationObserver((obs) => {
+            if (document.body) { obs.disconnect(); callback(); }
+        }).observe(document.documentElement, { childList: true });
+    }
+
+    waitForBody(() => {
+        const observer = new MutationObserver(() => injectLocalButton());
+        observer.observe(document.body, { childList: true, subtree: true });
+        injectLocalButton();
+    });
+
+    getLocalPlugins().forEach(plugin => {
+        if (plugin.enabled) runLocalPlugin(plugin);
+    });
+
+    preloadMonaco();
+
+})();
+
+
+
+/* --- pluginsupport.js --- */
+if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
+
+(function () {
+
+    if (window.__AVIA_PLUGINS_LOADED__) return;
+    window.__AVIA_PLUGINS_LOADED__ = true;
+
+    const STORAGE_KEY = "avia_plugins";
+
+    const runningPlugins = {};
+    const pluginErrors = {};
+    const injectionQueue = [];
+
+    const getPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const setPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    async function processQueue() {
+        if (processQueue.running) return;
+        processQueue.running = true;
+        while (injectionQueue.length) {
+            const { plugin, force } = injectionQueue.shift();
+            await loadPluginInternal(plugin, force);
+        }
+        processQueue.running = false;
+    }
+
+    function queuePlugin(plugin, force = false) {
+        injectionQueue.push({ plugin, force });
+        processQueue();
+    }
+
+    async function loadPluginInternal(plugin, force = false) {
+        if (runningPlugins[plugin.url] && !force) return;
+        if (force) stopPlugin(plugin);
+        try {
+            const res = await fetch(plugin.url);
+            if (!res.ok) throw new Error("Fetch failed");
+            const code = await res.text();
+            delete pluginErrors[plugin.url];
+            const script = document.createElement("script");
+            script.textContent = code;
+            script.dataset.pluginUrl = plugin.url;
+            document.body.appendChild(script);
+            runningPlugins[plugin.url] = script;
+        } catch {
+            pluginErrors[plugin.url] = true;
+        }
+        renderPanel();
+    }
+
+    function stopPlugin(plugin) {
+        const script = runningPlugins[plugin.url];
+        if (!script) return;
+        script.remove();
+        delete runningPlugins[plugin.url];
+        delete pluginErrors[plugin.url];
+        renderPanel();
+    }
+
+    function preloadMonaco() {
+        return new Promise(resolve => {
+            if (window.monaco) return resolve();
+            const loader = document.createElement("script");
+            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js";
+            loader.onload = function () {
+                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs" } });
+                require(["vs/editor/editor.main"], () => resolve());
+            };
+            document.head.appendChild(loader);
+        });
+    }
+
+    async function openViewerPanel(plugin) {
+        await preloadMonaco();
+
+        const existing = document.getElementById("avia-plugin-viewer-panel");
+        if (existing) existing.remove();
+
+        const panel = document.createElement("div");
+        panel.id = "avia-plugin-viewer-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "24px",
+            left: "24px",
+            width: "700px",
+            height: "480px",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.45)",
+            zIndex: "9999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)",
+            color: "#fff"
+        });
+
+        const header = document.createElement("div");
+        Object.assign(header.style, {
+            padding: "14px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            flex: "0 0 auto"
+        });
+
+        const titleText = document.createElement("span");
+        titleText.textContent = `Viewing: ${plugin.name}`;
+        titleText.style.flex = "1";
+
+        const readOnlyBadge = document.createElement("span");
+        readOnlyBadge.textContent = "READ ONLY";
+        Object.assign(readOnlyBadge.style, {
+            fontSize: "10px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            padding: "2px 8px",
+            borderRadius: "20px",
+            background: "rgba(255,180,0,0.15)",
+            color: "#ffb400",
+            border: "1px solid rgba(255,180,0,0.3)"
+        });
+
+        const closeBtn = document.createElement("div");
+        closeBtn.textContent = "✕";
+        Object.assign(closeBtn.style, {
+            cursor: "pointer",
+            opacity: "0.6",
+            fontSize: "15px",
+            lineHeight: "1",
+            padding: "2px 4px"
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.6";
+        closeBtn.onclick = () => panel.remove();
+
+        header.appendChild(titleText);
+        header.appendChild(readOnlyBadge);
+        header.appendChild(closeBtn);
+
+        const urlBar = document.createElement("div");
+        Object.assign(urlBar.style, {
+            padding: "8px 16px",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            fontSize: "11px",
+            color: "rgba(255,255,255,0.35)",
+            fontFamily: "monospace",
+            background: "rgba(0,0,0,0.15)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: "0 0 auto"
+        });
+        urlBar.textContent = plugin.url;
+        urlBar.title = plugin.url;
+
+        const editorContainer = document.createElement("div");
+        editorContainer.style.flex = "1";
+        editorContainer.style.overflow = "hidden";
+
+        const loadingMsg = document.createElement("div");
+        Object.assign(loadingMsg.style, {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            opacity: "0.4",
+            fontSize: "13px"
+        });
+        loadingMsg.textContent = "Fetching source…";
+        editorContainer.appendChild(loadingMsg);
+
+        panel.appendChild(header);
+        panel.appendChild(urlBar);
+        panel.appendChild(editorContainer);
+        document.body.appendChild(panel);
+
+        enableDragOn(panel, header);
+
+        let code;
+        try {
+            const res = await fetch(plugin.url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            code = await res.text();
+        } catch (err) {
+            loadingMsg.textContent = `Failed to fetch source: ${err.message}`;
+            loadingMsg.style.color = "#ff4d4d";
+            loadingMsg.style.opacity = "1";
+            return;
+        }
+
+        editorContainer.removeChild(loadingMsg);
+
+        monaco.editor.create(editorContainer, {
+            value: code,
+            language: "javascript",
+            theme: "vs-dark",
+            readOnly: true,
+            automaticLayout: true,
+            minimap: { enabled: true },
+            fontSize: 13,
+            scrollBeyondLastLine: false,
+            wordWrap: "off",
+            domReadOnly: true,
+            renderValidationDecorations: "off",
+            renderLineHighlight: "none",
+            cursorStyle: "block",
+            cursorBlinking: "solid"
+        });
+    }
+
+    function togglePluginsPanel() {
+        let panel = document.getElementById('avia-plugins-panel');
+        if (panel) {
+            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+            return;
+        }
+        panel = document.createElement('div');
+        panel.id = 'avia-plugins-panel';
+        Object.assign(panel.style, {
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            width: '520px',
+            height: '460px',
+            background: 'var(--md-sys-color-surface, #1e1e1e)',
+            color: 'var(--md-sys-color-on-surface, #fff)',
+            borderRadius: '16px',
+            boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+            zIndex: '999999',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            border: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(12px)'
+        });
+
+        const header = document.createElement('div');
+        header.textContent = 'Plugins';
+        Object.assign(header.style, {
+            padding: '14px 16px',
+            fontWeight: '600',
+            fontSize: '14px',
+            background: 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            cursor: 'move'
+        });
+
+        const closeBtn = document.createElement('div');
+        closeBtn.textContent = '✕';
+        Object.assign(closeBtn.style, {
+            position: 'absolute',
+            top: '12px',
+            right: '16px',
+            cursor: 'pointer',
+            opacity: '0.7'
+        });
+        closeBtn.onclick = () => panel.style.display = 'none';
+
+        const controlsBar = document.createElement('div');
+        Object.assign(controlsBar.style, {
+            padding: '12px 16px',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            flex: '0 0 auto'
+        });
+
+        const content = document.createElement('div');
+        content.id = 'avia-plugins-content';
+        Object.assign(content.style, {
+            flex: '1',
+            overflow: 'auto',
+            padding: '16px'
+        });
+
+        const nameInput = document.createElement('input');
+        nameInput.placeholder = 'Name';
+        styleInput(nameInput);
+        nameInput.style.width = '110px';
+
+        const urlInput = document.createElement('input');
+        urlInput.placeholder = 'Plugin URL';
+        styleInput(urlInput);
+        urlInput.style.flex = '1';
+
+        const addBtn = document.createElement('button');
+        addBtn.textContent = '+ Add';
+        styleBtn(addBtn);
+        addBtn.onclick = () => {
+            const name = nameInput.value.trim();
+            const url = urlInput.value.trim();
+            if (!name || !url) return;
+            const plugins = getPlugins();
+            plugins.push({ name, url, enabled: false });
+            setPlugins(plugins);
+            nameInput.value = '';
+            urlInput.value = '';
+            renderPanel();
+        };
+
+        const refreshAll = document.createElement('button');
+        refreshAll.textContent = 'Refresh';
+        styleBtn(refreshAll);
+        refreshAll.onclick = () => {
+            const plugins = getPlugins();
+            plugins.forEach(p => {
+                if (p.enabled) queuePlugin(p, true);
+            });
+        };
+
+        controlsBar.appendChild(nameInput);
+        controlsBar.appendChild(urlInput);
+        controlsBar.appendChild(addBtn);
+        controlsBar.appendChild(refreshAll);
+        panel.appendChild(header);
+        panel.appendChild(closeBtn);
+        panel.appendChild(controlsBar);
+        panel.appendChild(content);
+        document.body.appendChild(panel);
+        enableDragOn(panel, header);
+        renderPanel();
+    }
+
+    function renderPanel() {
+        const content = document.getElementById('avia-plugins-content');
+        if (!content) return;
+        content.innerHTML = '';
+        const plugins = getPlugins();
+        const runningSnapshot = { ...runningPlugins };
+        const errorSnapshot = { ...pluginErrors };
+
+        if (plugins.length === 0) {
+            const empty = document.createElement('div');
+            empty.textContent = 'No plugins yet. Add one above.';
+            Object.assign(empty.style, { opacity: '0.4', fontSize: '13px' });
+            content.appendChild(empty);
+            return;
+        }
+
+        plugins.forEach((plugin, index) => {
+            const isRunning = !!runningSnapshot[plugin.url];
+            const hasError = !!errorSnapshot[plugin.url];
+
+            const row = document.createElement('div');
+            Object.assign(row.style, {
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '12px',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.06)'
+            });
+
+            const left = document.createElement('div');
+            Object.assign(left.style, { display: 'flex', alignItems: 'center', gap: '10px' });
+
+            const statusDot = document.createElement('div');
+            Object.assign(statusDot.style, {
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                flexShrink: '0'
+            });
+            if (hasError) {
+                statusDot.style.background = '#ff4d4d';
+                statusDot.style.boxShadow = '0 0 6px #ff4d4d';
+            } else if (isRunning) {
+                statusDot.style.background = '#4dff88';
+                statusDot.style.boxShadow = '0 0 6px #4dff88';
+            } else {
+                statusDot.style.background = '#777';
+            }
+
+            const name = document.createElement('div');
+            name.textContent = plugin.name;
+            name.style.fontSize = '13px';
+
+            left.appendChild(statusDot);
+            left.appendChild(name);
+
+            const controls = document.createElement('div');
+            Object.assign(controls.style, { display: 'flex', gap: '6px' });
+
+            const toggle = document.createElement('button');
+            toggle.textContent = plugin.enabled ? 'Disable' : 'Enable';
+            styleBtn(toggle);
+            toggle.onclick = () => {
+                plugin.enabled = !plugin.enabled;
+                setPlugins(plugins);
+                if (plugin.enabled) queuePlugin(plugin);
+                else stopPlugin(plugin);
+                renderPanel();
+            };
+
+            const viewBtn = document.createElement('button');
+            viewBtn.textContent = 'View';
+            styleBtn(viewBtn, 'rgba(100,160,255,0.15)');
+            viewBtn.onclick = () => openViewerPanel(plugin);
+
+            const remove = document.createElement('button');
+            remove.textContent = '✕';
+            styleBtn(remove, 'rgba(255,80,80,0.15)');
+            remove.onclick = () => {
+                stopPlugin(plugin);
+                plugins.splice(index, 1);
+                setPlugins(plugins);
+                renderPanel();
+            };
+
+            controls.appendChild(toggle);
+            controls.appendChild(viewBtn);
+            controls.appendChild(remove);
+            row.appendChild(left);
+            row.appendChild(controls);
+            content.appendChild(row);
+        });
+    }
+
+    function styleInput(input) {
+        Object.assign(input.style, {
+            padding: '6px 8px',
+            borderRadius: '8px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.05)',
+            color: '#fff',
+            fontSize: '13px'
+        });
+    }
+
+    function styleBtn(btn, bg) {
+        Object.assign(btn.style, {
+            padding: '5px 12px',
+            borderRadius: '8px',
+            border: 'none',
+            background: bg || 'rgba(255,255,255,0.08)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '12px',
+            whiteSpace: 'nowrap'
+        });
+        btn.onmouseenter = () => btn.style.opacity = '0.75';
+        btn.onmouseleave = () => btn.style.opacity = '1';
+    }
+
+    function enableDragOn(panel, header) {
+        let isDragging = false, offsetX, offsetY;
+        header.addEventListener('mousedown', e => {
+            isDragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            document.body.style.userSelect = '';
+        });
+        document.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panel.style.left = (e.clientX - offsetX) + 'px';
+            panel.style.top = (e.clientY - offsetY) + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+        });
+    }
+
+    function injectButtons() {
+        if (document.getElementById('stoat-fake-plugins')) return;
+        const appearanceBtn = [...document.querySelectorAll('a')]
+            .find(a => a.textContent.trim() === 'Appearance');
+        if (!appearanceBtn) return;
+        const referenceNode = document.getElementById('stoat-fake-quickcss');
+        if (!referenceNode) return;
+        const pluginsBtn = appearanceBtn.cloneNode(true);
+        pluginsBtn.id = 'stoat-fake-plugins';
+        const textNode = [...pluginsBtn.querySelectorAll('div')]
+            .find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
+        if (textNode) textNode.textContent = "(Avia) Plugins";
+        const svgNS = "http://www.w3.org/2000/svg";
+        const oldSvg = pluginsBtn.querySelector('svg');
+        if (oldSvg) oldSvg.remove();
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "currentColor");
+        svg.style.marginRight = "8px";
+        const path = document.createElementNS(svgNS, "path");
+        path.setAttribute("d", "M20.5 11H19V7a2 2 0 00-2-2h-4V3.5a2.5 2.5 0 00-5 0V5H4a2 2 0 00-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 002 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7V22H17a2 2 0 002-2v-4h1.5a2.5 2.5 0 000-5z");
+        svg.appendChild(path);
+        pluginsBtn.insertBefore(svg, pluginsBtn.firstChild);
+        pluginsBtn.addEventListener('click', togglePluginsPanel);
+        referenceNode.parentElement.insertBefore(pluginsBtn, referenceNode.nextSibling);
+    }
+
+    function waitForBody(callback) {
+        if (document.body) callback();
+        else new MutationObserver((obs) => {
+            if (document.body) { obs.disconnect(); callback(); }
+        }).observe(document.documentElement, { childList: true });
+    }
+
+    waitForBody(() => {
+        const observer = new MutationObserver(() => injectButtons());
+        observer.observe(document.body, { childList: true, subtree: true });
+        injectButtons();
+        preloadMonaco();
+    });
+
+    getPlugins().forEach(plugin => {
+        if (plugin.enabled) queuePlugin(plugin);
+    });
+
+})();
+
+
+
+/* --- themes.js --- */
+if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true;
+
+(function () {
+
+if (window.__AVIA_THEMES_LOADED__) return;
+window.__AVIA_THEMES_LOADED__ = true;
+
+const STORAGE_KEY = "avia_themes";
+let editingTheme = null;
+
+const TEMPLATE = `/*
+@name Whatever name here
+@author Whatever Author Here
+@version 1.0
+@description Whatever description here
+*/
+
+`;
+
+const getThemes = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+const setThemes = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+function parseMeta(css){
+    const name = css.match(/@name\s+(.+)/)?.[1] || "Unknown Theme";
+    const author = css.match(/@author\s+(.+)/)?.[1] || "Unknown";
+    const version = css.match(/@version\s+(.+)/)?.[1] || "1.0";
+    const rawDescription = css.match(/@description\s+(.+)/)?.[1] || "No Description Available";
+    const description = rawDescription.trim() === "*/" ? "No Description Available" : rawDescription;
+    return {name,author,version,description};
+}
+
+function applyThemes(){
+    document.querySelectorAll(".avia-theme-style").forEach(e=>e.remove());
+    const themes = getThemes();
+    themes.forEach(theme=>{
+        if(!theme.enabled) return;
+        const style=document.createElement("style");
+        style.className="avia-theme-style";
+        style.textContent=theme.css;
+        document.head.appendChild(style);
+    });
+}
+
+function styleBtn(btn, bg) {
+    Object.assign(btn.style, {
+        padding: "5px 12px",
+        borderRadius: "8px",
+        border: "none",
+        background: bg || "rgba(255,255,255,0.08)",
+        color: "#fff",
+        cursor: "pointer",
+        fontSize: "12px",
+        whiteSpace: "nowrap",
+        fontWeight: "500"
+    });
+    btn.onmouseenter = () => btn.style.opacity = "0.75";
+    btn.onmouseleave = () => btn.style.opacity = "1";
+}
+
+function makeDraggable(panel, handle){
+    let dragging=false,offsetX,offsetY;
+    handle.addEventListener("mousedown",e=>{
+        dragging=true;
+        offsetX=e.clientX-panel.offsetLeft;
+        offsetY=e.clientY-panel.offsetTop;
+        document.body.style.userSelect="none";
+    });
+    document.addEventListener("mouseup",()=>{dragging=false;document.body.style.userSelect="";});
+    document.addEventListener("mousemove",e=>{
+        if(!dragging) return;
+        panel.style.left=(e.clientX-offsetX)+"px";
+        panel.style.top=(e.clientY-offsetY)+"px";
+        panel.style.right="auto";
+        panel.style.bottom="auto";
+    });
+}
+
+function openThemeEditor(theme){
+    editingTheme = theme;
+    let panel = document.getElementById('avia-theme-editor');
+    if(panel){
+        panel.style.display="flex";
+        panel.querySelector("textarea").value = theme.css;
+        return;
+    }
+    panel=document.createElement("div");
+    panel.id="avia-theme-editor";
+    Object.assign(panel.style,{
+        position:"fixed",
+        bottom:"24px",
+        right:"24px",
+        width:"420px",
+        height:"340px",
+        background:"var(--md-sys-color-surface,#1e1e1e)",
+        color:"var(--md-sys-color-on-surface,#fff)",
+        borderRadius:"16px",
+        boxShadow:"0 8px 28px rgba(0,0,0,0.35)",
+        zIndex:999999,
+        display:"flex",
+        flexDirection:"column",
+        overflow:"hidden",
+        border:"1px solid rgba(255,255,255,0.08)",
+        backdropFilter:"blur(12px)"
+    });
+    const header=document.createElement("div");
+    header.textContent="Theme Editor";
+    Object.assign(header.style,{
+        padding:"14px 16px",
+        fontWeight:"600",
+        fontSize:"14px",
+        background:"var(--md-sys-color-surface-container,rgba(255,255,255,0.04))",
+        borderBottom:"1px solid rgba(255,255,255,0.08)",
+        cursor:"move"
+    });
+    makeDraggable(panel,header);
+    const close=document.createElement("div");
+    close.textContent="✕";
+    Object.assign(close.style,{
+        position:"absolute",
+        right:"16px",
+        top:"12px",
+        cursor:"pointer",
+        opacity:"0.6",
+        fontSize:"15px",
+        lineHeight:"1",
+        padding:"2px 4px"
+    });
+    close.onmouseenter=()=>close.style.opacity="1";
+    close.onmouseleave=()=>close.style.opacity="0.6";
+    close.onclick=()=>panel.style.display="none";
+    const textarea=document.createElement("textarea");
+    Object.assign(textarea.style,{
+        flex:"1",
+        border:"none",
+        outline:"none",
+        resize:"none",
+        padding:"16px",
+        background:"transparent",
+        color:"inherit",
+        fontFamily:"monospace",
+        fontSize:"13px"
+    });
+    textarea.value=theme.css;
+    textarea.addEventListener("input",()=>{
+        const themes=getThemes();
+        const t=themes.find(x=>x.id===editingTheme.id);
+        if(!t) return;
+        t.css=textarea.value;
+        setThemes(themes);
+        applyThemes();
+        if(window.__avia_refresh_themes_panel){window.__avia_refresh_themes_panel();}
+    });
+    panel.appendChild(header);
+    panel.appendChild(close);
+    panel.appendChild(textarea);
+    document.body.appendChild(panel);
+}
+
+function toggleThemesPanel(){
+    let panel=document.getElementById("avia-themes-panel");
+    if(panel){
+        panel.style.display = panel.style.display==="none"?"flex":"none";
+        return;
+    }
+    panel=document.createElement("div");
+    panel.id="avia-themes-panel";
+    Object.assign(panel.style,{
+        position:"fixed",
+        bottom:"40px",
+        right:"40px",
+        width:"500px",
+        height:"460px",
+        background:"var(--md-sys-color-surface,#1e1e1e)",
+        color:"var(--md-sys-color-on-surface,#fff)",
+        borderRadius:"16px",
+        boxShadow:"0 8px 28px rgba(0,0,0,0.35)",
+        zIndex:999999,
+        display:"flex",
+        flexDirection:"column",
+        overflow:"hidden",
+        border:"1px solid rgba(255,255,255,0.08)",
+        backdropFilter:"blur(12px)"
+    });
+
+    const header=document.createElement("div");
+    header.textContent="Themes";
+    Object.assign(header.style,{
+        padding:"14px 16px",
+        fontWeight:"600",
+        fontSize:"14px",
+        background:"var(--md-sys-color-surface-container,rgba(255,255,255,0.04))",
+        borderBottom:"1px solid rgba(255,255,255,0.08)",
+        cursor:"move"
+    });
+    makeDraggable(panel,header);
+
+    const close=document.createElement("div");
+    close.textContent="✕";
+    Object.assign(close.style,{
+        position:"absolute",
+        right:"16px",
+        top:"12px",
+        cursor:"pointer",
+        opacity:"0.6",
+        fontSize:"15px",
+        lineHeight:"1",
+        padding:"2px 4px"
+    });
+    close.onmouseenter=()=>close.style.opacity="1";
+    close.onmouseleave=()=>close.style.opacity="0.6";
+    close.onclick=()=>panel.style.display="none";
+
+    const btnRow=document.createElement("div");
+    Object.assign(btnRow.style,{
+        display:"flex",
+        gap:"8px",
+        padding:"12px 16px",
+        borderBottom:"1px solid rgba(255,255,255,0.08)",
+        flex:"0 0 auto"
+    });
+
+    const importBtn=document.createElement("button");
+    importBtn.textContent="Import Theme";
+    styleBtn(importBtn);
+    importBtn.style.flex="1";
+    importBtn.style.padding="8px 12px";
+
+    const newBtn=document.createElement("button");
+    newBtn.textContent="+ New";
+    styleBtn(newBtn);
+    newBtn.style.flex="1";
+    newBtn.style.padding="8px 12px";
+
+    btnRow.appendChild(importBtn);
+    btnRow.appendChild(newBtn);
+
+    const list=document.createElement("div");
+    Object.assign(list.style,{
+        flex:"1",
+        overflowY:"auto",
+        padding:"16px",
+        display:"flex",
+        flexDirection:"column",
+        gap:"8px"
+    });
+
+    panel.appendChild(header);
+    panel.appendChild(close);
+    panel.appendChild(btnRow);
+    panel.appendChild(list);
+    document.body.appendChild(panel);
+
+    function render(){
+        list.innerHTML="";
+        const themes=getThemes();
+
+        if(themes.length === 0){
+            const empty=document.createElement("div");
+            empty.textContent="No themes yet. Import or create one above.";
+            Object.assign(empty.style,{opacity:"0.4",fontSize:"13px"});
+            list.appendChild(empty);
+            return;
+        }
+
+        themes.forEach(theme=>{
+            const meta=parseMeta(theme.css);
+
+            const card=document.createElement("div");
+            Object.assign(card.style,{
+                display:"flex",
+                justifyContent:"space-between",
+                alignItems:"center",
+                padding:"10px 12px",
+                borderRadius:"10px",
+                background:"rgba(255,255,255,0.04)",
+                border:"1px solid rgba(255,255,255,0.06)",
+                marginBottom:"0"
+            });
+
+            const left=document.createElement("div");
+            Object.assign(left.style,{display:"flex",alignItems:"center",gap:"10px"});
+
+            const dot=document.createElement("div");
+            Object.assign(dot.style,{
+                width:"10px",
+                height:"10px",
+                borderRadius:"50%",
+                flexShrink:"0",
+                background: theme.enabled ? "#4dff88" : "#777",
+                boxShadow: theme.enabled ? "0 0 6px #4dff88" : "none"
+            });
+
+            const info=document.createElement("div");
+            info.innerHTML=`<div style="font-weight:600;font-size:13px">${meta.name}</div><div style="font-size:11px;opacity:.5">${meta.author} • v${meta.version}</div><div style="font-size:11px;opacity:.4">${meta.description}</div>`;
+
+            left.appendChild(dot);
+            left.appendChild(info);
+
+            const controls=document.createElement("div");
+            Object.assign(controls.style,{display:"flex",gap:"6px"});
+
+            const toggle=document.createElement("button");
+            toggle.textContent=theme.enabled?"Disable":"Enable";
+            styleBtn(toggle);
+            toggle.onclick=()=>{
+                theme.enabled=!theme.enabled;
+                setThemes(themes);
+                applyThemes();
+                render();
+            };
+
+            const edit=document.createElement("button");
+            edit.textContent="Edit";
+            styleBtn(edit, "rgba(100,160,255,0.15)");
+            edit.onclick=()=>openThemeEditor(theme);
+
+            const del=document.createElement("button");
+            del.textContent="✕";
+            styleBtn(del, "rgba(255,80,80,0.15)");
+            del.onclick=()=>{
+                const updated=themes.filter(t=>t.id!==theme.id);
+                setThemes(updated);
+                applyThemes();
+                render();
+            };
+
+            controls.appendChild(toggle);
+            controls.appendChild(edit);
+            controls.appendChild(del);
+            card.appendChild(left);
+            card.appendChild(controls);
+            list.appendChild(card);
+        });
+    }
+
+    window.__avia_refresh_themes_panel = render;
+
+    importBtn.onclick=()=>{
+        const input=document.createElement("input");
+        input.type="file";
+        input.accept=".css,.txt";
+        input.onchange=async()=>{
+            const file=input.files[0];
+            if(!file) return;
+            const css=await file.text();
+            const themes=getThemes();
+            themes.push({id:crypto.randomUUID(),css,enabled:true});
+            setThemes(themes);
+            applyThemes();
+            render();
+        };
+        input.click();
+    };
+
+    newBtn.onclick=()=>{
+        const themes=getThemes();
+        themes.push({id:crypto.randomUUID(),css:TEMPLATE,enabled:true});
+        setThemes(themes);
+        applyThemes();
+        render();
+    };
+
+    render();
+}
+
+function injectButton(){
+    if(document.getElementById("avia-themes-btn")) return;
+    const appearanceBtn=[...document.querySelectorAll("a")].find(a=>a.textContent.trim()==="Appearance");
+    const quickCSS=document.getElementById("stoat-fake-quickcss");
+    if(!appearanceBtn || !quickCSS) return;
+    const clone=appearanceBtn.cloneNode(true);
+    clone.id="avia-themes-btn";
+    const text=[...clone.querySelectorAll("div")].find(d=>d.children.length===0);
+    if(text) text.textContent="(Avia) Themes";
+    clone.onclick=toggleThemesPanel;
+    quickCSS.parentElement.insertBefore(clone, quickCSS.nextSibling);
+}
+
+new MutationObserver(injectButton).observe(document.body,{childList:true,subtree:true});
+injectButton();
+applyThemes();
+
+})();
+
+
+
+/* --- officialpluginrepo.js --- */
+if(window.__US_BUILDER_OFFICIALPLUGINREPO_JS__){return;}window.__US_BUILDER_OFFICIALPLUGINREPO_JS__=true;
+
+(function () {
+
+if (window.__AVIA_OFFICIAL_REPO_LOADED__) return;
+window.__AVIA_OFFICIAL_REPO_LOADED__ = true;
+
+const STORAGE_KEY = "avia_plugins";
+const OFFICIAL_REPO_URL = "https://avalilac.github.io/PluginRepo/pluginrepobackend.js";
+
+const getPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+const setPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+let repoContent;
+let currentRepoData = [];
+let searchInput;
+
+document.getElementById("avia-official-repo-btn")?.remove();
+
+function triggerManagerRefresh() {
+    const panel = document.getElementById("avia-plugins-panel");
+    if (!panel) return;
+    const refreshBtn = Array.from(panel.querySelectorAll("button"))
+        .find(b => b.textContent.trim() === "Refresh");
+    if (refreshBtn) refreshBtn.click();
+}
+
+function updateInstallStates() {
+    if (!repoContent) return;
+    const installed = getPlugins().map(p => p.url);
+    repoContent.querySelectorAll("[data-link]").forEach(row => {
+        const link = row.getAttribute("data-link");
+        const btn = row.querySelector("button.install-btn");
+        if (!btn) return;
+        if (installed.includes(link)) {
+            btn.textContent = "Installed";
+            btn.disabled = true;
+        } else {
+            btn.textContent = "Install";
+            btn.disabled = false;
+        }
+    });
+}
+
+function renderRepo(data, filter = "") {
+    if (!repoContent) return;
+
+    currentRepoData = data.plugins;
+    repoContent.innerHTML = "";
+
+    const filtered = currentRepoData.filter(p =>
+        (p.name + " " + (p.author || "") + " " + (p.description || ""))
+            .toLowerCase()
+            .includes(filter.toLowerCase())
+    );
+
+    filtered.forEach(repoPlugin => {
+
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "center";
+        row.style.marginBottom = "10px";
+        row.style.width = "100%";
+        row.style.minWidth = "0";
+        row.setAttribute("data-link", repoPlugin.link);
+
+        const left = document.createElement("div");
+        left.style.display = "flex";
+        left.style.flexDirection = "column";
+        left.style.flex = "1";
+        left.style.minWidth = "0";
+
+        const title = document.createElement("div");
+        title.textContent = `${repoPlugin.name} — ${repoPlugin.author || "Unknown"}`;
+        title.style.fontWeight = "500";
+        title.style.wordBreak = "break-word";
+
+        const desc = document.createElement("div");
+        desc.textContent = repoPlugin.description;
+        desc.style.fontSize = "12px";
+        desc.style.opacity = "0.7";
+        desc.style.wordBreak = "break-word";
+
+        left.appendChild(title);
+        left.appendChild(desc);
+
+        const installBtn = document.createElement("button");
+        installBtn.className = "install-btn";
+
+        Object.assign(installBtn.style, {
+            padding: "6px 10px",
+            borderRadius: "8px",
+            border: "none",
+            cursor: "pointer",
+            background: "rgba(255,255,255,0.08)",
+            color: "#fff",
+            flexShrink: "0"
+        });
+
+        installBtn.onclick = () => {
+            const plugins = getPlugins();
+            if (!plugins.some(p => p.url === repoPlugin.link)) {
+                plugins.push({
+                    name: repoPlugin.name,
+                    url: repoPlugin.link,
+                    enabled: false
+                });
+                setPlugins(plugins);
+                window.dispatchEvent(new Event("avia-plugin-list-changed"));
+                triggerManagerRefresh();
+                renderRepo({ plugins: currentRepoData }, searchInput.value);
+            }
+        };
+
+        row.appendChild(left);
+        row.appendChild(installBtn);
+        repoContent.appendChild(row);
+    });
+
+    updateInstallStates();
+}
+
+function refetchRepo() {
+    if (!repoContent) return;
+    repoContent.innerHTML = "Loading...";
+
+    function electronFetch() {
+        try {
+            const https = require("https");
+            https.get(OFFICIAL_REPO_URL, res => {
+                let data = "";
+                res.on("data", chunk => data += chunk);
+                res.on("end", () => {
+                    renderRepo(JSON.parse(data));
+                });
+            }).on("error", () => {
+                repoContent.innerHTML = "Failed to fetch repo.";
+            });
+        } catch {
+            repoContent.innerHTML = "Failed to fetch repo.";
+        }
+    }
+
+    try {
+        fetch(OFFICIAL_REPO_URL)
+            .then(res => res.json())
+            .then(data => renderRepo(data))
+            .catch(() => electronFetch());
+    } catch {
+        electronFetch();
+    }
+}
+
+function openWindow() {
+
+    let panel = document.getElementById("avia-official-repo-window");
+
+    if (panel) {
+        panel.style.display = panel.style.display === "none" ? "flex" : "none";
+        return;
+    }
+
+    panel = document.createElement("div");
+    panel.id = "avia-official-repo-window";
+
+    Object.assign(panel.style, {
+        position: "fixed",
+        bottom: "40px",
+        right: "40px",
+        width: "420px",
+        height: "500px",
+        background: "#1e1e1e",
+        color: "#fff",
+        borderRadius: "20px",
+        boxShadow: "0 12px 35px rgba(0,0,0,0.45)",
+        zIndex: 999999,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        border: "1px solid rgba(255,255,255,0.08)"
+    });
+
+    const header = document.createElement("div");
+    header.textContent = "Trusted Plugins Repo";
+
+    Object.assign(header.style, {
+        padding: "18px",
+        fontWeight: "600",
+        fontSize: "16px",
+        background: "rgba(255,255,255,0.04)",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        cursor: "move",
+        position: "relative",
+        textAlign: "center",
+        userSelect: "none"
+    });
+
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    header.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        const rect = panel.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        panel.style.bottom = "auto";
+        panel.style.right = "auto";
+        panel.style.left = rect.left + "px";
+        panel.style.top = rect.top + "px";
+        document.body.style.userSelect = "none";
+    });
+
+    document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        panel.style.left = e.clientX - offsetX + "px";
+        panel.style.top = e.clientY - offsetY + "px";
+    });
+
+    document.addEventListener("mouseup", () => {
+        isDragging = false;
+        document.body.style.userSelect = "";
+    });
+
+    const close = document.createElement("div");
+    close.textContent = "✕";
+
+    Object.assign(close.style, {
+        position: "absolute",
+        right: "18px",
+        top: "16px",
+        cursor: "pointer"
+    });
+
+    close.onclick = () => panel.style.display = "none";
+    header.appendChild(close);
+
+    const container = document.createElement("div");
+
+    Object.assign(container.style, {
+        flex: "1",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden"
+    });
+
+    searchInput = document.createElement("input");
+    searchInput.placeholder = "Search plugins...";
+
+    Object.assign(searchInput.style, {
+        margin: "12px",
+        padding: "8px",
+        borderRadius: "8px",
+        border: "none",
+        outline: "none",
+        background: "rgba(255,255,255,0.06)",
+        color: "#fff"
+    });
+
+    repoContent = document.createElement("div");
+
+    Object.assign(repoContent.style, {
+        flex: "1",
+        overflowY: "auto",
+        overflowX: "hidden",
+        padding: "12px"
+    });
+
+    searchInput.addEventListener("input", () => {
+        renderRepo({ plugins: currentRepoData }, searchInput.value);
+    });
+
+    container.appendChild(searchInput);
+    container.appendChild(repoContent);
+
+    panel.appendChild(header);
+    panel.appendChild(container);
+    document.body.appendChild(panel);
+
+    refetchRepo();
+}
+
+function injectSettingsButton() {
+
+    if (document.getElementById("avia-official-repo-btn-settings")) return;
+
+    const appearanceBtn = [...document.querySelectorAll("a")]
+        .find(a => a.textContent.trim() === "Appearance");
+
+    const referenceNode = document.getElementById("stoat-fake-quickcss");
+
+    if (!appearanceBtn) return;
+
+    const clone = appearanceBtn.cloneNode(true);
+    clone.id = "avia-official-repo-btn-settings";
+
+    const label = [...clone.querySelectorAll("div")]
+        .find(d => d.children.length === 0);
+
+    if (label) label.textContent = "(Avia) Trusted Plugins Repo";
+
+    const iconSpan = clone.querySelector("span.material-symbols-outlined");
+    if (iconSpan) {
+        iconSpan.textContent = "extension";
+        iconSpan.style.fontVariationSettings = "'FILL' 0,'wght' 400,'GRAD' 0";
+    }
+
+    clone.onclick = openWindow;
+
+    const aviaHeader = [...document.querySelectorAll('span')]
+    .find(s => s.textContent.trim() === "AVIA CLIENT SETTINGS");
+if (!aviaHeader) return;
+
+const aviaContainer = aviaHeader.closest('.d_flex.flex-d_column');
+if (!aviaContainer) return;
+
+const targetParent = aviaContainer.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
+if (!targetParent) return;
+
+targetParent.appendChild(clone);
+}
+
+window.addEventListener("avia-plugin-list-changed", () => {
+    if (document.getElementById("avia-official-repo-window")) {
+        updateInstallStates();
+    }
+});
+
+new MutationObserver(() => {
+    injectSettingsButton();
+}).observe(document.body, { childList: true, subtree: true });
+
+injectSettingsButton();
+
+})();
+
+
+/* --- aviaclientcategory.js --- */
+if(window.__US_BUILDER_AVIACLIENTCATEGORY_JS__){return;}window.__US_BUILDER_AVIACLIENTCATEGORY_JS__=true;
+
+(function(){
+if(window.__AVIA_CATEGORY_SETTINGS__) return;
+window.__AVIA_CATEGORY_SETTINGS__ = true;
+
+function inject(){
+
+  if(document.getElementById('avia-cloned-settings')) return;
+
+  const spans = [...document.querySelectorAll('span')];
+  const target = spans.find(s => s.textContent.trim() === "User Settings");
+  if(!target) return;
+
+  const container = target.closest('.d_flex.flex-d_column');
+  if(!container) return;
+
+  const clone = container.cloneNode(true);
+  clone.id = "avia-cloned-settings";
+
+  const header = clone.querySelector('span');
+  if(header) header.textContent = "AVIA CLIENT SETTINGS";
+
+  const list = clone.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
+  if(list) list.innerHTML = "";
+
+  container.parentNode.insertBefore(clone, container.nextSibling);
+}
+
+new MutationObserver(() => {
+  inject();
+}).observe(document.body, { childList: true, subtree: true });
+
+inject();
+
+})();
+
 
 /* --- inject.js --- */
 if(window.__US_BUILDER_INJECT_JS__){return;}window.__US_BUILDER_INJECT_JS__=true;
@@ -354,278 +2164,6 @@ targetParent.appendChild(quickCssBtn);        }
         observer.observe(document.body, { childList: true, subtree: true });
         injectButtons();
     });
-
-})();
-
-
-
-/* --- themes.js --- */
-if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true;
-
-(function () {
-
-if (window.__AVIA_THEMES_LOADED__) return;
-window.__AVIA_THEMES_LOADED__ = true;
-
-const STORAGE_KEY = "avia_themes";
-let editingTheme = null;
-
-const getThemes = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-const setThemes = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-function parseMeta(css){
-    const name = css.match(/@name\s+(.+)/)?.[1] || "Unknown Theme";
-    const author = css.match(/@author\s+(.+)/)?.[1] || "Unknown";
-    const version = css.match(/@version\s+(.+)/)?.[1] || "1.0";
-    const description = css.match(/@description\s+(.+)/)?.[1] || "No description";
-    return {name,author,version,description};
-}
-
-function applyThemes(){
-    document.querySelectorAll(".avia-theme-style").forEach(e=>e.remove());
-    const themes = getThemes();
-    themes.forEach(theme=>{
-        if(!theme.enabled) return;
-        const style=document.createElement("style");
-        style.className="avia-theme-style";
-        style.textContent=theme.css;
-        document.head.appendChild(style);
-    });
-}
-
-function makeDraggable(panel, handle){
-    let dragging=false,offsetX,offsetY;
-    handle.addEventListener("mousedown",e=>{
-        dragging=true;
-        offsetX=e.clientX-panel.offsetLeft;
-        offsetY=e.clientY-panel.offsetTop;
-        document.body.style.userSelect="none";
-    });
-    document.addEventListener("mouseup",()=>{dragging=false;document.body.style.userSelect="";});
-    document.addEventListener("mousemove",e=>{
-        if(!dragging) return;
-        panel.style.left=(e.clientX-offsetX)+"px";
-        panel.style.top=(e.clientY-offsetY)+"px";
-        panel.style.right="auto";
-        panel.style.bottom="auto";
-    });
-}
-
-function openThemeEditor(theme){
-    editingTheme = theme;
-    let panel = document.getElementById('avia-theme-editor');
-    if(panel){
-        panel.style.display="flex";
-        panel.querySelector("textarea").value = theme.css;
-        return;
-    }
-    panel=document.createElement("div");
-    panel.id="avia-theme-editor";
-    Object.assign(panel.style,{
-        position:"fixed",
-        bottom:"24px",
-        right:"24px",
-        width:"420px",
-        height:"340px",
-        background:"var(--md-sys-color-surface,#1e1e1e)",
-        color:"var(--md-sys-color-on-surface,#fff)",
-        borderRadius:"16px",
-        boxShadow:"0 8px 28px rgba(0,0,0,0.35)",
-        zIndex:999999,
-        display:"flex",
-        flexDirection:"column",
-        overflow:"hidden",
-        border:"1px solid rgba(255,255,255,0.08)"
-    });
-    const header=document.createElement("div");
-    header.textContent="Theme Editor";
-    Object.assign(header.style,{
-        padding:"14px 16px",
-        fontWeight:"600",
-        fontSize:"14px",
-        background:"rgba(255,255,255,0.04)",
-        borderBottom:"1px solid rgba(255,255,255,0.08)",
-        cursor:"move"
-    });
-    makeDraggable(panel,header);
-    const close=document.createElement("div");
-    close.textContent="✕";
-    Object.assign(close.style,{position:"absolute",right:"16px",top:"12px",cursor:"pointer"});
-    close.onclick=()=>panel.style.display="none";
-    const textarea=document.createElement("textarea");
-    Object.assign(textarea.style,{
-        flex:"1",
-        border:"none",
-        outline:"none",
-        resize:"none",
-        padding:"16px",
-        background:"transparent",
-        color:"inherit",
-        fontFamily:"monospace",
-        fontSize:"13px"
-    });
-    textarea.value=theme.css;
-    textarea.addEventListener("input",()=>{
-        const themes=getThemes();
-        const t=themes.find(x=>x.id===editingTheme.id);
-        if(!t) return;
-        t.css=textarea.value;
-        setThemes(themes);
-        applyThemes();
-        if(window.__avia_refresh_themes_panel){window.__avia_refresh_themes_panel();}
-    });
-    panel.appendChild(header);
-    panel.appendChild(close);
-    panel.appendChild(textarea);
-    document.body.appendChild(panel);
-}
-
-function toggleThemesPanel(){
-    let panel=document.getElementById("avia-themes-panel");
-    if(panel){
-        panel.style.display = panel.style.display==="none"?"flex":"none";
-        return;
-    }
-    panel=document.createElement("div");
-    panel.id="avia-themes-panel";
-    Object.assign(panel.style,{
-        position:"fixed",
-        bottom:"40px",
-        right:"40px",
-        width:"500px",
-        height:"380px",
-        background:"#1e1e1e",
-        color:"#fff",
-        borderRadius:"16px",
-        boxShadow:"0 12px 35px rgba(0,0,0,0.45)",
-        zIndex:999999,
-        display:"flex",
-        flexDirection:"column",
-        overflow:"hidden",
-        border:"1px solid rgba(255,255,255,0.08)"
-    });
-    const header=document.createElement("div");
-    header.textContent="Themes";
-    Object.assign(header.style,{
-        padding:"14px 16px",
-        fontWeight:"600",
-        fontSize:"14px",
-        background:"rgba(255,255,255,0.04)",
-        borderBottom:"1px solid rgba(255,255,255,0.08)",
-        cursor:"move"
-    });
-    makeDraggable(panel,header);
-    const close=document.createElement("div");
-    close.textContent="✕";
-    Object.assign(close.style,{position:"absolute",right:"16px",top:"12px",cursor:"pointer"});
-    close.onclick=()=>panel.style.display="none";
-    const importBtn=document.createElement("button");
-    importBtn.textContent="Import Theme";
-    Object.assign(importBtn.style,{
-        margin:"10px",
-        padding:"10px",
-        borderRadius:"8px",
-        border:"1px solid rgba(255,255,255,0.1)",
-        background:"rgba(255,255,255,0.06)",
-        color:"#fff",
-        fontWeight:"500",
-        cursor:"pointer",
-        transition:"all .15s ease"
-    });
-    importBtn.onmouseenter=()=>{importBtn.style.background="rgba(255,255,255,0.12)";};
-    importBtn.onmouseleave=()=>{importBtn.style.background="rgba(255,255,255,0.06)";};
-    const list=document.createElement("div");
-    Object.assign(list.style,{
-        flex:"1",
-        overflowY:"auto",
-        padding:"12px",
-        display:"flex",
-        flexDirection:"column",
-        gap:"8px"
-    });
-    panel.appendChild(header);
-    panel.appendChild(close);
-    panel.appendChild(importBtn);
-    panel.appendChild(list);
-    document.body.appendChild(panel);
-    function render(){
-        list.innerHTML="";
-        const themes=getThemes();
-        themes.forEach(theme=>{
-            const meta=parseMeta(theme.css);
-            const card=document.createElement("div");
-            Object.assign(card.style,{
-                padding:"10px",
-                borderRadius:"10px",
-                background:"rgba(255,255,255,0.05)",
-                display:"flex",
-                justifyContent:"space-between",
-                alignItems:"center"
-            });
-            const info=document.createElement("div");
-            info.innerHTML=`<div style="font-weight:600">${meta.name}</div><div style="font-size:11px;opacity:.7">${meta.author} • v${meta.version}</div><div style="font-size:11px;opacity:.6">${meta.description}</div>`;
-            const controls=document.createElement("div");
-            const toggle=document.createElement("button");
-            toggle.textContent=theme.enabled?"Disable":"Enable";
-            toggle.onclick=()=>{
-                theme.enabled=!theme.enabled;
-                setThemes(themes);
-                applyThemes();
-                render();
-            };
-            const edit=document.createElement("button");
-            edit.textContent="Edit";
-            edit.onclick=()=>openThemeEditor(theme);
-            const del=document.createElement("button");
-            del.textContent="Delete";
-            del.onclick=()=>{
-                const updated=themes.filter(t=>t.id!==theme.id);
-                setThemes(updated);
-                applyThemes();
-                render();
-            };
-            [toggle,edit,del].forEach(b=>{Object.assign(b.style,{marginLeft:"6px",padding:"4px 8px",borderRadius:"6px",border:"none",cursor:"pointer"});controls.appendChild(b);});
-            card.appendChild(info);
-            card.appendChild(controls);
-            list.appendChild(card);
-        });
-    }
-    window.__avia_refresh_themes_panel = render;
-    importBtn.onclick=()=>{
-        const input=document.createElement("input");
-        input.type="file";
-        input.accept=".css,.txt";
-        input.onchange=async()=>{
-            const file=input.files[0];
-            if(!file) return;
-            const css=await file.text();
-            const themes=getThemes();
-            themes.push({id:crypto.randomUUID(),css,enabled:true});
-            setThemes(themes);
-            applyThemes();
-            render();
-        };
-        input.click();
-    };
-    render();
-}
-
-function injectButton(){
-    if(document.getElementById("avia-themes-btn")) return;
-    const appearanceBtn=[...document.querySelectorAll("a")].find(a=>a.textContent.trim()==="Appearance");
-    const quickCSS=document.getElementById("stoat-fake-quickcss");
-    if(!appearanceBtn || !quickCSS) return;
-    const clone=appearanceBtn.cloneNode(true);
-    clone.id="avia-themes-btn";
-    const text=[...clone.querySelectorAll("div")].find(d=>d.children.length===0);
-    if(text) text.textContent="(Avia) Themes";
-    clone.onclick=toggleThemesPanel;
-    quickCSS.parentElement.insertBefore(clone, quickCSS.nextSibling);
-}
-
-new MutationObserver(injectButton).observe(document.body,{childList:true,subtree:true});
-injectButton();
-applyThemes();
 
 })();
 
@@ -984,679 +2522,6 @@ injectButton();
 
 })();
 
-
-
-/* --- pluginsupport.js --- */
-if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
-
-(function () {
-
-    if (window.__AVIA_PLUGINS_LOADED__) return;
-    window.__AVIA_PLUGINS_LOADED__ = true;
-
-    const STORAGE_KEY = "avia_plugins";
-
-    const runningPlugins = {};
-    const pluginErrors = {};
-    const injectionQueue = [];
-
-    const getPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    const setPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-    async function processQueue() {
-        if (processQueue.running) return;
-        processQueue.running = true;
-        while (injectionQueue.length) {
-            const { plugin, force } = injectionQueue.shift();
-            await loadPluginInternal(plugin, force);
-        }
-        processQueue.running = false;
-    }
-
-    function queuePlugin(plugin, force = false) {
-        injectionQueue.push({ plugin, force });
-        processQueue();
-    }
-
-    async function loadPluginInternal(plugin, force = false) {
-        if (runningPlugins[plugin.url] && !force) return;
-        if (force) stopPlugin(plugin);
-        try {
-            const res = await fetch(plugin.url);
-            if (!res.ok) throw new Error("Fetch failed");
-            const code = await res.text();
-            delete pluginErrors[plugin.url];
-            const script = document.createElement("script");
-            script.textContent = code;
-            script.dataset.pluginUrl = plugin.url;
-            document.body.appendChild(script);
-            runningPlugins[plugin.url] = script;
-        } catch {
-            pluginErrors[plugin.url] = true;
-        }
-        renderPanel();
-    }
-
-    function stopPlugin(plugin) {
-        const script = runningPlugins[plugin.url];
-        if (!script) return;
-        script.remove();
-        delete runningPlugins[plugin.url];
-        delete pluginErrors[plugin.url];
-        renderPanel();
-    }
-
-    function togglePluginsPanel() {
-        let panel = document.getElementById('avia-plugins-panel');
-        if (panel) {
-            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
-            return;
-        }
-        panel = document.createElement('div');
-        panel.id = 'avia-plugins-panel';
-        panel.style.position = 'fixed';
-        panel.style.bottom = '24px';
-        panel.style.right = '24px';
-        panel.style.width = '520px';
-        panel.style.height = '460px';
-        panel.style.background = 'var(--md-sys-color-surface, #1e1e1e)';
-        panel.style.color = 'var(--md-sys-color-on-surface, #fff)';
-        panel.style.borderRadius = '16px';
-        panel.style.boxShadow = '0 8px 28px rgba(0,0,0,0.35)';
-        panel.style.zIndex = '999999';
-        panel.style.display = 'flex';
-        panel.style.flexDirection = 'column';
-        panel.style.overflow = 'hidden';
-        panel.style.border = '1px solid rgba(255,255,255,0.08)';
-        panel.style.backdropFilter = 'blur(12px)';
-        const header = document.createElement('div');
-        header.textContent = 'Plugins';
-        header.style.padding = '14px 16px';
-        header.style.fontWeight = '600';
-        header.style.fontSize = '14px';
-        header.style.background = 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))';
-        header.style.borderBottom = '1px solid rgba(255,255,255,0.08)';
-        header.style.cursor = 'move';
-        const closeBtn = document.createElement('div');
-        closeBtn.textContent = '✕';
-        closeBtn.style.position = 'absolute';
-        closeBtn.style.top = '12px';
-        closeBtn.style.right = '16px';
-        closeBtn.style.cursor = 'pointer';
-        closeBtn.style.opacity = '0.7';
-        closeBtn.onclick = () => panel.style.display = 'none';
-        const controlsBar = document.createElement('div');
-        controlsBar.style.padding = '12px 16px';
-        controlsBar.style.display = 'flex';
-        controlsBar.style.gap = '8px';
-        controlsBar.style.alignItems = 'center';
-        controlsBar.style.borderBottom = '1px solid rgba(255,255,255,0.08)';
-        controlsBar.style.flex = '0 0 auto';
-        const content = document.createElement('div');
-        content.id = 'avia-plugins-content';
-        content.style.flex = '1';
-        content.style.overflow = 'auto';
-        content.style.padding = '16px';
-        const nameInput = document.createElement('input');
-        nameInput.placeholder = 'Name';
-        styleInput(nameInput);
-        nameInput.style.width = '110px';
-        const urlInput = document.createElement('input');
-        urlInput.placeholder = 'Plugin URL';
-        styleInput(urlInput);
-        urlInput.style.flex = '1';
-        const addBtn = document.createElement('button');
-        addBtn.textContent = 'Add';
-        addBtn.onclick = () => {
-            const name = nameInput.value.trim();
-            const url = urlInput.value.trim();
-            if (!name || !url) return;
-            const plugins = getPlugins();
-            plugins.push({ name, url, enabled: false });
-            setPlugins(plugins);
-            nameInput.value = '';
-            urlInput.value = '';
-            renderPanel();
-        };
-        const refreshAll = document.createElement('button');
-        refreshAll.textContent = 'Refresh';
-        refreshAll.onclick = () => {
-            const plugins = getPlugins();
-            plugins.forEach(p => {
-                if (p.enabled) queuePlugin(p, true);
-            });
-        };
-        controlsBar.appendChild(nameInput);
-        controlsBar.appendChild(urlInput);
-        controlsBar.appendChild(addBtn);
-        controlsBar.appendChild(refreshAll);
-        panel.appendChild(header);
-        panel.appendChild(closeBtn);
-        panel.appendChild(controlsBar);
-        panel.appendChild(content);
-        document.body.appendChild(panel);
-        enableDrag(panel, header);
-        renderPanel();
-    }
-
-    function renderPanel() {
-        const content = document.getElementById('avia-plugins-content');
-        if (!content) return;
-        content.innerHTML = '';
-        const plugins = getPlugins();
-        const runningSnapshot = { ...runningPlugins };
-        const errorSnapshot = { ...pluginErrors };
-        plugins.forEach((plugin, index) => {
-            const isRunning = !!runningSnapshot[plugin.url];
-            const hasError = !!errorSnapshot[plugin.url];
-            const row = document.createElement('div');
-            row.style.display = 'flex';
-            row.style.justifyContent = 'space-between';
-            row.style.alignItems = 'center';
-            row.style.marginBottom = '12px';
-            const left = document.createElement('div');
-            left.style.display = 'flex';
-            left.style.alignItems = 'center';
-            left.style.gap = '10px';
-            const statusDot = document.createElement('div');
-            statusDot.style.width = '10px';
-            statusDot.style.height = '10px';
-            statusDot.style.borderRadius = '50%';
-            if (hasError) {
-                statusDot.style.background = '#ff4d4d';
-                statusDot.style.boxShadow = '0 0 6px #ff4d4d';
-            } else if (isRunning) {
-                statusDot.style.background = '#4dff88';
-                statusDot.style.boxShadow = '0 0 6px #4dff88';
-            } else {
-                statusDot.style.background = '#777';
-            }
-            const name = document.createElement('div');
-            name.textContent = plugin.name;
-            left.appendChild(statusDot);
-            left.appendChild(name);
-            const controls = document.createElement('div');
-            controls.style.display = 'flex';
-            controls.style.gap = '6px';
-            const toggle = document.createElement('button');
-            toggle.textContent = plugin.enabled ? 'Disable' : 'Enable';
-            toggle.onclick = () => {
-                plugin.enabled = !plugin.enabled;
-                setPlugins(plugins);
-                if (plugin.enabled) queuePlugin(plugin);
-                else stopPlugin(plugin);
-                renderPanel();
-            };
-            const remove = document.createElement('button');
-            remove.textContent = '✕';
-            remove.onclick = () => {
-                stopPlugin(plugin);
-                plugins.splice(index, 1);
-                setPlugins(plugins);
-                renderPanel();
-            };
-            controls.appendChild(toggle);
-            controls.appendChild(remove);
-            row.appendChild(left);
-            row.appendChild(controls);
-            content.appendChild(row);
-        });
-    }
-
-    function styleInput(input) {
-        input.style.padding = '6px 8px';
-        input.style.borderRadius = '8px';
-        input.style.border = '1px solid rgba(255,255,255,0.1)';
-        input.style.background = 'rgba(255,255,255,0.05)';
-        input.style.color = '#fff';
-    }
-
-    function enableDrag(panel, header) {
-        let isDragging = false, offsetX, offsetY;
-        header.addEventListener('mousedown', e => {
-            isDragging = true;
-            offsetX = e.clientX - panel.offsetLeft;
-            offsetY = e.clientY - panel.offsetTop;
-        });
-        document.addEventListener('mouseup', () => isDragging = false);
-        document.addEventListener('mousemove', e => {
-            if (!isDragging) return;
-            panel.style.left = (e.clientX - offsetX) + 'px';
-            panel.style.top = (e.clientY - offsetY) + 'px';
-            panel.style.right = 'auto';
-            panel.style.bottom = 'auto';
-        });
-    }
-
-    function injectButtons() {
-        if (document.getElementById('stoat-fake-plugins')) return;
-        const appearanceBtn = [...document.querySelectorAll('a')]
-            .find(a => a.textContent.trim() === 'Appearance');
-        if (!appearanceBtn) return;
-        const referenceNode = document.getElementById('stoat-fake-quickcss');
-        if (!referenceNode) return;
-        const pluginsBtn = appearanceBtn.cloneNode(true);
-        pluginsBtn.id = 'stoat-fake-plugins';
-        const textNode = [...pluginsBtn.querySelectorAll('div')]
-            .find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
-        if (textNode) textNode.textContent = "(Avia) Plugins";
-const svgNS = "http://www.w3.org/2000/svg";
-const oldSvg = pluginsBtn.querySelector('svg');
-if (oldSvg) oldSvg.remove();
-const svg = document.createElementNS(svgNS, "svg");
-svg.setAttribute("viewBox", "0 0 24 24");
-svg.setAttribute("width", "20");
-svg.setAttribute("height", "20");
-svg.setAttribute("fill", "currentColor");
-svg.style.marginRight = "8px";
-const path = document.createElementNS(svgNS, "path");
-path.setAttribute("d", "M20.5 11H19V7a2 2 0 00-2-2h-4V3.5a2.5 2.5 0 00-5 0V5H4a2 2 0 00-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 002 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7V22H17a2 2 0 002-2v-4h1.5a2.5 2.5 0 000-5z");
-svg.appendChild(path);
-pluginsBtn.insertBefore(svg, pluginsBtn.firstChild);
-        pluginsBtn.addEventListener('click', togglePluginsPanel);
-        referenceNode.parentElement.insertBefore(pluginsBtn, referenceNode.nextSibling);
-    }
-
-    function waitForBody(callback) {
-        if (document.body) callback();
-        else new MutationObserver((obs) => {
-            if (document.body) {
-                obs.disconnect();
-                callback();
-            }
-        }).observe(document.documentElement, { childList: true });
-    }
-
-    waitForBody(() => {
-        const observer = new MutationObserver(() => injectButtons());
-        observer.observe(document.body, { childList: true, subtree: true });
-        injectButtons();
-    });
-
-    getPlugins().forEach(plugin => {
-        if (plugin.enabled) queuePlugin(plugin);
-    });
-
-})();
-
-
-
-/* --- aviaclientcategory.js --- */
-if(window.__US_BUILDER_AVIACLIENTCATEGORY_JS__){return;}window.__US_BUILDER_AVIACLIENTCATEGORY_JS__=true;
-
-(function(){
-if(window.__AVIA_CATEGORY_SETTINGS__) return;
-window.__AVIA_CATEGORY_SETTINGS__ = true;
-
-function inject(){
-
-  if(document.getElementById('avia-cloned-settings')) return;
-
-  const spans = [...document.querySelectorAll('span')];
-  const target = spans.find(s => s.textContent.trim() === "User Settings");
-  if(!target) return;
-
-  const container = target.closest('.d_flex.flex-d_column');
-  if(!container) return;
-
-  const clone = container.cloneNode(true);
-  clone.id = "avia-cloned-settings";
-
-  const header = clone.querySelector('span');
-  if(header) header.textContent = "AVIA CLIENT SETTINGS";
-
-  const list = clone.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
-  if(list) list.innerHTML = "";
-
-  container.parentNode.insertBefore(clone, container.nextSibling);
-}
-
-new MutationObserver(() => {
-  inject();
-}).observe(document.body, { childList: true, subtree: true });
-
-inject();
-
-})();
-
-
-/* --- officialpluginrepo.js --- */
-if(window.__US_BUILDER_OFFICIALPLUGINREPO_JS__){return;}window.__US_BUILDER_OFFICIALPLUGINREPO_JS__=true;
-
-(function () {
-
-if (window.__AVIA_OFFICIAL_REPO_LOADED__) return;
-window.__AVIA_OFFICIAL_REPO_LOADED__ = true;
-
-const STORAGE_KEY = "avia_plugins";
-const OFFICIAL_REPO_URL = "https://avalilac.github.io/PluginRepo/pluginrepobackend.js";
-
-const getPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-const setPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-let repoContent;
-let currentRepoData = [];
-let searchInput;
-
-document.getElementById("avia-official-repo-btn")?.remove();
-
-function triggerManagerRefresh() {
-    const panel = document.getElementById("avia-plugins-panel");
-    if (!panel) return;
-    const refreshBtn = Array.from(panel.querySelectorAll("button"))
-        .find(b => b.textContent.trim() === "Refresh");
-    if (refreshBtn) refreshBtn.click();
-}
-
-function updateInstallStates() {
-    if (!repoContent) return;
-    const installed = getPlugins().map(p => p.url);
-    repoContent.querySelectorAll("[data-link]").forEach(row => {
-        const link = row.getAttribute("data-link");
-        const btn = row.querySelector("button.install-btn");
-        if (!btn) return;
-        if (installed.includes(link)) {
-            btn.textContent = "Installed";
-            btn.disabled = true;
-        } else {
-            btn.textContent = "Install";
-            btn.disabled = false;
-        }
-    });
-}
-
-function renderRepo(data, filter = "") {
-    if (!repoContent) return;
-
-    currentRepoData = data.plugins;
-    repoContent.innerHTML = "";
-
-    const filtered = currentRepoData.filter(p =>
-        (p.name + " " + (p.author || "") + " " + (p.description || ""))
-            .toLowerCase()
-            .includes(filter.toLowerCase())
-    );
-
-    filtered.forEach(repoPlugin => {
-
-        const row = document.createElement("div");
-        row.style.display = "flex";
-        row.style.justifyContent = "space-between";
-        row.style.alignItems = "center";
-        row.style.marginBottom = "10px";
-        row.style.width = "100%";
-        row.style.minWidth = "0";
-        row.setAttribute("data-link", repoPlugin.link);
-
-        const left = document.createElement("div");
-        left.style.display = "flex";
-        left.style.flexDirection = "column";
-        left.style.flex = "1";
-        left.style.minWidth = "0";
-
-        const title = document.createElement("div");
-        title.textContent = `${repoPlugin.name} — ${repoPlugin.author || "Unknown"}`;
-        title.style.fontWeight = "500";
-        title.style.wordBreak = "break-word";
-
-        const desc = document.createElement("div");
-        desc.textContent = repoPlugin.description;
-        desc.style.fontSize = "12px";
-        desc.style.opacity = "0.7";
-        desc.style.wordBreak = "break-word";
-
-        left.appendChild(title);
-        left.appendChild(desc);
-
-        const installBtn = document.createElement("button");
-        installBtn.className = "install-btn";
-
-        Object.assign(installBtn.style, {
-            padding: "6px 10px",
-            borderRadius: "8px",
-            border: "none",
-            cursor: "pointer",
-            background: "rgba(255,255,255,0.08)",
-            color: "#fff",
-            flexShrink: "0"
-        });
-
-        installBtn.onclick = () => {
-            const plugins = getPlugins();
-            if (!plugins.some(p => p.url === repoPlugin.link)) {
-                plugins.push({
-                    name: repoPlugin.name,
-                    url: repoPlugin.link,
-                    enabled: false
-                });
-                setPlugins(plugins);
-                window.dispatchEvent(new Event("avia-plugin-list-changed"));
-                triggerManagerRefresh();
-                renderRepo({ plugins: currentRepoData }, searchInput.value);
-            }
-        };
-
-        row.appendChild(left);
-        row.appendChild(installBtn);
-        repoContent.appendChild(row);
-    });
-
-    updateInstallStates();
-}
-
-function refetchRepo() {
-    if (!repoContent) return;
-    repoContent.innerHTML = "Loading...";
-
-    function electronFetch() {
-        try {
-            const https = require("https");
-            https.get(OFFICIAL_REPO_URL, res => {
-                let data = "";
-                res.on("data", chunk => data += chunk);
-                res.on("end", () => {
-                    renderRepo(JSON.parse(data));
-                });
-            }).on("error", () => {
-                repoContent.innerHTML = "Failed to fetch repo.";
-            });
-        } catch {
-            repoContent.innerHTML = "Failed to fetch repo.";
-        }
-    }
-
-    try {
-        fetch(OFFICIAL_REPO_URL)
-            .then(res => res.json())
-            .then(data => renderRepo(data))
-            .catch(() => electronFetch());
-    } catch {
-        electronFetch();
-    }
-}
-
-function openWindow() {
-
-    let panel = document.getElementById("avia-official-repo-window");
-
-    if (panel) {
-        panel.style.display = panel.style.display === "none" ? "flex" : "none";
-        return;
-    }
-
-    panel = document.createElement("div");
-    panel.id = "avia-official-repo-window";
-
-    Object.assign(panel.style, {
-        position: "fixed",
-        bottom: "40px",
-        right: "40px",
-        width: "420px",
-        height: "500px",
-        background: "#1e1e1e",
-        color: "#fff",
-        borderRadius: "20px",
-        boxShadow: "0 12px 35px rgba(0,0,0,0.45)",
-        zIndex: 999999,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        border: "1px solid rgba(255,255,255,0.08)"
-    });
-
-    const header = document.createElement("div");
-    header.textContent = "Trusted Plugins Repo";
-
-    Object.assign(header.style, {
-        padding: "18px",
-        fontWeight: "600",
-        fontSize: "16px",
-        background: "rgba(255,255,255,0.04)",
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
-        cursor: "move",
-        position: "relative",
-        textAlign: "center",
-        userSelect: "none"
-    });
-
-    let isDragging = false;
-    let offsetX = 0;
-    let offsetY = 0;
-
-    header.addEventListener("mousedown", (e) => {
-        isDragging = true;
-        const rect = panel.getBoundingClientRect();
-        offsetX = e.clientX - rect.left;
-        offsetY = e.clientY - rect.top;
-        panel.style.bottom = "auto";
-        panel.style.right = "auto";
-        panel.style.left = rect.left + "px";
-        panel.style.top = rect.top + "px";
-        document.body.style.userSelect = "none";
-    });
-
-    document.addEventListener("mousemove", (e) => {
-        if (!isDragging) return;
-        panel.style.left = e.clientX - offsetX + "px";
-        panel.style.top = e.clientY - offsetY + "px";
-    });
-
-    document.addEventListener("mouseup", () => {
-        isDragging = false;
-        document.body.style.userSelect = "";
-    });
-
-    const close = document.createElement("div");
-    close.textContent = "✕";
-
-    Object.assign(close.style, {
-        position: "absolute",
-        right: "18px",
-        top: "16px",
-        cursor: "pointer"
-    });
-
-    close.onclick = () => panel.style.display = "none";
-    header.appendChild(close);
-
-    const container = document.createElement("div");
-
-    Object.assign(container.style, {
-        flex: "1",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden"
-    });
-
-    searchInput = document.createElement("input");
-    searchInput.placeholder = "Search plugins...";
-
-    Object.assign(searchInput.style, {
-        margin: "12px",
-        padding: "8px",
-        borderRadius: "8px",
-        border: "none",
-        outline: "none",
-        background: "rgba(255,255,255,0.06)",
-        color: "#fff"
-    });
-
-    repoContent = document.createElement("div");
-
-    Object.assign(repoContent.style, {
-        flex: "1",
-        overflowY: "auto",
-        overflowX: "hidden",
-        padding: "12px"
-    });
-
-    searchInput.addEventListener("input", () => {
-        renderRepo({ plugins: currentRepoData }, searchInput.value);
-    });
-
-    container.appendChild(searchInput);
-    container.appendChild(repoContent);
-
-    panel.appendChild(header);
-    panel.appendChild(container);
-    document.body.appendChild(panel);
-
-    refetchRepo();
-}
-
-function injectSettingsButton() {
-
-    if (document.getElementById("avia-official-repo-btn-settings")) return;
-
-    const appearanceBtn = [...document.querySelectorAll("a")]
-        .find(a => a.textContent.trim() === "Appearance");
-
-    const referenceNode = document.getElementById("stoat-fake-quickcss");
-
-    if (!appearanceBtn) return;
-
-    const clone = appearanceBtn.cloneNode(true);
-    clone.id = "avia-official-repo-btn-settings";
-
-    const label = [...clone.querySelectorAll("div")]
-        .find(d => d.children.length === 0);
-
-    if (label) label.textContent = "(Avia) Trusted Plugins Repo";
-
-    const iconSpan = clone.querySelector("span.material-symbols-outlined");
-    if (iconSpan) {
-        iconSpan.textContent = "extension";
-        iconSpan.style.fontVariationSettings = "'FILL' 0,'wght' 400,'GRAD' 0";
-    }
-
-    clone.onclick = openWindow;
-
-    const aviaHeader = [...document.querySelectorAll('span')]
-    .find(s => s.textContent.trim() === "AVIA CLIENT SETTINGS");
-if (!aviaHeader) return;
-
-const aviaContainer = aviaHeader.closest('.d_flex.flex-d_column');
-if (!aviaContainer) return;
-
-const targetParent = aviaContainer.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
-if (!targetParent) return;
-
-targetParent.appendChild(clone);
-}
-
-window.addEventListener("avia-plugin-list-changed", () => {
-    if (document.getElementById("avia-official-repo-window")) {
-        updateInstallStates();
-    }
-});
-
-new MutationObserver(() => {
-    injectSettingsButton();
-}).observe(document.body, { childList: true, subtree: true });
-
-injectSettingsButton();
-
-})();
 
 
 })();
