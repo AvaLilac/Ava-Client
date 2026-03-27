@@ -10,6 +10,7 @@
 - **(Avia) Quick CSS** - Modify the apps css
 - **(Avia) Plugins** - Add your own plugins via javascript
 - **(Avia) Themes** - Same as QuickCSS. But dedicated for themes
+- **(Avia) LocalPlugins** Load Plugins Locally
 
 ### Installation
 1. Download or clone this repository.  
