@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Avia Client",
-  "version": "1.4",
+  "version": "1.5",
   "description": "Adds custom font support and a QuickCSS editor to enhance Stoat Chat's interface and styling. Full support for themes, And custom plugins. 'desktop only'",
   "icons": {
     "16": "avia_icon.png",
@@ -25,7 +25,8 @@
         "aviafavsystem.js",
         "userbadges.js",
         "themes.js",
-        "aviaclientcategory.js"
+        "aviaclientcategory.js",
+        "LocalPlugins.js"
       ]
     }
   ]
