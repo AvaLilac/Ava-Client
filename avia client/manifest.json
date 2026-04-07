@@ -28,7 +28,8 @@
         "aviaclientcategory.js",
         "LocalPlugins.js",
         "ButtonFix.js",
-        "LoginWithToken.js"
+        "LoginWithToken.js",
+        "aviaclientbrowsertab.js"
       ]
     }
   ]
