@@ -26,7 +26,9 @@
         "userbadges.js",
         "themes.js",
         "aviaclientcategory.js",
-        "LocalPlugins.js"
+        "LocalPlugins.js",
+        "ButtonFix.js",
+        "LoginWithToken.js"
       ]
     }
   ]
