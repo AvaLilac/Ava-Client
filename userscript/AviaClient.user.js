@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AviaClient
 // @namespace   userscript.builder
-// @version     1.7.0
+// @version     1.7.1
 // @description AviaClient is a client mod for stoat that adds extra features like plugins, themes, online fonts, Local fonts, local fonts. and more
 // @match       https://stoat.chat/*
 // @grant       none
@@ -9,8 +9,348 @@
 // ==/UserScript==
 
 (function(){
-'@preserve - Built on 2026-06-20T00:02:06.602Z';
+'@preserve - Built on 2026-06-28T20:01:10.879Z';
 window.__USERSCRIPT_VERSION__ = "1.7.0";
+
+/* --- menu.js --- */
+if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
+
+(function () {
+    if (window.__AVIA_MENU__) return;
+    window.__AVIA_MENU__ = true;
+
+    const ITEM_HEIGHT = 32;
+    const MAX_VISIBLE = 12;
+    const PIN_STORAGE_KEY = "avia_menu_pins";
+
+    const registeredItems = [];
+    let menuEl = null;
+    let menuOpen = false;
+
+    function getPins() {
+        try { return JSON.parse(localStorage.getItem(PIN_STORAGE_KEY) || "[]"); }
+        catch { return []; }
+    }
+
+    function savePins(arr) {
+        localStorage.setItem(PIN_STORAGE_KEY, JSON.stringify(arr));
+    }
+
+    function pinItem(id) {
+        const pins = getPins().filter(p => p !== id);
+        pins.unshift(id);
+        savePins(pins);
+    }
+
+    function unpinItem(id) {
+        savePins(getPins().filter(p => p !== id));
+    }
+
+    function isPinned(id) {
+        return getPins().includes(id);
+    }
+
+    function getSortedItems() {
+        const pins = getPins();
+        const pinned = [];
+        for (const id of pins) {
+            const found = registeredItems.find(i => i.id === id);
+            if (found) pinned.push(found);
+        }
+        const unpinned = registeredItems.filter(i => !isPinned(i.id));
+        return [...pinned, ...unpinned];
+    }
+
+    window.AviaMenu = {
+        register: function (item) {
+            if (!item || typeof item !== "object") {
+                console.error("[AviaMenu] Registration failed: item must be an object, got", typeof item);
+                return;
+            }
+            if (typeof item.id !== "string" || !item.id.trim()) {
+                console.error("[AviaMenu] Registration failed: item.id must be a non-empty string, got", item.id);
+                return;
+            }
+            if (!item.name || typeof item.name !== "string") {
+                console.error("[AviaMenu] Registration failed for id '%s': item.name must be a non-empty string, got", item.id, item.name);
+                return;
+            }
+            if (typeof item.onClick !== "function") {
+                console.error("[AviaMenu] Registration failed for id '%s': item.onClick must be a function, got", item.id, typeof item.onClick);
+                return;
+            }
+            if (registeredItems.find(i => i.id === item.id.trim())) {
+                console.error("[AviaMenu] Registration failed: an item with id '%s' is already registered", item.id.trim());
+                return;
+            }
+            registeredItems.push({
+                id: item.id.trim(),
+                name: item.name,
+                onClick: item.onClick,
+                icon: typeof item.icon === "string" && item.icon.trim() ? item.icon.trim() : null
+            });
+            if (menuEl) rebuildMenu();
+        }
+    };
+
+    function closeMenu() {
+        if (menuEl) {
+            menuEl.remove();
+            menuEl = null;
+        }
+        menuOpen = false;
+    }
+
+    function rebuildMenu() {
+        if (!menuEl) return;
+        const list = menuEl.querySelector("#avia-menu-list");
+        if (!list) return;
+        list.innerHTML = "";
+
+        if (registeredItems.length === 0) {
+            const empty = document.createElement("div");
+            empty.textContent = "No buttons registered";
+            Object.assign(empty.style, {
+                padding: "12px 16px",
+                fontSize: "13px",
+                opacity: "0.4",
+                color: "var(--md-sys-color-on-surface, #fff)",
+                userSelect: "none"
+            });
+            list.appendChild(empty);
+            list.style.maxHeight = "";
+            list.style.overflowY = "hidden";
+            list.style.scrollbarWidth = "none";
+            return;
+        }
+
+        const sorted = getSortedItems();
+
+        for (const item of sorted) {
+            const pinned = isPinned(item.id);
+
+            const btn = document.createElement("div");
+            Object.assign(btn.style, {
+                padding: "0 12px",
+                height: ITEM_HEIGHT + "px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                fontSize: "13px",
+                fontWeight: "500",
+                color: "var(--md-sys-color-on-surface, #fff)",
+                cursor: "pointer",
+                borderRadius: "10px",
+                transition: "background 0.12s",
+                userSelect: "none",
+                flexShrink: "0",
+                position: "relative"
+            });
+
+            if (item.icon) {
+                const iconEl = document.createElement("span");
+                iconEl.className = "material-symbols-outlined";
+                iconEl.textContent = item.icon;
+                iconEl.style.cssText = "font-size:20px;display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;flex-shrink:0;opacity:0.85;";
+                btn.appendChild(iconEl);
+            }
+
+            const label = document.createElement("span");
+            label.textContent = item.name;
+            label.style.flex = "1";
+            btn.appendChild(label);
+
+            const pinBtn = document.createElement("span");
+            pinBtn.className = "material-symbols-outlined";
+            pinBtn.textContent = "push_pin";
+            Object.assign(pinBtn.style, {
+                fontSize: "14px",
+                display: "block",
+                fontVariationSettings: pinned ? "'FILL' 1,'wght' 400,'GRAD' 0" : "'FILL' 0,'wght' 400,'GRAD' 0",
+                color: pinned ? "var(--md-sys-color-primary, #cfbcff)" : "rgba(255,255,255,0.3)",
+                flexShrink: "0",
+                transition: "color 0.12s, font-variation-settings 0.12s",
+                cursor: "pointer"
+            });
+
+            pinBtn.addEventListener("mouseenter", (e) => {
+                e.stopPropagation();
+                pinBtn.style.color = pinned ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.7)";
+            });
+            pinBtn.addEventListener("mouseleave", (e) => {
+                e.stopPropagation();
+                pinBtn.style.color = pinned ? "var(--md-sys-color-primary, #cfbcff)" : "rgba(255,255,255,0.3)";
+            });
+            pinBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                if (isPinned(item.id)) {
+                    unpinItem(item.id);
+                } else {
+                    pinItem(item.id);
+                }
+                rebuildMenu();
+            });
+
+            btn.appendChild(pinBtn);
+
+            btn.addEventListener("mouseenter", () => {
+                btn.style.background = "rgba(255,255,255,0.07)";
+            });
+            btn.addEventListener("mouseleave", () => {
+                btn.style.background = "transparent";
+            });
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                closeMenu();
+                try { item.onClick(); } catch (err) { console.error("[AviaMenu]", err); }
+            });
+
+            list.appendChild(btn);
+        }
+
+        const total = getSortedItems().length;
+        list.style.maxHeight = (MAX_VISIBLE * ITEM_HEIGHT) + "px";
+        list.style.overflowY = total > MAX_VISIBLE ? "auto" : "hidden";
+        list.style.scrollbarWidth = "none";
+    }
+
+    function openMenu(anchorEl) {
+        if (menuOpen) { closeMenu(); return; }
+
+        menuEl = document.createElement("div");
+        Object.assign(menuEl.style, {
+            position: "fixed",
+            zIndex: "9999999",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.4)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)",
+            overflow: "hidden",
+            minWidth: "200px",
+            display: "flex",
+            flexDirection: "column"
+        });
+
+        const list = document.createElement("div");
+        list.id = "avia-menu-list";
+        Object.assign(list.style, {
+            display: "flex",
+            flexDirection: "column",
+            padding: "8px",
+            boxSizing: "border-box"
+        });
+
+        menuEl.appendChild(list);
+        document.body.appendChild(menuEl);
+
+        rebuildMenu();
+
+        const rect = anchorEl.getBoundingClientRect();
+        const menuRect = menuEl.getBoundingClientRect();
+        let top = rect.bottom + 6;
+        let left = rect.left;
+
+        if (left + menuRect.width > window.innerWidth - 8) {
+            left = window.innerWidth - menuRect.width - 8;
+        }
+        if (top + menuRect.height > window.innerHeight - 8) {
+            top = rect.top - menuRect.height - 6;
+        }
+
+        menuEl.style.top = top + "px";
+        menuEl.style.left = left + "px";
+
+        menuOpen = true;
+
+        setTimeout(() => {
+            document.addEventListener("click", onOutsideClick, { once: true });
+        }, 0);
+    }
+
+    function onOutsideClick(e) {
+        if (menuEl && !menuEl.contains(e.target)) {
+            closeMenu();
+        }
+    }
+
+    function injectToolbarButton() {
+        if (document.getElementById("avia-menu-toolbar-btn")) return;
+
+        const pinBtn = document.querySelector('button[aria-label="View pinned messages"]');
+        if (!pinBtn) return;
+
+        const btn = pinBtn.cloneNode(false);
+        btn.id = "avia-menu-toolbar-btn";
+        btn.setAttribute("aria-label", "Avia Menu");
+
+        const ripple = document.createElement("md-ripple");
+        ripple.setAttribute("aria-hidden", "true");
+        btn.appendChild(ripple);
+
+        const icon = document.createElement("span");
+        icon.className = "material-symbols-outlined";
+        icon.style.cssText = "display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;font-size:24px;";
+        icon.textContent = "apps";
+        btn.appendChild(icon);
+
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            openMenu(btn);
+        });
+
+        pinBtn.insertAdjacentElement("afterend", btn);
+    }
+
+    const observer = new MutationObserver(() => {
+        injectToolbarButton();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    injectToolbarButton();
+})();
+
+
+/* --- aviaclientcategory.js --- */
+if(window.__US_BUILDER_AVIACLIENTCATEGORY_JS__){return;}window.__US_BUILDER_AVIACLIENTCATEGORY_JS__=true;
+
+(function(){
+    if(window.__AVIA_CATEGORY_SETTINGS__) return;
+    window.__AVIA_CATEGORY_SETTINGS__ = true;
+
+    function inject(){
+
+        if(document.getElementById('avia-cloned-settings')) return;
+
+        const spans = [...document.querySelectorAll('span')];
+        const target = spans.find(s => s.textContent.trim() === "User Settings");
+        if(!target) return;
+
+        const container = target.closest('.d_flex.flex-d_column');
+        if(!container) return;
+
+        const clone = container.cloneNode(true);
+        clone.id = "avia-cloned-settings";
+
+        const header = clone.querySelector('span');
+        if(header) header.textContent = "AVIA CLIENT SETTINGS";
+
+        const list = clone.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
+        if(list) list.innerHTML = "";
+
+        container.parentNode.insertBefore(clone, container.nextSibling);
+        }
+
+        new MutationObserver(() => {
+            inject();
+        }).observe(document.body, { childList: true, subtree: true });
+
+    inject();
+
+})();
+
+
 
 /* --- aviaclientbrowsertab.js --- */
 if(window.__US_BUILDER_AVIACLIENTBROWSERTAB_JS__){return;}window.__US_BUILDER_AVIACLIENTBROWSERTAB_JS__=true;
@@ -49,6 +389,655 @@ titleObserver.observe(document.querySelector("title"), { childList: true });
 faviconObserver.observe(document.head, { childList: true, subtree: true });
 
 })();
+
+/* --- ButtonFix.js --- */
+if(window.__US_BUILDER_BUTTONFIX_JS__){return;}window.__US_BUILDER_BUTTONFIX_JS__=true;
+
+(function () {
+    if (window.__BUTTON_FIX__) return;
+    window.__BUTTON_FIX__ = true;
+
+    function uninjectButton(button){
+        if(button){
+            button.parentElement.removeChild(button)
+        }
+    }
+    
+    const observer = new MutationObserver(()=>{
+        let balls = [];
+        document.querySelectorAll('div[class=\'flex-sh_0 d_flex ai_end jc_center w_42px\']').forEach(element=>{
+        if(element.id?.includes('avia')){
+            balls.push(element)
+        }
+        })
+        
+        const gifSpan = [...document.querySelectorAll("span.material-symbols-outlined")]
+        .find(s => s.textContent.trim() === "gif");
+
+        if(!gifSpan){
+            balls.forEach(element=>{
+                uninjectButton(element)
+            })
+        }
+    });
+    observer.observe(document.documentElement, {childList: true, subtree: true })
+})();
+
+
+/* --- inject.js --- */
+if(window.__US_BUILDER_INJECT_JS__){return;}window.__US_BUILDER_INJECT_JS__=true;
+
+(function () {
+
+    if (window.__AVIA_WEB_LOADED__) return;
+    window.__AVIA_WEB_LOADED__ = true;
+
+    const LINKTREE_URL = "https://linktr.ee/GermanAvaLilac";
+    const STOAT_SERVER_URL = "https://stt.gg/GvBhcejB";
+
+    function preloadMonaco() {
+        return new Promise(resolve => {
+            if (window.monaco) return resolve();
+            const loader = document.createElement("script");
+            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js";
+            loader.onload = function () {
+                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
+                require(["vs/editor/editor.main"], () => resolve());
+            };
+            document.head.appendChild(loader);
+        });
+    }
+
+    async function toggleQuickCSSPanel() {
+        await preloadMonaco();
+
+        let panel = document.getElementById('avia-quickcss-panel');
+        if (panel) {
+            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+            return;
+        }
+
+        panel = document.createElement('div');
+        panel.id = 'avia-quickcss-panel';
+        Object.assign(panel.style, {
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            width: '650px',
+            height: '420px',
+            background: 'var(--md-sys-color-surface, #1e1e1e)',
+            color: 'var(--md-sys-color-on-surface, #fff)',
+            borderRadius: '16px',
+            boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+            zIndex: '999999',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            border: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(12px)'
+        });
+
+        const header = document.createElement('div');
+        header.textContent = 'QuickCSS';
+        Object.assign(header.style, {
+            padding: '14px 16px',
+            fontWeight: '600',
+            fontSize: '14px',
+            letterSpacing: '0.3px',
+            background: 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            cursor: 'move',
+            color: '#fff'
+        });
+
+        const closeBtn = document.createElement('div');
+        closeBtn.textContent = '✕';
+        Object.assign(closeBtn.style, {
+            position: 'absolute',
+            top: '12px',
+            right: '16px',
+            cursor: 'pointer',
+            opacity: '0.7',
+            color: '#fff'
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.7';
+        closeBtn.onclick = () => panel.style.display = 'none';
+
+        const editorContainer = document.createElement('div');
+        editorContainer.style.flex = '1';
+
+        panel.appendChild(header);
+        panel.appendChild(closeBtn);
+        panel.appendChild(editorContainer);
+        document.body.appendChild(panel);
+
+        const editor = monaco.editor.create(editorContainer, {
+            value: localStorage.getItem('avia_quickcss') || '',
+            language: 'css',
+            theme: 'vs-dark',
+            automaticLayout: true,
+            minimap: { enabled: false },
+            fontSize: 13,
+            scrollBeyondLastLine: false,
+            wordWrap: 'on'
+        });
+
+        editor.onDidChangeModelContent(() => {
+            const value = editor.getValue();
+            localStorage.setItem('avia_quickcss', value);
+            applyQuickCSS(value);
+        });
+
+        let isDragging = false, offsetX, offsetY;
+        header.addEventListener('mousedown', e => {
+            isDragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            document.body.style.userSelect = '';
+        });
+        document.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panel.style.left = (e.clientX - offsetX) + 'px';
+            panel.style.top = (e.clientY - offsetY) + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+        });
+    }
+
+    function setIcon(button, type) {
+        const oldSvg = button.querySelector('svg');
+        if (oldSvg) oldSvg.remove();
+
+        const icons = {
+            monitor: "M3 4h18v12H3V4zm2 2v8h14V6H5zm3 12h8v2H8v-2z",
+            upload: "M5 20h14v-2H5v2zm7-18L5.33 9h3.84v4h4.66V9h3.84L12 2z",
+            refresh: "M17.65 6.35A7.95 7.95 0 0012 4V1L7 6l5 5V7a5 5 0 11-5 5H5a7 7 0 107.75-6.65z",
+            code: "M8.7 16.3L4.4 12l4.3-4.3 1.4 1.4L7.2 12l2.9 2.9-1.4 1.4zm6.6 0l-1.4-1.4L16.8 12l-2.9-2.9 1.4-1.4L19.6 12l-4.3 4.3z"
+        };
+
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "currentColor");
+        svg.style.marginRight = "8px";
+
+        const path = document.createElementNS(svgNS, "path");
+        path.setAttribute("d", icons[type]);
+        svg.appendChild(path);
+
+        button.insertBefore(svg, button.firstChild);
+    }
+
+    function applyFont(src, name) {
+        const fontName = "CustomFont" + Date.now();
+        let styleTag = document.getElementById('custom-font-style');
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = 'custom-font-style';
+            document.head.appendChild(styleTag);
+        }
+        const ext = (name || src).split('.').pop().split('?')[0].toLowerCase();
+        const formatMap = {
+            ttf: 'truetype',
+            otf: 'opentype',
+            woff: 'woff',
+            woff2: 'woff2',
+            eot: 'embedded-opentype'
+        };
+        const format = formatMap[ext] || '';
+        styleTag.textContent = `
+            @font-face {
+                font-family: '${fontName}';
+                src: url('${src}')${format ? " format('" + format + "')" : ""};
+                font-weight: normal;
+                font-style: normal;
+            }
+            body, body *:not(.material-symbols-outlined) {
+                font-family: '${fontName}', sans-serif !important;
+            }
+        `;
+        if (name) localStorage.setItem('avia_custom_font_name', name);
+    }
+
+    function removeFont() {
+        localStorage.removeItem('avia_custom_font_url');
+        localStorage.removeItem('avia_custom_font_data');
+        localStorage.removeItem('avia_custom_font_name');
+        const styleTag = document.getElementById('custom-font-style');
+        if (styleTag) styleTag.remove();
+    }
+
+    (function applySavedFont() {
+        const data = localStorage.getItem('avia_custom_font_data');
+        const url = localStorage.getItem('avia_custom_font_url');
+        const name = localStorage.getItem('avia_custom_font_name') || '';
+        if (data) applyFont(data, name);
+        else if (url) applyFont(url, name);
+    })();
+
+    function showFontLoaderModal() {
+        if (document.getElementById('avia-font-modal-scrim')) return;
+
+        const styleEl = document.createElement('style');
+        styleEl.id = 'avia-font-modal-styles';
+        styleEl.textContent = `
+            @keyframes avia-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes avia-modal-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+            #avia-font-modal-inner { animation: avia-modal-in 0.15s forwards; }
+            .avia-tab-btn { transition: background 0.15s, color 0.15s; font-family: inherit; }
+            .avia-tab-btn:hover { opacity: 0.8; }
+            .avia-tab-btn.avia-tab-active {
+                background: var(--md-sys-color-primary, rgba(103,80,164,0.9)) !important;
+                color: #fff !important;
+            }
+            .avia-modal-action-btn {
+                height: 40px;
+                border-radius: 999px;
+                border: none;
+                padding: 0 16px;
+                font-size: 0.875rem;
+                font-weight: 500;
+                letter-spacing: 0.015625rem;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: opacity 0.15s;
+                font-family: inherit;
+            }
+            .avia-modal-action-btn:hover { opacity: 0.8; }
+            .avia-modal-action-btn:disabled { cursor: not-allowed; opacity: 0.38; }
+            .avia-font-input {
+                width: 100%;
+                box-sizing: border-box;
+                padding: 14px 16px;
+                border-radius: 12px;
+                border: 1px solid rgba(255,255,255,0.12);
+                background: rgba(255,255,255,0.06);
+                color: var(--md-sys-color-on-surface, #fff);
+                font-size: 0.875rem;
+                outline: none;
+                font-family: inherit;
+                transition: border-color 0.15s;
+            }
+            .avia-font-input:focus { border-color: var(--md-sys-color-primary, rgba(103,80,164,0.9)); }
+            .avia-font-input::placeholder { color: rgba(255,255,255,0.4); }
+            .avia-file-drop {
+                width: 100%;
+                box-sizing: border-box;
+                border: 2px dashed rgba(255,255,255,0.15);
+                border-radius: 12px;
+                padding: 28px 16px;
+                text-align: center;
+                cursor: pointer;
+                transition: border-color 0.15s, background 0.15s;
+                color: rgba(255,255,255,0.5);
+                font-size: 0.875rem;
+            }
+            .avia-file-drop:hover, .avia-file-drop.avia-drag-over {
+                border-color: var(--md-sys-color-primary, rgba(103,80,164,0.9));
+                background: rgba(103,80,164,0.08);
+            }
+        `;
+        document.head.appendChild(styleEl);
+
+        const scrim = document.createElement('div');
+        scrim.id = 'avia-font-modal-scrim';
+        Object.assign(scrim.style, {
+            position: 'fixed',
+            top: '0', left: '0', right: '0', bottom: '0',
+            zIndex: '999999',
+            display: 'grid',
+            placeItems: 'center',
+            background: 'rgba(0,0,0,0.6)',
+            padding: '80px',
+            overflowY: 'auto',
+            animation: 'avia-scrim-in 0.1s forwards',
+            boxSizing: 'border-box'
+        });
+
+        scrim.addEventListener('click', e => {
+            if (e.target === scrim) {
+                scrim.remove();
+                styleEl.remove();
+            }
+        });
+
+        const modal = document.createElement('div');
+        modal.id = 'avia-font-modal-inner';
+        Object.assign(modal.style, {
+            padding: '24px',
+            minWidth: '340px',
+            maxWidth: '480px',
+            width: '100%',
+            borderRadius: '28px',
+            display: 'flex',
+            flexDirection: 'column',
+            color: 'var(--md-sys-color-on-surface, #fff)',
+            background: 'var(--md-sys-color-surface-container-high, #2b2b2f)',
+            boxSizing: 'border-box'
+        });
+
+        const title = document.createElement('span');
+        title.textContent = 'Font Loader';
+        Object.assign(title.style, {
+            lineHeight: '2rem',
+            fontSize: '1.5rem',
+            letterSpacing: '0',
+            fontWeight: '400',
+            marginBottom: '6px'
+        });
+        modal.appendChild(title);
+
+        const activeFontEl = document.createElement('div');
+        activeFontEl.id = 'avia-font-active-label';
+        Object.assign(activeFontEl.style, {
+            fontSize: '0.8rem',
+            color: 'rgba(255,255,255,0.45)',
+            marginBottom: '18px',
+            minHeight: '16px'
+        });
+        const savedName = localStorage.getItem('avia_custom_font_name') || '';
+        activeFontEl.textContent = savedName ? 'Active: ' + savedName : 'No custom font active';
+        modal.appendChild(activeFontEl);
+
+        const tabRow = document.createElement('div');
+        Object.assign(tabRow.style, { display: 'flex', gap: '8px', marginBottom: '18px' });
+
+        const tabUrl = document.createElement('button');
+        tabUrl.textContent = 'URL';
+        tabUrl.className = 'avia-tab-btn avia-tab-active';
+        Object.assign(tabUrl.style, {
+            flex: '1', padding: '8px', borderRadius: '8px', border: 'none',
+            background: 'var(--md-sys-color-primary, rgba(103,80,164,0.9))',
+            color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer'
+        });
+
+        const tabFile = document.createElement('button');
+        tabFile.textContent = 'Local File';
+        tabFile.className = 'avia-tab-btn';
+        Object.assign(tabFile.style, {
+            flex: '1', padding: '8px', borderRadius: '8px', border: 'none',
+            background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)',
+            fontSize: '13px', fontWeight: '600', cursor: 'pointer'
+        });
+
+        tabRow.appendChild(tabUrl);
+        tabRow.appendChild(tabFile);
+        modal.appendChild(tabRow);
+
+        const body = document.createElement('div');
+        Object.assign(body.style, { marginBottom: '20px' });
+        modal.appendChild(body);
+
+        const urlInput = document.createElement('input');
+        urlInput.className = 'avia-font-input';
+        urlInput.type = 'text';
+        urlInput.placeholder = 'https://example.com/font.ttf';
+        const savedUrl = localStorage.getItem('avia_custom_font_url') || '';
+        if (savedUrl) urlInput.value = savedUrl;
+
+        const fileDropZone = document.createElement('div');
+        fileDropZone.className = 'avia-file-drop';
+
+        const fileDropText = document.createElement('div');
+        fileDropText.style.marginBottom = '6px';
+        fileDropText.textContent = 'Drop a font file here or click to browse';
+
+        const fileDropSub = document.createElement('div');
+        Object.assign(fileDropSub.style, { fontSize: '11px', opacity: '0.5' });
+        fileDropSub.textContent = '.ttf · .otf · .woff · .woff2';
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.ttf,.otf,.woff,.woff2';
+        fileInput.style.display = 'none';
+
+        fileDropZone.appendChild(fileDropText);
+        fileDropZone.appendChild(fileDropSub);
+        fileDropZone.appendChild(fileInput);
+
+        fileDropZone.addEventListener('click', () => fileInput.click());
+        fileDropZone.addEventListener('dragover', e => { e.preventDefault(); fileDropZone.classList.add('avia-drag-over'); });
+        fileDropZone.addEventListener('dragleave', () => fileDropZone.classList.remove('avia-drag-over'));
+        fileDropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            fileDropZone.classList.remove('avia-drag-over');
+            const f = e.dataTransfer.files[0];
+            if (f) handleFileSelected(f);
+        });
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files[0]) handleFileSelected(fileInput.files[0]);
+        });
+
+        let selectedFile = null;
+        let currentTab = 'url';
+
+        function handleFileSelected(f) {
+            selectedFile = f;
+            fileDropText.textContent = f.name;
+            fileDropSub.textContent = (f.size / 1024).toFixed(1) + ' KB';
+            fileDropZone.style.borderColor = 'var(--md-sys-color-primary, rgba(103,80,164,0.9))';
+            fileDropZone.style.background = 'rgba(103,80,164,0.08)';
+            applyBtn.disabled = false;
+        }
+
+        function renderTab() {
+            body.innerHTML = '';
+            selectedFile = null;
+            if (currentTab === 'url') {
+                tabUrl.classList.add('avia-tab-active');
+                tabUrl.style.background = 'var(--md-sys-color-primary, rgba(103,80,164,0.9))';
+                tabUrl.style.color = '#fff';
+                tabFile.classList.remove('avia-tab-active');
+                tabFile.style.background = 'rgba(255,255,255,0.06)';
+                tabFile.style.color = 'rgba(255,255,255,0.7)';
+                applyBtn.disabled = false;
+                body.appendChild(urlInput);
+            } else {
+                tabFile.classList.add('avia-tab-active');
+                tabFile.style.background = 'var(--md-sys-color-primary, rgba(103,80,164,0.9))';
+                tabFile.style.color = '#fff';
+                tabUrl.classList.remove('avia-tab-active');
+                tabUrl.style.background = 'rgba(255,255,255,0.06)';
+                tabUrl.style.color = 'rgba(255,255,255,0.7)';
+                applyBtn.disabled = true;
+                body.appendChild(fileDropZone);
+            }
+        }
+
+        tabUrl.addEventListener('click', () => { currentTab = 'url'; renderTab(); });
+        tabFile.addEventListener('click', () => { currentTab = 'file'; renderTab(); });
+
+        const btnRow = document.createElement('div');
+        Object.assign(btnRow.style, {
+            display: 'flex', justifyContent: 'flex-end',
+            gap: '8px', marginTop: '4px', flexWrap: 'wrap', alignItems: 'center'
+        });
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = 'Remove Font';
+        removeBtn.className = 'avia-modal-action-btn';
+        Object.assign(removeBtn.style, {
+            color: 'var(--md-sys-color-error, #f2b8b8)',
+            background: 'transparent',
+            marginRight: 'auto'
+        });
+        removeBtn.addEventListener('click', () => {
+            removeFont();
+            activeFontEl.textContent = 'No custom font active';
+            fileDropText.textContent = 'Drop a font file here or click to browse';
+            fileDropSub.textContent = '.ttf · .otf · .woff · .woff2';
+            fileDropZone.style.borderColor = '';
+            fileDropZone.style.background = '';
+            urlInput.value = '';
+            selectedFile = null;
+        });
+
+        const closeModalBtn = document.createElement('button');
+        closeModalBtn.textContent = 'Close';
+        closeModalBtn.className = 'avia-modal-action-btn';
+        Object.assign(closeModalBtn.style, {
+            color: 'var(--md-sys-color-primary, #cfbcff)',
+            background: 'transparent'
+        });
+        closeModalBtn.addEventListener('click', () => { scrim.remove(); styleEl.remove(); });
+
+        const applyBtn = document.createElement('button');
+        applyBtn.textContent = 'Apply';
+        applyBtn.className = 'avia-modal-action-btn';
+        Object.assign(applyBtn.style, {
+            background: 'var(--md-sys-color-primary, rgba(103,80,164,0.9))',
+            color: '#fff'
+        });
+
+        applyBtn.addEventListener('click', () => {
+            if (currentTab === 'url') {
+                const url = urlInput.value.trim();
+                if (!url) return;
+                localStorage.removeItem('avia_custom_font_data');
+                localStorage.removeItem('avia_custom_font_name');
+                localStorage.setItem('avia_custom_font_url', url);
+                const name = url.split('/').pop().split('?')[0];
+                applyFont(url, name);
+                activeFontEl.textContent = 'Active: ' + name;
+            } else {
+                if (!selectedFile) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const dataUrl = reader.result;
+                    localStorage.removeItem('avia_custom_font_url');
+                    localStorage.setItem('avia_custom_font_data', dataUrl);
+                    applyFont(dataUrl, selectedFile.name);
+                    activeFontEl.textContent = 'Active: ' + selectedFile.name;
+                };
+                reader.readAsDataURL(selectedFile);
+            }
+        });
+
+        btnRow.appendChild(removeBtn);
+        btnRow.appendChild(closeModalBtn);
+        btnRow.appendChild(applyBtn);
+        modal.appendChild(btnRow);
+
+        scrim.appendChild(modal);
+        document.body.appendChild(scrim);
+
+        renderTab();
+    }
+
+    function injectButtons() {
+        const appearanceBtn = Array.from(document.querySelectorAll('a')).find(a => a.textContent.trim() === 'Appearance');
+        if (!appearanceBtn) return;
+
+        const aviaHeader = [...document.querySelectorAll('span')]
+            .find(s => s.textContent.trim() === "AVIA CLIENT SETTINGS");
+        if (!aviaHeader) return;
+
+        const aviaContainer = aviaHeader.closest('.d_flex.flex-d_column');
+        if (!aviaContainer) return;
+
+        const targetParent = aviaContainer.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
+        if (!targetParent) return;
+
+        if (!document.getElementById('stoat-fake-linktree')) {
+            const linktreeBtn = appearanceBtn.cloneNode(true);
+            linktreeBtn.id = 'stoat-fake-linktree';
+            const textNode = Array.from(linktreeBtn.querySelectorAll('div')).find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
+            if (textNode) textNode.textContent = "(Avia) Ava's Linktree";
+            setIcon(linktreeBtn, "monitor");
+            linktreeBtn.addEventListener('click', () => window.open(LINKTREE_URL, "_blank"));
+            targetParent.appendChild(linktreeBtn);
+
+            const stoatBtn = appearanceBtn.cloneNode(true);
+            stoatBtn.id = 'stoat-fake-stoatserver';
+            const stoatTextNode = Array.from(stoatBtn.querySelectorAll('div')).find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
+            if (stoatTextNode) stoatTextNode.textContent = "(Avia) Stoat Server";
+            setIcon(stoatBtn, "monitor");
+            stoatBtn.addEventListener('click', () => window.open(STOAT_SERVER_URL, "_blank"));
+            targetParent.appendChild(stoatBtn);
+        }
+
+        if (!document.getElementById('stoat-fake-loadfont')) {
+            const newBtn = appearanceBtn.cloneNode(true);
+            newBtn.id = 'stoat-fake-loadfont';
+            const textNode = Array.from(newBtn.querySelectorAll('div')).find(d => d.children.length === 0);
+            if (textNode) textNode.textContent = "(Avia) Font Loader";
+            setIcon(newBtn, "upload");
+            newBtn.addEventListener('click', showFontLoaderModal);
+            targetParent.appendChild(newBtn);
+        }
+
+        if (!document.getElementById('stoat-fake-quickcss')) {
+            const quickCssBtn = appearanceBtn.cloneNode(true);
+            quickCssBtn.id = 'stoat-fake-quickcss';
+            const quickCssTextNode = Array.from(quickCssBtn.querySelectorAll('div')).find(d => d.children.length === 0);
+            if (quickCssTextNode) quickCssTextNode.textContent = "(Avia) QuickCSS";
+            setIcon(quickCssBtn, "code");
+            quickCssBtn.addEventListener('click', toggleQuickCSSPanel);
+            targetParent.appendChild(quickCssBtn);
+        }
+    }
+
+    function applyQuickCSS(css) {
+        let styleTag = document.getElementById('avia-quickcss-style');
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = 'avia-quickcss-style';
+            document.head.appendChild(styleTag);
+        }
+        styleTag.textContent = css;
+    }
+
+    (function applySavedQuickCSS() {
+        const savedCSS = localStorage.getItem('avia_quickcss');
+        if (savedCSS) applyQuickCSS(savedCSS);
+    })();
+
+    function waitForBody(callback) {
+        if (document.body) callback();
+        else new MutationObserver((obs) => {
+            if (document.body) {
+                obs.disconnect();
+                callback();
+            }
+        }).observe(document.documentElement, { childList: true });
+    }
+
+    function registerWithAviaMenu() {
+        if (window.AviaMenu) {
+            window.AviaMenu.register({ id: "avia_fontloader", name: "Font Loader", icon: "upload", onClick: showFontLoaderModal });
+            window.AviaMenu.register({ id: "avia_quickcss", name: "QuickCSS", icon: "code", onClick: toggleQuickCSSPanel });
+        } else {
+            const interval = setInterval(() => {
+                if (window.AviaMenu) {
+                    clearInterval(interval);
+                    window.AviaMenu.register({ id: "avia_fontloader", name: "Font Loader", icon: "upload", onClick: showFontLoaderModal });
+                    window.AviaMenu.register({ id: "avia_quickcss", name: "QuickCSS", icon: "code", onClick: toggleQuickCSSPanel });
+                }
+            }, 100);
+        }
+    }
+
+    waitForBody(() => {
+        const observer = new MutationObserver(() => injectButtons());
+        observer.observe(document.body, { childList: true, subtree: true });
+        injectButtons();
+    });
+
+    preloadMonaco();
+    registerWithAviaMenu();
+
+})();
+
+
 
 /* --- repofrontend.js --- */
 if(window.__US_BUILDER_REPOFRONTEND_JS__){return;}window.__US_BUILDER_REPOFRONTEND_JS__=true;
@@ -246,7 +1235,9 @@ if(window.__US_BUILDER_REPOFRONTEND_JS__){return;}window.__US_BUILDER_REPOFRONTE
 
             if (u.hostname === "github.com") {
                 const m = u.pathname.match(/^\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
-                if (m) return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`;
+                if (m) {
+                    return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`;
+                }
                 return link;
             }
 
@@ -255,17 +1246,40 @@ if(window.__US_BUILDER_REPOFRONTEND_JS__){return;}window.__US_BUILDER_REPOFRONTE
             if (u.hostname === "raw.codeberg.page") return link;
 
             if (u.hostname === "codeberg.org") {
+
+                if (u.pathname.startsWith("/api/v1/repos/")) return link;
+
                 const parts = u.pathname.split("/").filter(Boolean);
+
                 if (parts.length >= 5 && (parts[2] === "raw" || parts[2] === "src")) {
-                    const user = parts[0];
-                    const repo = parts[1];
-                    const branchName = ["branch", "commit", "tag"].includes(parts[3]) ? parts[4] : parts[3];
-                    const fileStart = ["branch", "commit", "tag"].includes(parts[3]) ? 5 : 4;
-                    const filePath = parts.slice(fileStart).join("/");
-                    return `https://raw.codeberg.page/${user}/${repo}/@${branchName}/${filePath}`;
+                    const user       = parts[0];
+                    const repo       = parts[1];
+                    const branchName = parts[3] === "branch" || parts[3] === "commit" || parts[3] === "tag"
+                        ? parts[4]
+                        : parts[3];
+                    const fileStart  = parts[3] === "branch" || parts[3] === "commit" || parts[3] === "tag"
+                        ? 5
+                        : 4;
+                    const filePath   = parts.slice(fileStart).join("/");
+
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branchName}`;
                 }
+
                 if (parts.length >= 4 && parts[2] === "raw") {
-                    return `https://raw.codeberg.page/${parts[0]}/${parts[1]}/@${parts[3]}/${parts.slice(4).join("/")}`;
+                    const user       = parts[0];
+                    const repo       = parts[1];
+                    const branchName = parts[3];
+                    const filePath   = parts.slice(4).join("/");
+
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branchName}`;
+                }
+
+                if (parts.length >= 5 && parts[2] === "src" && parts[3] === "branch") {
+                    const user     = parts[0];
+                    const repo     = parts[1];
+                    const branch   = parts[4];
+                    const filePath = parts.slice(5).join("/");
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branch}`;
                 }
             }
         } catch (_) {}
@@ -799,185 +1813,1281 @@ if(window.__US_BUILDER_REPOFRONTEND_JS__){return;}window.__US_BUILDER_REPOFRONTE
 })();
 
 
-/* --- badges.js --- */
-if(window.__US_BUILDER_BADGES_JS__){return;}window.__US_BUILDER_BADGES_JS__=true;
+
+/* --- themes.js --- */
+if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true;
 
 (function () {
-    if (window.__AVIA_PROFILE_BADGESV2__) return;
-    window.__AVIA_PROFILE_BADGESV2__ = true;
 
-    const BADGE_URL = "https://raw.githubusercontent.com/AvaLilac/AviaClientBadges/refs/heads/main/userbadgesbackend.js";
+    if (window.__AVIA_THEMES__) return;
+    window.__AVIA_THEMES__ = true;
 
-    let badgeData = null, loadingPromise = null;
+    const STORAGE_KEY = "avia_themes";
+    let editingThemeId = null;
+    let monacoEditorInstance = null;
 
-    function loadBadges() {
-        if (badgeData) return Promise.resolve();
-        if (loadingPromise) return loadingPromise;
+    const TEMPLATE = `/*
+@name Whatever name here
+@author Whatever Author Here
+@version 1.0
+@description Whatever description here
+*/
 
-        loadingPromise = fetch(BADGE_URL + "?t=" + Date.now())
-            .then(r => r.text())
-            .then(code => {
-                new Function(code)();
-                badgeData = window.AVIA_USER_BADGES || [];
-            })
-            .catch(() => { badgeData = []; });
+`;
 
-        return loadingPromise;
+    const getThemes = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const setThemes = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    function preloadMonaco() {
+        return new Promise(resolve => {
+            if (window.monaco) return resolve();
+            const loader = document.createElement("script");
+            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js";
+            loader.onload = function () {
+                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
+                require(["vs/editor/editor.main"], () => resolve());
+            };
+            document.head.appendChild(loader);
+        });
     }
 
-    function getUsername(root) {
-        const tag = root.querySelector("span.fw_200");
-        if (!tag) return null;
-        const span = tag.parentElement;
-        return span ? span.textContent.trim() : null;
+    function parseMeta(css) {
+        const name = css.match(/@name\s+(.+)/)?.[1] || "Unknown Theme";
+        const author = css.match(/@author\s+(.+)/)?.[1] || "Unknown";
+        const version = css.match(/@version\s+(.+)/)?.[1] || "1.0";
+        const rawDescription = css.match(/@description\s+(.+)/)?.[1] || "No Description Available";
+        const description = rawDescription.trim() === "*/" ? "No Description Available" : rawDescription;
+        return { name, author, version, description };
     }
 
-    function getUserBadges(username) {
-        if (!badgeData) return [];
-        const clean = username.trim().toLowerCase();
-        return badgeData.filter(b =>
-            b.users.some(u => u.toLowerCase() === clean)
-        );
+    function sanitizeFilename(name) {
+        return name
+            .replace(/[<>:"/\\|?*\x00-\x1f]/g, "")
+            .replace(/\s+/g, "_")
+            .replace(/\.+$/, "")
+            .trim() || "theme";
     }
 
-    function findCardByTitle(root, title) {
-        return [...root.querySelectorAll("div.pos_relative")]
-            .find(c => {
-                const heading = c.querySelector("span.fw_550");
-                return heading && heading.textContent.trim() === title;
-            });
+    function downloadTheme(theme) {
+        const name = parseMeta(theme.css).name;
+        const filename = sanitizeFilename(name) + ".css";
+        const blob = new Blob([theme.css], { type: "text/css" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
-    function makeBadgeSpan(b) {
-        const wrapper = document.createElement("span");
-        wrapper.setAttribute("aria-label", b.name);
-        wrapper.style.cssText = "display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:20px;line-height:1;cursor:default;position:relative;";
-        wrapper.textContent = b.icon;
+    function applyThemes() {
+        document.querySelectorAll(".avia-theme-style").forEach(e => e.remove());
+        getThemes().forEach(theme => {
+            if (!theme.enabled) return;
 
-        let tip = null;
+            const importRegex = /@import\s+url\(["']?([^"')]+)["']?\)\s*;/g;
+            let match;
+            while ((match = importRegex.exec(theme.css)) !== null) {
+                const url = match[1];
+                fetch(url)
+                    .then(r => r.text())
+                    .then(css => {
+                        const style = document.createElement("style");
+                        style.className = "avia-theme-style";
+                        style.textContent = css;
+                        document.head.appendChild(style);
+                    })
+                    .catch(() => {});
+            }
 
-        wrapper.addEventListener("mouseenter", () => {
-            tip = document.createElement("div");
-            tip.style.cssText = "position:fixed;z-index:99999;pointer-events:none;white-space:nowrap;";
+            const stripped = theme.css.replace(/@import\s+url\(["']?[^"')]+["']?\)\s*;/g, "").trim();
+            if (stripped) {
+                const style = document.createElement("style");
+                style.className = "avia-theme-style";
+                style.textContent = stripped;
+                document.head.appendChild(style);
+            }
+        });
+    }
 
-            const inner = document.createElement("div");
-            inner.className = "c_white bg_black p_var(--gap-md) bdr_var(--borderRadius-md) lh_0.875rem fs_0.6875rem ls_0.03125rem fw_500";
-            inner.style.cssText = "";
+    function styleBtn(btn, bg) {
+        Object.assign(btn.style, {
+            padding: "5px 12px",
+            borderRadius: "8px",
+            border: "none",
+            background: bg || "rgba(255,255,255,0.08)",
+            color: "#fff",
+            cursor: "pointer",
+            fontSize: "12px",
+            whiteSpace: "nowrap",
+            fontWeight: "500"
+        });
+        btn.onmouseenter = () => btn.style.opacity = "0.75";
+        btn.onmouseleave = () => btn.style.opacity = "1";
+    }
 
-            const color = b.color || "";
-            if (color.includes("gradient")) {
-                const textSpan = document.createElement("span");
-                textSpan.textContent = b.name;
-                textSpan.style.cssText = `background:${color};-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;`;
-                inner.appendChild(textSpan);
+    function makeDraggable(panel, handle) {
+        let dragging = false, offsetX, offsetY;
+        handle.addEventListener("mousedown", e => {
+            dragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+            document.body.style.userSelect = "none";
+        });
+        document.addEventListener("mouseup", () => { dragging = false; document.body.style.userSelect = ""; });
+        document.addEventListener("mousemove", e => {
+            if (!dragging) return;
+            panel.style.left = (e.clientX - offsetX) + "px";
+            panel.style.top = (e.clientY - offsetY) + "px";
+            panel.style.right = "auto";
+            panel.style.bottom = "auto";
+        });
+    }
+
+    async function openThemeEditor(themeId) {
+        await preloadMonaco();
+
+        editingThemeId = themeId;
+        const themes = getThemes();
+        const theme = themes.find(t => t.id === themeId);
+        if (!theme) return;
+
+        const meta = parseMeta(theme.css);
+        let panel = document.getElementById("avia-theme-editor");
+
+        if (panel) {
+            panel.style.display = "flex";
+            panel.querySelector("#avia-theme-editor-title").textContent = "Theme Editor — " + meta.name;
+            if (monacoEditorInstance) {
+                monacoEditorInstance._aviaThemeId = themeId;
+                const model = monacoEditorInstance.getModel();
+                if (model) model.setValue(theme.css || "");
+            }
+            return;
+        }
+
+        panel = document.createElement("div");
+        panel.id = "avia-theme-editor";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            width: "650px",
+            height: "420px",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            color: "var(--md-sys-color-on-surface, #fff)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+            zIndex: "9999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)"
+        });
+
+        const header = document.createElement("div");
+        header.id = "avia-theme-editor-title";
+        header.textContent = "Theme Editor — " + meta.name;
+        Object.assign(header.style, {
+            padding: "14px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move",
+            color: "#fff",
+            flex: "0 0 auto"
+        });
+        makeDraggable(panel, header);
+
+        const close = document.createElement("div");
+        close.textContent = "✕";
+        Object.assign(close.style, {
+            position: "absolute",
+            right: "16px",
+            top: "12px",
+            cursor: "pointer",
+            opacity: "0.6",
+            fontSize: "15px",
+            lineHeight: "1",
+            padding: "2px 4px",
+            color: "#fff"
+        });
+        close.onmouseenter = () => close.style.opacity = "1";
+        close.onmouseleave = () => close.style.opacity = "0.6";
+        close.onclick = () => panel.style.display = "none";
+
+        const editorContainer = document.createElement("div");
+        editorContainer.style.flex = "1";
+
+        panel.appendChild(header);
+        panel.appendChild(close);
+        panel.appendChild(editorContainer);
+        document.body.appendChild(panel);
+
+        monacoEditorInstance = monaco.editor.create(editorContainer, {
+            value: theme.css || "",
+            language: "css",
+            theme: "vs-dark",
+            automaticLayout: true,
+            minimap: { enabled: false },
+            fontSize: 13,
+            scrollBeyondLastLine: false,
+            wordWrap: "on"
+        });
+
+        monacoEditorInstance._aviaThemeId = themeId;
+
+        monacoEditorInstance.onDidChangeModelContent(() => {
+            const id = monacoEditorInstance._aviaThemeId;
+            if (!id) return;
+            const value = monacoEditorInstance.getValue();
+            const all = getThemes();
+            const target = all.find(t => t.id === id);
+            if (!target) return;
+            target.css = value;
+            setThemes(all);
+            applyThemes();
+            header.textContent = "Theme Editor — " + parseMeta(value).name;
+            if (typeof window.__avia_refresh_themes_panel === "function") {
+                window.__avia_refresh_themes_panel();
+            }
+        });
+    }
+
+    function toggleThemesPanel() {
+        let panel = document.getElementById("avia-themes-panel");
+        if (panel) {
+            if (panel.style.display === "none") {
+                panel.style.display = "flex";
+                if (typeof window.__avia_refresh_themes_panel === "function") {
+                    window.__avia_refresh_themes_panel();
+                }
             } else {
-                inner.textContent = b.name;
-                inner.style.color = color || "white";
+                panel.style.display = "none";
+            }
+            return;
+        }
+
+        panel = document.createElement("div");
+        panel.id = "avia-themes-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "40px",
+            right: "40px",
+            width: "500px",
+            height: "460px",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            color: "var(--md-sys-color-on-surface, #fff)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+            zIndex: "999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)"
+        });
+
+        const header = document.createElement("div");
+        header.textContent = "Themes";
+        Object.assign(header.style, {
+            padding: "14px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move"
+        });
+        makeDraggable(panel, header);
+
+        const close = document.createElement("div");
+        close.textContent = "✕";
+        Object.assign(close.style, {
+            position: "absolute",
+            right: "16px",
+            top: "12px",
+            cursor: "pointer",
+            opacity: "0.6",
+            fontSize: "15px",
+            lineHeight: "1",
+            padding: "2px 4px"
+        });
+        close.onmouseenter = () => close.style.opacity = "1";
+        close.onmouseleave = () => close.style.opacity = "0.6";
+        close.onclick = () => panel.style.display = "none";
+
+        const btnRow = document.createElement("div");
+        Object.assign(btnRow.style, {
+            display: "flex",
+            gap: "8px",
+            padding: "12px 16px",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            flex: "0 0 auto"
+        });
+
+        const importBtn = document.createElement("button");
+        importBtn.textContent = "Import Theme";
+        styleBtn(importBtn);
+        importBtn.style.flex = "1";
+        importBtn.style.padding = "8px 12px";
+
+        const newBtn = document.createElement("button");
+        newBtn.textContent = "+ New";
+        styleBtn(newBtn);
+        newBtn.style.flex = "1";
+        newBtn.style.padding = "8px 12px";
+
+        btnRow.appendChild(importBtn);
+        btnRow.appendChild(newBtn);
+
+        const list = document.createElement("div");
+        Object.assign(list.style, {
+            flex: "1",
+            overflowY: "auto",
+            padding: "16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px"
+        });
+
+        const dropOverlay = document.createElement("div");
+        dropOverlay.textContent = "Drop .css or .txt files here";
+        Object.assign(dropOverlay.style, {
+            position: "absolute",
+            inset: "0",
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "18px",
+            fontWeight: "600",
+            color: "#fff",
+            opacity: "0",
+            pointerEvents: "none",
+            transition: "opacity 0.15s ease",
+            borderRadius: "16px"
+        });
+
+        panel.appendChild(header);
+        panel.appendChild(close);
+        panel.appendChild(btnRow);
+        panel.appendChild(list);
+        panel.appendChild(dropOverlay);
+        document.body.appendChild(panel);
+
+        let dragDepth = 0;
+
+        panel.addEventListener("dragenter", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragDepth++;
+            dropOverlay.style.opacity = "1";
+            panel.style.border = "1px dashed rgba(255,255,255,0.4)";
+        });
+
+        panel.addEventListener("dragover", e => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        panel.addEventListener("dragleave", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragDepth--;
+            if (dragDepth <= 0) {
+                dropOverlay.style.opacity = "0";
+                panel.style.border = "1px solid rgba(255,255,255,0.08)";
+                dragDepth = 0;
+            }
+        });
+
+        panel.addEventListener("drop", async e => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropOverlay.style.opacity = "0";
+            panel.style.border = "1px solid rgba(255,255,255,0.08)";
+            dragDepth = 0;
+            const files = [...e.dataTransfer.files].filter(f => f.name.endsWith(".css") || f.name.endsWith(".txt"));
+            if (!files.length) return;
+            const themes = getThemes();
+            for (const file of files) {
+                const css = await file.text();
+                themes.push({ id: crypto.randomUUID(), css, enabled: true });
+            }
+            setThemes(themes);
+            applyThemes();
+            render();
+        });
+
+        function render() {
+            list.innerHTML = "";
+            const themes = getThemes();
+
+            if (themes.length === 0) {
+                const empty = document.createElement("div");
+                empty.textContent = "No themes yet. Import or create one above.";
+                Object.assign(empty.style, { opacity: "0.4", fontSize: "13px" });
+                list.appendChild(empty);
+                return;
             }
 
-            tip.appendChild(inner);
-            document.body.appendChild(tip);
+            themes.forEach(theme => {
+                const meta = parseMeta(theme.css);
 
-            requestAnimationFrame(() => {
-                const badgeRect = wrapper.getBoundingClientRect();
-                const tipRect = tip.getBoundingClientRect();
-                const x = badgeRect.left + badgeRect.width / 2 - tipRect.width / 2;
-                const y = badgeRect.top - tipRect.height - 5;
-                tip.style.left = Math.max(4, x) + "px";
-                tip.style.top = Math.max(4, y) + "px";
+                const card = document.createElement("div");
+                Object.assign(card.style, {
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "10px 12px",
+                    borderRadius: "10px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.06)"
+                });
+
+                const left = document.createElement("div");
+                Object.assign(left.style, { display: "flex", alignItems: "center", gap: "10px" });
+
+                const dot = document.createElement("div");
+                Object.assign(dot.style, {
+                    width: "10px",
+                    height: "10px",
+                    borderRadius: "50%",
+                    flexShrink: "0",
+                    background: theme.enabled ? "#4dff88" : "#777",
+                    boxShadow: theme.enabled ? "0 0 6px #4dff88" : "none"
+                });
+
+                const info = document.createElement("div");
+                info.innerHTML = `<div style="font-weight:600;font-size:13px">${meta.name}</div><div style="font-size:11px;opacity:.5">${meta.author} • v${meta.version}</div><div style="font-size:11px;opacity:.4">${meta.description}</div>`;
+
+                left.appendChild(dot);
+                left.appendChild(info);
+
+                const controls = document.createElement("div");
+                Object.assign(controls.style, { display: "flex", gap: "6px" });
+
+                const toggle = document.createElement("button");
+                toggle.textContent = theme.enabled ? "Disable" : "Enable";
+                styleBtn(toggle);
+                toggle.onclick = () => {
+                    theme.enabled = !theme.enabled;
+                    setThemes(themes);
+                    applyThemes();
+                    render();
+                };
+
+                const edit = document.createElement("button");
+                edit.textContent = "Edit";
+                styleBtn(edit, "rgba(100,160,255,0.15)");
+                edit.onclick = () => openThemeEditor(theme.id);
+
+                const dlBtn = document.createElement("button");
+                dlBtn.textContent = "Export";
+                styleBtn(dlBtn, "rgba(80,200,120,0.15)");
+                dlBtn.title = "Download theme as .css";
+                dlBtn.onclick = e => {
+                    e.stopPropagation();
+                    downloadTheme(theme);
+                };
+
+                const del = document.createElement("button");
+                del.textContent = "✕";
+                styleBtn(del, "rgba(255,80,80,0.15)");
+                del.onclick = () => {
+                    const updated = themes.filter(t => t.id !== theme.id);
+                    setThemes(updated);
+                    applyThemes();
+                    render();
+                };
+
+                controls.appendChild(toggle);
+                controls.appendChild(edit);
+                controls.appendChild(dlBtn);
+                controls.appendChild(del);
+                card.appendChild(left);
+                card.appendChild(controls);
+                list.appendChild(card);
             });
-        });
-
-        wrapper.addEventListener("mouseleave", () => {
-            if (tip) { tip.remove(); tip = null; }
-        });
-
-        return wrapper;
-    }
-
-    function injectBadges(root, username) {
-        if (root.querySelector("[data-avia-badge-injected='true']")) return;
-
-        const badges = getUserBadges(username);
-        if (!badges.length) return;
-
-        const nativeBadgesCard = findCardByTitle(root, "Badges");
-        if (nativeBadgesCard) {
-            const grid = nativeBadgesCard.querySelector("div.d_flex.flex-wrap_wrap");
-            if (!grid) return;
-            badges.forEach(b => grid.appendChild(makeBadgeSpan(b)));
-            nativeBadgesCard.dataset.aviaBadgeInjected = "true";
-            return;
         }
 
-        const joinedCard = findCardByTitle(root, "Joined");
-        if (!joinedCard) return;
+        window.__avia_refresh_themes_panel = render;
 
-        const card = joinedCard.cloneNode(false);
-        card.removeAttribute("data-avia-badge-injected");
-        card.dataset.aviaBadgeInjected = "true";
-        card.style.cssText = "overflow:hidden;";
-        if (!card.classList.contains("asp_1/1")) card.classList.add("asp_1/1");
+        importBtn.onclick = () => {
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = ".css,.txt";
+            input.multiple = true;
+            input.onchange = async () => {
+                const files = [...input.files];
+                if (!files.length) return;
+                const themes = getThemes();
+                for (const file of files) {
+                    const css = await file.text();
+                    themes.push({ id: crypto.randomUUID(), css, enabled: true });
+                }
+                setThemes(themes);
+                applyThemes();
+                render();
+            };
+            input.click();
+        };
 
-        const titleSpan = joinedCard.querySelector("span.fw_550");
-        const title = titleSpan ? titleSpan.cloneNode(false) : document.createElement("span");
-        title.textContent = "Badges";
-        card.appendChild(title);
+        newBtn.onclick = () => {
+            const themes = getThemes();
+            themes.push({ id: crypto.randomUUID(), css: TEMPLATE, enabled: true });
+            setThemes(themes);
+            applyThemes();
+            render();
+        };
 
-        const grid = document.createElement("div");
-        grid.className = "gap_var(--gap-md) d_flex flex-wrap_wrap [&_img,_&_svg]:w_24px [&_img,_&_svg]:h_24px [&_img,_&_svg]:asp_1/1";
-        grid.style.overflow = "hidden";
-        badges.forEach(b => grid.appendChild(makeBadgeSpan(b)));
-        card.appendChild(grid);
-
-        joinedCard.insertAdjacentElement("afterend", card);
+        render();
     }
 
-    async function processProfile(root) {
-        await loadBadges();
-
-        const username = getUsername(root);
-        if (!username) return;
-
-        if (findCardByTitle(root, "Badges")) {
-            injectBadges(root, username);
-            return;
-        }
-
-        const obs = new MutationObserver(() => {
-            if (!findCardByTitle(root, "Joined")) return;
-            if (!findCardByTitle(root, "Bio")) return;
-            obs.disconnect();
-            injectBadges(root, username);
-        });
-
-        obs.observe(root, { childList: true, subtree: true });
-
-        if (findCardByTitle(root, "Joined") && findCardByTitle(root, "Bio")) {
-            obs.disconnect();
-            injectBadges(root, username);
-        }
-
-        setTimeout(() => obs.disconnect(), 10000);
+    function injectButton() {
+        if (document.getElementById("avia-themes-btn")) return;
+        const appearanceBtn = [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Appearance");
+        const quickCSS = document.getElementById("stoat-fake-quickcss");
+        if (!appearanceBtn || !quickCSS) return;
+        const clone = appearanceBtn.cloneNode(true);
+        clone.id = "avia-themes-btn";
+        const text = [...clone.querySelectorAll("div")].find(d => d.children.length === 0);
+        if (text) text.textContent = "(Avia) Themes";
+        clone.onclick = toggleThemesPanel;
+        quickCSS.parentElement.insertBefore(clone, quickCSS.nextSibling);
     }
 
-    const observer = new MutationObserver(muts => {
-        for (const m of muts) {
-            for (const n of m.addedNodes) {
-                if (!(n instanceof HTMLElement)) continue;
+    function registerWithAviaMenu() {
+        if (window.AviaMenu) {
+            window.AviaMenu.register({ id: "avia_themes", name: "Themes", icon: "palette", onClick: toggleThemesPanel });
+        } else {
+            const interval = setInterval(() => {
+                if (window.AviaMenu) {
+                    clearInterval(interval);
+                    window.AviaMenu.register({ id: "avia_themes", name: "Themes", icon: "palette", onClick: toggleThemesPanel });
+                }
+            }, 100);
+        }
+    }
 
-                if (n.matches?.("div.will-change_transform")) processProfile(n);
-                if (n.matches?.("div.p_24px.min-w_280px.max-w_560px")) processProfile(n);
+    new MutationObserver(injectButton).observe(document.body, { childList: true, subtree: true });
+    injectButton();
+    applyThemes();
+    preloadMonaco();
+    registerWithAviaMenu();
 
-                const small    = n.querySelector?.("div.will-change_transform");
-                const expanded = n.querySelector?.("div.p_24px.min-w_280px.max-w_560px");
-                if (small)    processProfile(small);
-                if (expanded) processProfile(expanded);
+})();
+
+
+
+/* --- pluginsupport.js --- */
+if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
+
+(function () {
+
+    if (window.__AVIA_PLUGINS__) return;
+    window.__AVIA_PLUGINS__ = true;
+
+    const STORAGE_KEY = "avia_plugins";
+
+    const runningPlugins = {};
+    const pluginErrors = {};
+    const injectionQueue = [];
+
+    const getPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const setPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    function normalizePluginUrl(url) {
+        try {
+            const u = new URL(url);
+
+            if (u.hostname === "github.com") {
+                const m = u.pathname.match(/^\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
+                if (m) {
+                    return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`;
+                }
+                return url;
             }
+
+            if (u.hostname === "raw.githubusercontent.com") return url;
+
+            if (u.hostname === "raw.codeberg.page") return url;
+
+            if (u.hostname === "codeberg.org") {
+
+                if (u.pathname.startsWith("/api/v1/repos/")) return url;
+
+                const parts = u.pathname.split("/").filter(Boolean);
+
+                if (parts.length >= 5 && (parts[2] === "raw" || parts[2] === "src")) {
+                    const user       = parts[0];
+                    const repo       = parts[1];
+                    const branchName = parts[3] === "branch" || parts[3] === "commit" || parts[3] === "tag"
+                        ? parts[4]
+                        : parts[3];
+                    const fileStart  = parts[3] === "branch" || parts[3] === "commit" || parts[3] === "tag"
+                        ? 5
+                        : 4;
+                    const filePath   = parts.slice(fileStart).join("/");
+
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branchName}`;
+                }
+
+                if (parts.length >= 4 && parts[2] === "raw") {
+                    const user       = parts[0];
+                    const repo       = parts[1];
+                    const branchName = parts[3];
+                    const filePath   = parts.slice(4).join("/");
+
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branchName}`;
+                }
+
+                if (parts.length >= 5 && parts[2] === "src" && parts[3] === "branch") {
+                    const user     = parts[0];
+                    const repo     = parts[1];
+                    const branch   = parts[4];
+                    const filePath = parts.slice(5).join("/");
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branch}`;
+                }
+            }
+        } catch (_) {}
+        return url;
+    }
+
+    async function processQueue() {
+        if (processQueue.running) return;
+        processQueue.running = true;
+        while (injectionQueue.length) {
+            const { plugin, force } = injectionQueue.shift();
+            await loadPluginInternal(plugin, force);
         }
+        processQueue.running = false;
+    }
+
+    function queuePlugin(plugin, force = false) {
+        injectionQueue.push({ plugin, force });
+        processQueue();
+    }
+
+    async function loadPluginInternal(plugin, force = false) {
+        if (runningPlugins[plugin.url] && !force) return;
+        if (force) stopPlugin(plugin);
+        try {
+            const fetchUrl = normalizePluginUrl(plugin.url);
+            const res = await fetch(fetchUrl);
+            if (!res.ok) throw new Error("Fetch failed");
+            const code = await res.text();
+            delete pluginErrors[plugin.url];
+            const script = document.createElement("script");
+            script.textContent = code;
+            script.dataset.pluginUrl = plugin.url;
+            document.body.appendChild(script);
+            runningPlugins[plugin.url] = script;
+        } catch {
+            pluginErrors[plugin.url] = true;
+        }
+        renderPanel();
+    }
+
+    function stopPlugin(plugin) {
+        const script = runningPlugins[plugin.url];
+        if (!script) return;
+        script.remove();
+        delete runningPlugins[plugin.url];
+        delete pluginErrors[plugin.url];
+        renderPanel();
+    }
+
+    function preloadMonaco() {
+        return new Promise(resolve => {
+            if (window.monaco) return resolve();
+            const loader = document.createElement("script");
+            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js";
+            loader.onload = function () {
+                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
+                require(["vs/editor/editor.main"], () => resolve());
+            };
+            document.head.appendChild(loader);
+        });
+    }
+
+    async function openViewerPanel(plugin) {
+        await preloadMonaco();
+        const existing = document.getElementById("avia-plugin-viewer-panel");
+        if (existing) existing.remove();
+
+        const panel = document.createElement("div");
+        panel.id = "avia-plugin-viewer-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "24px",
+            left: "24px",
+            width: "700px",
+            height: "480px",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.45)",
+            zIndex: "9999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)",
+            color: "#fff"
+        });
+
+        const header = document.createElement("div");
+        Object.assign(header.style, {
+            padding: "14px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            flex: "0 0 auto"
+        });
+
+        const titleText = document.createElement("span");
+        titleText.textContent = `Viewing: ${plugin.name}`;
+        titleText.style.flex = "1";
+
+        const readOnlyBadge = document.createElement("span");
+        readOnlyBadge.textContent = "READ ONLY";
+        Object.assign(readOnlyBadge.style, {
+            fontSize: "10px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            padding: "2px 8px",
+            borderRadius: "20px",
+            background: "rgba(255,180,0,0.15)",
+            color: "#ffb400",
+            border: "1px solid rgba(255,180,0,0.3)"
+        });
+
+        const closeBtn = document.createElement("div");
+        closeBtn.textContent = "✕";
+        Object.assign(closeBtn.style, {
+            cursor: "pointer",
+            opacity: "0.6",
+            fontSize: "15px",
+            lineHeight: "1",
+            padding: "2px 4px"
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.6";
+        closeBtn.onclick = () => panel.remove();
+
+        header.appendChild(titleText);
+        header.appendChild(readOnlyBadge);
+        header.appendChild(closeBtn);
+
+        const urlBar = document.createElement("div");
+        Object.assign(urlBar.style, {
+            padding: "8px 16px",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            fontSize: "11px",
+            color: "rgba(255,255,255,0.35)",
+            fontFamily: "monospace",
+            background: "rgba(0,0,0,0.15)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: "0 0 auto"
+        });
+        urlBar.textContent = plugin.url;
+        urlBar.title = plugin.url;
+
+        const editorContainer = document.createElement("div");
+        editorContainer.style.flex = "1";
+        editorContainer.style.overflow = "hidden";
+
+        const loadingMsg = document.createElement("div");
+        Object.assign(loadingMsg.style, {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            opacity: "0.4",
+            fontSize: "13px"
+        });
+        loadingMsg.textContent = "Fetching source…";
+        editorContainer.appendChild(loadingMsg);
+
+        panel.appendChild(header);
+        panel.appendChild(urlBar);
+        panel.appendChild(editorContainer);
+        document.body.appendChild(panel);
+        enableDragOn(panel, header);
+
+        let code;
+        try {
+            const res = await fetch(normalizePluginUrl(plugin.url));
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            code = await res.text();
+        } catch (err) {
+            loadingMsg.textContent = `Failed to fetch source: ${err.message}`;
+            loadingMsg.style.color = "#ff4d4d";
+            loadingMsg.style.opacity = "1";
+            return;
+        }
+
+        editorContainer.removeChild(loadingMsg);
+        monaco.editor.create(editorContainer, {
+            value: code,
+            language: "javascript",
+            theme: "vs-dark",
+            readOnly: true,
+            automaticLayout: true,
+            minimap: { enabled: true },
+            fontSize: 13,
+            scrollBeyondLastLine: false,
+            wordWrap: "off",
+            domReadOnly: true,
+            renderValidationDecorations: "off",
+            renderLineHighlight: "none",
+            cursorStyle: "block",
+            cursorBlinking: "solid"
+        });
+    }
+
+    function togglePluginsPanel() {
+        let panel = document.getElementById('avia-plugins-panel');
+        if (panel) {
+            if (panel.style.display === 'none') {
+                panel.style.display = 'flex';
+                renderPanel();
+            } else {
+                panel.style.display = 'none';
+            }
+            return;
+        }
+
+        panel = document.createElement('div');
+        panel.id = 'avia-plugins-panel';
+        Object.assign(panel.style, {
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            width: '560px',
+            height: '520px',
+            background: 'var(--md-sys-color-surface, #1e1e1e)',
+            color: 'var(--md-sys-color-on-surface, #fff)',
+            borderRadius: '16px',
+            boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+            zIndex: '999999',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            border: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(12px)'
+        });
+
+        const header = document.createElement('div');
+        Object.assign(header.style, {
+            padding: '14px 16px',
+            fontWeight: '600',
+            fontSize: '14px',
+            background: 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            cursor: 'move',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flex: '0 0 auto'
+        });
+
+        const headerTitle = document.createElement('span');
+        headerTitle.textContent = 'Plugins';
+
+        const closeBtn = document.createElement('div');
+        closeBtn.textContent = '✕';
+        Object.assign(closeBtn.style, {
+            cursor: 'pointer',
+            opacity: '0.7',
+            fontSize: '15px',
+            lineHeight: '1',
+            padding: '2px 4px'
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.7';
+        closeBtn.onclick = () => panel.style.display = 'none';
+
+        header.appendChild(headerTitle);
+        header.appendChild(closeBtn);
+
+        const controlsBar = document.createElement('div');
+        Object.assign(controlsBar.style, {
+            padding: '12px 16px',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            flex: '0 0 auto'
+        });
+
+        const nameInput = document.createElement('input');
+        nameInput.placeholder = 'Name';
+        styleInput(nameInput);
+        nameInput.style.width = '110px';
+
+        const urlInput = document.createElement('input');
+        urlInput.placeholder = 'Plugin URL';
+        styleInput(urlInput);
+        urlInput.style.flex = '1';
+
+        const addBtn = document.createElement('button');
+        addBtn.textContent = '+ Add';
+        styleBtn(addBtn);
+        addBtn.onclick = () => {
+            const name = nameInput.value.trim();
+            const url = urlInput.value.trim();
+            if (!name || !url) return;
+            const plugins = getPlugins();
+            plugins.push({ name, url, enabled: false });
+            setPlugins(plugins);
+            nameInput.value = '';
+            urlInput.value = '';
+            renderPanel();
+        };
+
+        const refreshBtn = document.createElement('button');
+        refreshBtn.textContent = 'Refresh';
+        styleBtn(refreshBtn);
+        refreshBtn.onclick = () => {
+            getPlugins().forEach(p => { if (p.enabled) queuePlugin(p, true); });
+        };
+
+        controlsBar.appendChild(nameInput);
+        controlsBar.appendChild(urlInput);
+        controlsBar.appendChild(addBtn);
+        controlsBar.appendChild(refreshBtn);
+
+        const searchBar = document.createElement('div');
+        Object.assign(searchBar.style, {
+            padding: '10px 16px',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            flex: '0 0 auto'
+        });
+
+        const searchInput = document.createElement('input');
+        searchInput.placeholder = 'Search plugins…';
+        styleInput(searchInput);
+        searchInput.style.width = '100%';
+        searchInput.oninput = () => renderPanel(searchInput.value.toLowerCase());
+        searchBar.appendChild(searchInput);
+
+        const content = document.createElement('div');
+        content.id = 'avia-plugins-content';
+        Object.assign(content.style, {
+            flex: '1',
+            overflowY: 'auto',
+            padding: '12px 16px 16px',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+        });
+        if (!document.getElementById('avia-scrollbar-hide')) {
+            const s = document.createElement('style');
+            s.id = 'avia-scrollbar-hide';
+            s.textContent = '#avia-plugins-content::-webkit-scrollbar{display:none}';
+            document.head.appendChild(s);
+        }
+
+        panel.appendChild(header);
+        panel.appendChild(controlsBar);
+        panel.appendChild(searchBar);
+        panel.appendChild(content);
+        document.body.appendChild(panel);
+        enableDragOn(panel, header);
+        renderPanel();
+    }
+
+    function renderPanel(filter = '') {
+        const content = document.getElementById('avia-plugins-content');
+        if (!content) return;
+        content.innerHTML = '';
+
+        const plugins = getPlugins();
+        const runSnap = { ...runningPlugins };
+        const errSnap = { ...pluginErrors };
+
+        const visible = (filter
+            ? plugins.filter(p => p.name.toLowerCase().includes(filter))
+            : plugins).slice().reverse();
+
+        if (visible.length === 0) {
+            const empty = document.createElement('div');
+            empty.textContent = plugins.length === 0
+                ? 'No plugins yet. Add one above.'
+                : 'No plugins match your search.';
+            Object.assign(empty.style, { opacity: '0.4', fontSize: '13px', textAlign: 'center', padding: '24px 0' });
+            content.appendChild(empty);
+            return;
+        }
+
+        const sectionLabel = document.createElement('div');
+        sectionLabel.textContent = `User Plugins: ${visible.length}`;
+        Object.assign(sectionLabel.style, {
+            fontSize: '11px',
+            fontWeight: '700',
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.35)',
+            marginBottom: '10px'
+        });
+        content.appendChild(sectionLabel);
+
+        const grid = document.createElement('div');
+        Object.assign(grid.style, {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: '10px'
+        });
+
+        visible.forEach((plugin) => {
+            const realIndex = plugins.indexOf(plugin);
+            const isRunning = !!runSnap[plugin.url];
+            const hasError = !!errSnap[plugin.url];
+
+            const card = document.createElement('div');
+            Object.assign(card.style, {
+                background: 'rgba(255,255,255,0.04)',
+                border: `1px solid ${hasError ? 'rgba(255,77,77,0.3)' : isRunning ? 'rgba(77,255,136,0.25)' : 'rgba(255,255,255,0.06)'}`,
+                borderRadius: '10px',
+                padding: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+            });
+            card.onmouseenter = () => {
+                if (!hasError && !isRunning) card.style.borderColor = 'rgba(255,255,255,0.13)';
+            };
+            card.onmouseleave = () => {
+                card.style.borderColor = hasError ? 'rgba(255,77,77,0.3)' : isRunning ? 'rgba(77,255,136,0.25)' : 'rgba(255,255,255,0.06)';
+            };
+
+            const topRow = document.createElement('div');
+            Object.assign(topRow.style, {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px'
+            });
+
+            const nameWrap = document.createElement('div');
+            Object.assign(nameWrap.style, { display: 'flex', alignItems: 'center', gap: '7px', minWidth: '0', flex: '1' });
+
+            const dot = document.createElement('div');
+            Object.assign(dot.style, {
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                flexShrink: '0',
+                background: hasError ? '#ff4d4d' : isRunning ? '#4dff88' : '#555',
+                boxShadow: hasError ? '0 0 5px #ff4d4d' : isRunning ? '0 0 5px #4dff88' : 'none'
+            });
+
+            const nameEl = document.createElement('div');
+            nameEl.textContent = plugin.name;
+            Object.assign(nameEl.style, {
+                fontSize: '13px',
+                fontWeight: '600',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+            });
+
+            nameWrap.appendChild(dot);
+            nameWrap.appendChild(nameEl);
+
+            const switchWrap = document.createElement('div');
+            Object.assign(switchWrap.style, {
+                position: 'relative',
+                width: '36px',
+                height: '20px',
+                flexShrink: '0',
+                cursor: 'pointer'
+            });
+
+            const track = document.createElement('div');
+            Object.assign(track.style, {
+                position: 'absolute',
+                inset: '0',
+                borderRadius: '10px',
+                background: plugin.enabled ? 'rgba(100,160,255,0.6)' : 'rgba(255,255,255,0.15)',
+                transition: 'background 0.2s'
+            });
+
+            const thumb = document.createElement('div');
+            Object.assign(thumb.style, {
+                position: 'absolute',
+                top: '3px',
+                left: plugin.enabled ? '19px' : '3px',
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                background: '#fff',
+                transition: 'left 0.2s',
+                pointerEvents: 'none'
+            });
+
+            switchWrap.appendChild(track);
+            switchWrap.appendChild(thumb);
+
+            switchWrap.onclick = () => {
+                plugin.enabled = !plugin.enabled;
+                setPlugins(plugins);
+                if (plugin.enabled) queuePlugin(plugin);
+                else stopPlugin(plugin);
+                renderPanel(filter);
+            };
+
+            topRow.appendChild(nameWrap);
+            topRow.appendChild(switchWrap);
+
+            const footer = document.createElement('div');
+            Object.assign(footer.style, { display: 'flex', gap: '6px', marginTop: 'auto', paddingTop: '2px' });
+
+            const viewBtn = document.createElement('button');
+            viewBtn.textContent = 'View';
+            styleBtn(viewBtn, 'rgba(100,160,255,0.15)');
+            viewBtn.style.flex = '1';
+            viewBtn.onclick = () => openViewerPanel(plugin);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '✕';
+            styleBtn(removeBtn, 'rgba(255,80,80,0.15)');
+            removeBtn.onclick = () => {
+                stopPlugin(plugin);
+                plugins.splice(realIndex, 1);
+                setPlugins(plugins);
+                renderPanel(filter);
+            };
+
+            footer.appendChild(viewBtn);
+            footer.appendChild(removeBtn);
+
+            card.appendChild(topRow);
+            card.appendChild(footer);
+            grid.appendChild(card);
+        });
+
+        content.appendChild(grid);
+    }
+
+    function styleInput(input) {
+        Object.assign(input.style, {
+            padding: '6px 8px',
+            borderRadius: '8px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.05)',
+            color: '#fff',
+            fontSize: '13px'
+        });
+    }
+
+    function styleBtn(btn, bg) {
+        Object.assign(btn.style, {
+            padding: '5px 12px',
+            borderRadius: '8px',
+            border: 'none',
+            background: bg || 'rgba(255,255,255,0.08)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '12px',
+            whiteSpace: 'nowrap'
+        });
+        btn.onmouseenter = () => btn.style.opacity = '0.75';
+        btn.onmouseleave = () => btn.style.opacity = '1';
+    }
+
+    function enableDragOn(panel, header) {
+        let isDragging = false, offsetX, offsetY;
+        header.addEventListener('mousedown', e => {
+            isDragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            document.body.style.userSelect = '';
+        });
+        document.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panel.style.left = (e.clientX - offsetX) + 'px';
+            panel.style.top = (e.clientY - offsetY) + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+        });
+    }
+
+    function injectButtons() {
+        if (document.getElementById('stoat-fake-plugins')) return;
+        const appearanceBtn = [...document.querySelectorAll('a')]
+            .find(a => a.textContent.trim() === 'Appearance');
+        if (!appearanceBtn) return;
+        const referenceNode = document.getElementById('stoat-fake-quickcss');
+        if (!referenceNode) return;
+        const pluginsBtn = appearanceBtn.cloneNode(true);
+        pluginsBtn.id = 'stoat-fake-plugins';
+        const textNode = [...pluginsBtn.querySelectorAll('div')]
+            .find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
+        if (textNode) textNode.textContent = "(Avia) Plugins";
+        const svgNS = "http://www.w3.org/2000/svg";
+        const oldSvg = pluginsBtn.querySelector('svg');
+        if (oldSvg) oldSvg.remove();
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "currentColor");
+        svg.style.marginRight = "8px";
+        const path = document.createElementNS(svgNS, "path");
+        path.setAttribute("d", "M20.5 11H19V7a2 2 0 00-2-2h-4V3.5a2.5 2.5 0 00-5 0V5H4a2 2 0 00-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 002 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7V22H17a2 2 0 002-2v-4h1.5a2.5 2.5 0 000-5z");
+        svg.appendChild(path);
+        pluginsBtn.insertBefore(svg, pluginsBtn.firstChild);
+        pluginsBtn.addEventListener('click', togglePluginsPanel);
+        referenceNode.parentElement.insertBefore(pluginsBtn, referenceNode.nextSibling);
+    }
+
+    function waitForBody(callback) {
+        if (document.body) callback();
+        else new MutationObserver((obs) => {
+            if (document.body) { obs.disconnect(); callback(); }
+        }).observe(document.documentElement, { childList: true });
+    }
+
+    function registerWithAviaMenu() {
+        if (window.AviaMenu) {
+            window.AviaMenu.register({ id: "avia_plugins_online", name: "Plugins", icon: "extension", onClick: togglePluginsPanel });
+        } else {
+            const interval = setInterval(() => {
+                if (window.AviaMenu) {
+                    clearInterval(interval);
+                    window.AviaMenu.register({ id: "avia_plugins_online", name: "Plugins", icon: "extension", onClick: togglePluginsPanel });
+                }
+            }, 100);
+        }
+    }
+
+    waitForBody(() => {
+        const observer = new MutationObserver(() => injectButtons());
+        observer.observe(document.body, { childList: true, subtree: true });
+        injectButtons();
+        preloadMonaco();
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    getPlugins().forEach(plugin => {
+        if (plugin.enabled) queuePlugin(plugin);
+    });
+
+    registerWithAviaMenu();
+
 })();
 
 
@@ -1740,6 +3850,359 @@ if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGI
 })();
 
 
+
+/* --- clientBackup.js --- */
+if(window.__US_BUILDER_CLIENTBACKUP_JS__){return;}window.__US_BUILDER_CLIENTBACKUP_JS__=true;
+
+(function () {
+  if (window.__clientBackup) return;
+  window.__clientBackup = true;
+
+  const TARGET_TEXT = "Plugins v2 Placeholder";
+  const CLONE_KEY   = "data-lsbackup-cloned";
+
+  function exportLS() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      data[key] = localStorage.getItem(key);
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = "localstorage-backup.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importLS(file, onDone) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = JSON.parse(e.target.result);
+        let count = 0;
+        for (const [key, value] of Object.entries(data)) {
+          localStorage.setItem(key, value);
+          count++;
+        }
+        onDone(null, count);
+      } catch (err) {
+        onDone(err);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function buildPanel() {
+    const panel = document.createElement("div");
+    panel.style.cssText = `
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--md-sys-color-surface-container-highest);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface);
+    `;
+
+    const btnStyle = `
+      padding: 5px 12px;
+      border-radius: 4px;
+      border: none;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    `;
+
+    const status = document.createElement("span");
+    status.style.cssText = "font-size: 11px; opacity: 0.7; min-height: 14px;";
+
+    const exportBtn = document.createElement("button");
+    exportBtn.textContent = "⬇ Export localStorage";
+    exportBtn.style.cssText = btnStyle + `
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    `;
+    exportBtn.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      exportLS();
+      status.textContent = `✓ Exported ${localStorage.length} keys`;
+    });
+
+    const fileInput = document.createElement("input");
+    fileInput.type   = "file";
+    fileInput.accept = ".json";
+    fileInput.style.cssText = "display: none;";
+    fileInput.addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      importLS(file, (err, count) => {
+        if (err) {
+          status.textContent = "✗ Invalid JSON file";
+        } else {
+          status.textContent = `✓ Imported ${count} keys`;
+        }
+        fileInput.value = "";
+      });
+    });
+
+    const importBtn = document.createElement("button");
+    importBtn.textContent = "⬆ Import localStorage";
+    importBtn.style.cssText = btnStyle + `
+      background: var(--md-sys-color-surface-container);
+      color: var(--md-sys-color-on-surface);
+      border: 1px solid var(--md-sys-color-outline-variant);
+    `;
+    importBtn.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      fileInput.click();
+    });
+
+    panel.appendChild(exportBtn);
+    panel.appendChild(importBtn);
+    panel.appendChild(fileInput);
+    panel.appendChild(status);
+    return panel;
+  }
+
+  function tryInject() {
+    document.querySelectorAll("a.pos_relative").forEach(btn => {
+      if (
+        btn.hasAttribute(CLONE_KEY) ||
+        btn.hasAttribute("data-lsbackup-entry") ||
+        !btn.innerText.includes(TARGET_TEXT)
+      ) return;
+
+      btn.setAttribute(CLONE_KEY, "true");
+
+      const clone = btn.cloneNode(true);
+      clone.removeAttribute(CLONE_KEY);
+      clone.setAttribute("data-lsbackup-entry", "true");
+
+      const title = clone.querySelector("div.d_flex.flex-g_1.flex-d_column > div");
+      if (title) title.textContent = "AviaClient Backup";
+
+      const desc = clone.querySelector("div.d_flex.flex-g_1.flex-d_column > span");
+      if (desc) desc.textContent = "Backup or Restore all client data";
+
+      const iconBtn = document.createElement("div");
+      iconBtn.title = "LocalStorage Backup";
+      iconBtn.style.cssText = "cursor: pointer; z-index: 10; flex-shrink: 0;";
+      iconBtn.innerHTML = `
+        <div class="fill_var(--md-sys-color-on-surface) bg_var(--md-sys-color-surface-dim) w_36px h_36px d_flex flex-sh_0 ai_center jc_center bdr_var(--borderRadius-full)">
+          <span aria-hidden="true" class="material-symbols-outlined fs_inherit fw_undefined!" style="display: block; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0;">database</span>
+        </div>
+      `;
+
+      const existingIcon = clone.querySelector("div.fill_var\\(--md-sys-color-on-surface\\)");
+      if (existingIcon) {
+        existingIcon.replaceWith(iconBtn);
+      } else {
+        clone.prepend(iconBtn);
+      }
+
+      clone.addEventListener("click", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        panel.style.display = panel.style.display === "flex" ? "none" : "flex";
+      });
+
+      const wrapper = document.createElement("div");
+      wrapper.style.cssText = "display: flex; flex-direction: column;";
+
+      const panel = buildPanel();
+
+      wrapper.appendChild(clone);
+      wrapper.appendChild(panel);
+
+      btn.parentNode.insertBefore(wrapper, btn.nextSibling);
+    });
+  }
+
+  tryInject();
+
+  const observer = new MutationObserver(() => tryInject());
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+
+
+
+/* --- UpdateChecker.js --- */
+if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHECKER_JS__=true;
+
+(function() {
+    if (window.__AVIA_UPDATE_CHECKER__) return;
+    window.__AVIA_UPDATE_CHECKER__ = true;
+
+    const PACKAGE_URL = "https://raw.githubusercontent.com/AvaLilac/for-desktop/refs/heads/main/package.json";
+    const RELEASES_URL = "https://github.com/AvaLilac/for-desktop/releases";
+    const STORAGE_KEY = "avia_update_checker_enabled";
+    const TARGET_TEXT = "Spellchecker";
+
+    function isEnabled() {
+        return localStorage.getItem(STORAGE_KEY) !== "false";
+    }
+
+    function setEnabled(val) {
+        localStorage.setItem(STORAGE_KEY, val ? "true" : "false");
+    }
+
+    function getClientVersion() {
+        try {
+            return window.native?.versions?.aviaClient?.() || null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    async function fetchLatestVersion() {
+        const res = await fetch(PACKAGE_URL);
+        const json = await res.json();
+        return json.aviaVersion?.trim() || null;
+    }
+
+    function showUpdateModal(clientVersion, latestVersion) {
+        if (document.getElementById("avia-update-modal")) return;
+
+        const backdrop = document.createElement("div");
+        backdrop.id = "avia-update-modal";
+        backdrop.className = "top_0 left_0 right_0 bottom_0 pos_fixed z_100 max-h_100% d_grid us_none place-items_center pointer-events_all anim-n_scrimFadeIn anim-dur_0.1s anim-fm_forwards trs_var(--transitions-medium)_all p_80px ov-y_auto";
+        backdrop.style.cssText = "--background: rgba(0, 0, 0, 0.6); background: rgba(0, 0, 0, 0.6);";
+
+        const motionWrap = document.createElement("div");
+        motionWrap.style.cssText = "opacity: 1; --motion-translateY: 0px; transform: translateY(var(--motion-translateY));";
+
+        const card = document.createElement("div");
+        card.style.cssText = "min-width: 320px; max-width: 480px; padding: 24px; border-radius: 28px; display: flex; flex-direction: column; color: var(--md-sys-color-on-surface); background: var(--md-sys-color-surface-container-high);";
+
+        const title = document.createElement("span");
+        title.textContent = "Update Available";
+        title.style.cssText = "line-height: 2rem; font-size: 1.5rem; letter-spacing: 0; font-weight: 400; margin-bottom: 16px;";
+
+        const body = document.createElement("div");
+        body.style.cssText = "color: var(--md-sys-color-on-surface-variant); line-height: 1.25rem; font-size: 0.875rem; letter-spacing: 0.015625rem; font-weight: 400; display: flex; flex-direction: column; gap: 12px;";
+
+        const currentRow = document.createElement("div");
+        currentRow.style.cssText = "display: flex; flex-direction: column; gap: 2px;";
+        const currentLabel = document.createElement("span");
+        currentLabel.textContent = "Your current version";
+        currentLabel.style.cssText = "font-size: 11px; opacity: 0.5; letter-spacing: 0.03em;";
+        const currentVersionEl = document.createElement("span");
+        currentVersionEl.textContent = clientVersion || "Unknown";
+        currentVersionEl.style.cssText = "font-size: 14px; font-weight: 500; color: var(--md-sys-color-on-surface);";
+        currentRow.appendChild(currentLabel);
+        currentRow.appendChild(currentVersionEl);
+
+        const latestRow = document.createElement("div");
+        latestRow.style.cssText = "display: flex; flex-direction: column; gap: 2px;";
+        const latestLabel = document.createElement("span");
+        latestLabel.textContent = "Latest version";
+        latestLabel.style.cssText = "font-size: 11px; opacity: 0.5; letter-spacing: 0.03em;";
+        const latestVersionEl = document.createElement("span");
+        latestVersionEl.textContent = latestVersion;
+        latestVersionEl.style.cssText = "font-size: 14px; font-weight: 600; color: var(--md-sys-color-primary);";
+        latestRow.appendChild(latestLabel);
+        latestRow.appendChild(latestVersionEl);
+
+        const message = document.createElement("span");
+        message.textContent = `You are currently on version ${clientVersion || "Unknown"}. The latest version of AviaClient is ${latestVersion}.`;
+
+        body.appendChild(currentRow);
+        body.appendChild(latestRow);
+        body.appendChild(message);
+
+        const btnRow = document.createElement("div");
+        btnRow.style.cssText = "gap: 8px; display: flex; justify-content: flex-end; margin-top: 24px;";
+
+        const closeBtn = document.createElement("button");
+        closeBtn.type = "button";
+        closeBtn.style.cssText = "line-height: 1.25rem; font-size: 0.875rem; font-weight: 400; position: relative; padding: 0 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: inherit; cursor: pointer; border: none; transition: var(--transitions-medium) all; color: var(--md-sys-color-primary); height: 40px; border-radius: var(--borderRadius-full); background: none;";
+        closeBtn.innerHTML = "<md-ripple aria-hidden='true'></md-ripple>Close";
+        closeBtn.onclick = () => backdrop.remove();
+
+        const updateBtn = document.createElement("button");
+        updateBtn.type = "button";
+        updateBtn.style.cssText = "line-height: 1.25rem; font-size: 0.875rem; font-weight: 400; position: relative; padding: 0 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: inherit; cursor: pointer; border: none; transition: var(--transitions-medium) all; color: var(--md-sys-color-on-primary); height: 40px; border-radius: var(--borderRadius-full); background: var(--md-sys-color-primary);";
+        updateBtn.innerHTML = "<md-ripple aria-hidden='true'></md-ripple>Update Now";
+        updateBtn.onclick = () => window.open(RELEASES_URL, "_blank");
+
+        btnRow.appendChild(closeBtn);
+        btnRow.appendChild(updateBtn);
+
+        card.appendChild(title);
+        card.appendChild(body);
+        card.appendChild(btnRow);
+        motionWrap.appendChild(card);
+        backdrop.appendChild(motionWrap);
+        document.body.appendChild(backdrop);
+    }
+
+    async function check() {
+        if (!isEnabled()) return;
+        const clientVersion = getClientVersion();
+        const latestVersion = await fetchLatestVersion().catch(() => null);
+        if (!latestVersion) return;
+        if (clientVersion === latestVersion) return;
+        showUpdateModal(clientVersion, latestVersion);
+    }
+
+    function applyToggleStyle(entry) {
+        const desc = entry.querySelector("[data-update-desc]");
+        const checkbox = entry.querySelector("mdui-checkbox");
+        if (isEnabled()) {
+            if (desc) desc.textContent = "Get notified when a new AviaClient version is available";
+            if (checkbox) checkbox.setAttribute("checked", "");
+        } else {
+            if (desc) desc.textContent = "Get notified when a new AviaClient version is available";
+            if (checkbox) checkbox.removeAttribute("checked");
+        }
+    }
+
+    function tryInject() {
+        if (document.querySelector("[data-update-checker-entry]")) return;
+
+        const target = [...document.querySelectorAll("a.pos_relative")]
+            .find(a => a.innerText.includes(TARGET_TEXT));
+        if (!target) return;
+
+        const entry = target.cloneNode(true);
+        entry.setAttribute("data-update-checker-entry", "true");
+
+        const iconEl = entry.querySelector("span.material-symbols-outlined, md-icon");
+        if (iconEl) iconEl.textContent = "update";
+
+        const titleEl = entry.querySelector("div.d_flex.flex-g_1.flex-d_column > div");
+        if (titleEl) titleEl.textContent = "Update Checker";
+
+        const descEl = entry.querySelector("div.d_flex.flex-g_1.flex-d_column > span");
+        if (descEl) descEl.setAttribute("data-update-desc", "true");
+
+        applyToggleStyle(entry);
+
+        entry.addEventListener("click", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            setEnabled(!isEnabled());
+            applyToggleStyle(entry);
+        });
+
+        target.parentNode.insertBefore(entry, target.nextSibling);
+    }
+
+    check();
+
+    const observer = new MutationObserver(() => tryInject());
+    observer.observe(document.body, { childList: true, subtree: true });
+    tryInject();
+})();
+
+
+
 /* --- aviafavsystem.js --- */
 if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSYSTEM_JS__=true;
 
@@ -2208,1906 +4671,6 @@ if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSY
 
 
 
-/* --- themes.js --- */
-if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true;
-
-(function () {
-
-    if (window.__AVIA_THEMES__) return;
-    window.__AVIA_THEMES__ = true;
-
-    const STORAGE_KEY = "avia_themes";
-    let editingThemeId = null;
-    let monacoEditorInstance = null;
-
-    const TEMPLATE = `/*
-@name Whatever name here
-@author Whatever Author Here
-@version 1.0
-@description Whatever description here
-*/
-
-`;
-
-    const getThemes = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    const setThemes = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-    function preloadMonaco() {
-        return new Promise(resolve => {
-            if (window.monaco) return resolve();
-            const loader = document.createElement("script");
-            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js";
-            loader.onload = function () {
-                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
-                require(["vs/editor/editor.main"], () => resolve());
-            };
-            document.head.appendChild(loader);
-        });
-    }
-
-    function parseMeta(css) {
-        const name = css.match(/@name\s+(.+)/)?.[1] || "Unknown Theme";
-        const author = css.match(/@author\s+(.+)/)?.[1] || "Unknown";
-        const version = css.match(/@version\s+(.+)/)?.[1] || "1.0";
-        const rawDescription = css.match(/@description\s+(.+)/)?.[1] || "No Description Available";
-        const description = rawDescription.trim() === "*/" ? "No Description Available" : rawDescription;
-        return { name, author, version, description };
-    }
-
-    function sanitizeFilename(name) {
-        return name
-            .replace(/[<>:"/\\|?*\x00-\x1f]/g, "")
-            .replace(/\s+/g, "_")
-            .replace(/\.+$/, "")
-            .trim() || "theme";
-    }
-
-    function downloadTheme(theme) {
-        const name = parseMeta(theme.css).name;
-        const filename = sanitizeFilename(name) + ".css";
-        const blob = new Blob([theme.css], { type: "text/css" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    function applyThemes() {
-        document.querySelectorAll(".avia-theme-style").forEach(e => e.remove());
-        getThemes().forEach(theme => {
-            if (!theme.enabled) return;
-
-            const importRegex = /@import\s+url\(["']?([^"')]+)["']?\)\s*;/g;
-            let match;
-            while ((match = importRegex.exec(theme.css)) !== null) {
-                const url = match[1];
-                fetch(url)
-                    .then(r => r.text())
-                    .then(css => {
-                        const style = document.createElement("style");
-                        style.className = "avia-theme-style";
-                        style.textContent = css;
-                        document.head.appendChild(style);
-                    })
-                    .catch(() => {});
-            }
-
-            const stripped = theme.css.replace(/@import\s+url\(["']?[^"')]+["']?\)\s*;/g, "").trim();
-            if (stripped) {
-                const style = document.createElement("style");
-                style.className = "avia-theme-style";
-                style.textContent = stripped;
-                document.head.appendChild(style);
-            }
-        });
-    }
-
-    function styleBtn(btn, bg) {
-        Object.assign(btn.style, {
-            padding: "5px 12px",
-            borderRadius: "8px",
-            border: "none",
-            background: bg || "rgba(255,255,255,0.08)",
-            color: "#fff",
-            cursor: "pointer",
-            fontSize: "12px",
-            whiteSpace: "nowrap",
-            fontWeight: "500"
-        });
-        btn.onmouseenter = () => btn.style.opacity = "0.75";
-        btn.onmouseleave = () => btn.style.opacity = "1";
-    }
-
-    function makeDraggable(panel, handle) {
-        let dragging = false, offsetX, offsetY;
-        handle.addEventListener("mousedown", e => {
-            dragging = true;
-            offsetX = e.clientX - panel.offsetLeft;
-            offsetY = e.clientY - panel.offsetTop;
-            document.body.style.userSelect = "none";
-        });
-        document.addEventListener("mouseup", () => { dragging = false; document.body.style.userSelect = ""; });
-        document.addEventListener("mousemove", e => {
-            if (!dragging) return;
-            panel.style.left = (e.clientX - offsetX) + "px";
-            panel.style.top = (e.clientY - offsetY) + "px";
-            panel.style.right = "auto";
-            panel.style.bottom = "auto";
-        });
-    }
-
-    async function openThemeEditor(themeId) {
-        await preloadMonaco();
-
-        editingThemeId = themeId;
-        const themes = getThemes();
-        const theme = themes.find(t => t.id === themeId);
-        if (!theme) return;
-
-        const meta = parseMeta(theme.css);
-        let panel = document.getElementById("avia-theme-editor");
-
-        if (panel) {
-            panel.style.display = "flex";
-            panel.querySelector("#avia-theme-editor-title").textContent = "Theme Editor — " + meta.name;
-            if (monacoEditorInstance) {
-                monacoEditorInstance._aviaThemeId = themeId;
-                const model = monacoEditorInstance.getModel();
-                if (model) model.setValue(theme.css || "");
-            }
-            return;
-        }
-
-        panel = document.createElement("div");
-        panel.id = "avia-theme-editor";
-        Object.assign(panel.style, {
-            position: "fixed",
-            bottom: "24px",
-            right: "24px",
-            width: "650px",
-            height: "420px",
-            background: "var(--md-sys-color-surface, #1e1e1e)",
-            color: "var(--md-sys-color-on-surface, #fff)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
-            zIndex: "9999999",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(12px)"
-        });
-
-        const header = document.createElement("div");
-        header.id = "avia-theme-editor-title";
-        header.textContent = "Theme Editor — " + meta.name;
-        Object.assign(header.style, {
-            padding: "14px 16px",
-            fontWeight: "600",
-            fontSize: "14px",
-            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            cursor: "move",
-            color: "#fff",
-            flex: "0 0 auto"
-        });
-        makeDraggable(panel, header);
-
-        const close = document.createElement("div");
-        close.textContent = "✕";
-        Object.assign(close.style, {
-            position: "absolute",
-            right: "16px",
-            top: "12px",
-            cursor: "pointer",
-            opacity: "0.6",
-            fontSize: "15px",
-            lineHeight: "1",
-            padding: "2px 4px",
-            color: "#fff"
-        });
-        close.onmouseenter = () => close.style.opacity = "1";
-        close.onmouseleave = () => close.style.opacity = "0.6";
-        close.onclick = () => panel.style.display = "none";
-
-        const editorContainer = document.createElement("div");
-        editorContainer.style.flex = "1";
-
-        panel.appendChild(header);
-        panel.appendChild(close);
-        panel.appendChild(editorContainer);
-        document.body.appendChild(panel);
-
-        monacoEditorInstance = monaco.editor.create(editorContainer, {
-            value: theme.css || "",
-            language: "css",
-            theme: "vs-dark",
-            automaticLayout: true,
-            minimap: { enabled: false },
-            fontSize: 13,
-            scrollBeyondLastLine: false,
-            wordWrap: "on"
-        });
-
-        monacoEditorInstance._aviaThemeId = themeId;
-
-        monacoEditorInstance.onDidChangeModelContent(() => {
-            const id = monacoEditorInstance._aviaThemeId;
-            if (!id) return;
-            const value = monacoEditorInstance.getValue();
-            const all = getThemes();
-            const target = all.find(t => t.id === id);
-            if (!target) return;
-            target.css = value;
-            setThemes(all);
-            applyThemes();
-            header.textContent = "Theme Editor — " + parseMeta(value).name;
-            if (typeof window.__avia_refresh_themes_panel === "function") {
-                window.__avia_refresh_themes_panel();
-            }
-        });
-    }
-
-    function toggleThemesPanel() {
-        let panel = document.getElementById("avia-themes-panel");
-        if (panel) {
-            if (panel.style.display === "none") {
-                panel.style.display = "flex";
-                if (typeof window.__avia_refresh_themes_panel === "function") {
-                    window.__avia_refresh_themes_panel();
-                }
-            } else {
-                panel.style.display = "none";
-            }
-            return;
-        }
-
-        panel = document.createElement("div");
-        panel.id = "avia-themes-panel";
-        Object.assign(panel.style, {
-            position: "fixed",
-            bottom: "40px",
-            right: "40px",
-            width: "500px",
-            height: "460px",
-            background: "var(--md-sys-color-surface, #1e1e1e)",
-            color: "var(--md-sys-color-on-surface, #fff)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
-            zIndex: "999999",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(12px)"
-        });
-
-        const header = document.createElement("div");
-        header.textContent = "Themes";
-        Object.assign(header.style, {
-            padding: "14px 16px",
-            fontWeight: "600",
-            fontSize: "14px",
-            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            cursor: "move"
-        });
-        makeDraggable(panel, header);
-
-        const close = document.createElement("div");
-        close.textContent = "✕";
-        Object.assign(close.style, {
-            position: "absolute",
-            right: "16px",
-            top: "12px",
-            cursor: "pointer",
-            opacity: "0.6",
-            fontSize: "15px",
-            lineHeight: "1",
-            padding: "2px 4px"
-        });
-        close.onmouseenter = () => close.style.opacity = "1";
-        close.onmouseleave = () => close.style.opacity = "0.6";
-        close.onclick = () => panel.style.display = "none";
-
-        const btnRow = document.createElement("div");
-        Object.assign(btnRow.style, {
-            display: "flex",
-            gap: "8px",
-            padding: "12px 16px",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            flex: "0 0 auto"
-        });
-
-        const importBtn = document.createElement("button");
-        importBtn.textContent = "Import Theme";
-        styleBtn(importBtn);
-        importBtn.style.flex = "1";
-        importBtn.style.padding = "8px 12px";
-
-        const newBtn = document.createElement("button");
-        newBtn.textContent = "+ New";
-        styleBtn(newBtn);
-        newBtn.style.flex = "1";
-        newBtn.style.padding = "8px 12px";
-
-        btnRow.appendChild(importBtn);
-        btnRow.appendChild(newBtn);
-
-        const list = document.createElement("div");
-        Object.assign(list.style, {
-            flex: "1",
-            overflowY: "auto",
-            padding: "16px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px"
-        });
-
-        const dropOverlay = document.createElement("div");
-        dropOverlay.textContent = "Drop .css or .txt files here";
-        Object.assign(dropOverlay.style, {
-            position: "absolute",
-            inset: "0",
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "18px",
-            fontWeight: "600",
-            color: "#fff",
-            opacity: "0",
-            pointerEvents: "none",
-            transition: "opacity 0.15s ease",
-            borderRadius: "16px"
-        });
-
-        panel.appendChild(header);
-        panel.appendChild(close);
-        panel.appendChild(btnRow);
-        panel.appendChild(list);
-        panel.appendChild(dropOverlay);
-        document.body.appendChild(panel);
-
-        let dragDepth = 0;
-
-        panel.addEventListener("dragenter", e => {
-            e.preventDefault();
-            e.stopPropagation();
-            dragDepth++;
-            dropOverlay.style.opacity = "1";
-            panel.style.border = "1px dashed rgba(255,255,255,0.4)";
-        });
-
-        panel.addEventListener("dragover", e => {
-            e.preventDefault();
-            e.stopPropagation();
-        });
-
-        panel.addEventListener("dragleave", e => {
-            e.preventDefault();
-            e.stopPropagation();
-            dragDepth--;
-            if (dragDepth <= 0) {
-                dropOverlay.style.opacity = "0";
-                panel.style.border = "1px solid rgba(255,255,255,0.08)";
-                dragDepth = 0;
-            }
-        });
-
-        panel.addEventListener("drop", async e => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropOverlay.style.opacity = "0";
-            panel.style.border = "1px solid rgba(255,255,255,0.08)";
-            dragDepth = 0;
-            const files = [...e.dataTransfer.files].filter(f => f.name.endsWith(".css") || f.name.endsWith(".txt"));
-            if (!files.length) return;
-            const themes = getThemes();
-            for (const file of files) {
-                const css = await file.text();
-                themes.push({ id: crypto.randomUUID(), css, enabled: true });
-            }
-            setThemes(themes);
-            applyThemes();
-            render();
-        });
-
-        function render() {
-            list.innerHTML = "";
-            const themes = getThemes();
-
-            if (themes.length === 0) {
-                const empty = document.createElement("div");
-                empty.textContent = "No themes yet. Import or create one above.";
-                Object.assign(empty.style, { opacity: "0.4", fontSize: "13px" });
-                list.appendChild(empty);
-                return;
-            }
-
-            themes.forEach(theme => {
-                const meta = parseMeta(theme.css);
-
-                const card = document.createElement("div");
-                Object.assign(card.style, {
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "10px 12px",
-                    borderRadius: "10px",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.06)"
-                });
-
-                const left = document.createElement("div");
-                Object.assign(left.style, { display: "flex", alignItems: "center", gap: "10px" });
-
-                const dot = document.createElement("div");
-                Object.assign(dot.style, {
-                    width: "10px",
-                    height: "10px",
-                    borderRadius: "50%",
-                    flexShrink: "0",
-                    background: theme.enabled ? "#4dff88" : "#777",
-                    boxShadow: theme.enabled ? "0 0 6px #4dff88" : "none"
-                });
-
-                const info = document.createElement("div");
-                info.innerHTML = `<div style="font-weight:600;font-size:13px">${meta.name}</div><div style="font-size:11px;opacity:.5">${meta.author} • v${meta.version}</div><div style="font-size:11px;opacity:.4">${meta.description}</div>`;
-
-                left.appendChild(dot);
-                left.appendChild(info);
-
-                const controls = document.createElement("div");
-                Object.assign(controls.style, { display: "flex", gap: "6px" });
-
-                const toggle = document.createElement("button");
-                toggle.textContent = theme.enabled ? "Disable" : "Enable";
-                styleBtn(toggle);
-                toggle.onclick = () => {
-                    theme.enabled = !theme.enabled;
-                    setThemes(themes);
-                    applyThemes();
-                    render();
-                };
-
-                const edit = document.createElement("button");
-                edit.textContent = "Edit";
-                styleBtn(edit, "rgba(100,160,255,0.15)");
-                edit.onclick = () => openThemeEditor(theme.id);
-
-                const dlBtn = document.createElement("button");
-                dlBtn.textContent = "Export";
-                styleBtn(dlBtn, "rgba(80,200,120,0.15)");
-                dlBtn.title = "Download theme as .css";
-                dlBtn.onclick = e => {
-                    e.stopPropagation();
-                    downloadTheme(theme);
-                };
-
-                const del = document.createElement("button");
-                del.textContent = "✕";
-                styleBtn(del, "rgba(255,80,80,0.15)");
-                del.onclick = () => {
-                    const updated = themes.filter(t => t.id !== theme.id);
-                    setThemes(updated);
-                    applyThemes();
-                    render();
-                };
-
-                controls.appendChild(toggle);
-                controls.appendChild(edit);
-                controls.appendChild(dlBtn);
-                controls.appendChild(del);
-                card.appendChild(left);
-                card.appendChild(controls);
-                list.appendChild(card);
-            });
-        }
-
-        window.__avia_refresh_themes_panel = render;
-
-        importBtn.onclick = () => {
-            const input = document.createElement("input");
-            input.type = "file";
-            input.accept = ".css,.txt";
-            input.multiple = true;
-            input.onchange = async () => {
-                const files = [...input.files];
-                if (!files.length) return;
-                const themes = getThemes();
-                for (const file of files) {
-                    const css = await file.text();
-                    themes.push({ id: crypto.randomUUID(), css, enabled: true });
-                }
-                setThemes(themes);
-                applyThemes();
-                render();
-            };
-            input.click();
-        };
-
-        newBtn.onclick = () => {
-            const themes = getThemes();
-            themes.push({ id: crypto.randomUUID(), css: TEMPLATE, enabled: true });
-            setThemes(themes);
-            applyThemes();
-            render();
-        };
-
-        render();
-    }
-
-    function injectButton() {
-        if (document.getElementById("avia-themes-btn")) return;
-        const appearanceBtn = [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Appearance");
-        const quickCSS = document.getElementById("stoat-fake-quickcss");
-        if (!appearanceBtn || !quickCSS) return;
-        const clone = appearanceBtn.cloneNode(true);
-        clone.id = "avia-themes-btn";
-        const text = [...clone.querySelectorAll("div")].find(d => d.children.length === 0);
-        if (text) text.textContent = "(Avia) Themes";
-        clone.onclick = toggleThemesPanel;
-        quickCSS.parentElement.insertBefore(clone, quickCSS.nextSibling);
-    }
-
-    function registerWithAviaMenu() {
-        if (window.AviaMenu) {
-            window.AviaMenu.register({ id: "avia_themes", name: "Themes", icon: "palette", onClick: toggleThemesPanel });
-        } else {
-            const interval = setInterval(() => {
-                if (window.AviaMenu) {
-                    clearInterval(interval);
-                    window.AviaMenu.register({ id: "avia_themes", name: "Themes", icon: "palette", onClick: toggleThemesPanel });
-                }
-            }, 100);
-        }
-    }
-
-    new MutationObserver(injectButton).observe(document.body, { childList: true, subtree: true });
-    injectButton();
-    applyThemes();
-    preloadMonaco();
-    registerWithAviaMenu();
-
-})();
-
-
-/* --- aviaclientcategory.js --- */
-if(window.__US_BUILDER_AVIACLIENTCATEGORY_JS__){return;}window.__US_BUILDER_AVIACLIENTCATEGORY_JS__=true;
-
-(function(){
-    if(window.__AVIA_CATEGORY_SETTINGS__) return;
-    window.__AVIA_CATEGORY_SETTINGS__ = true;
-
-    function inject(){
-
-        if(document.getElementById('avia-cloned-settings')) return;
-
-        const spans = [...document.querySelectorAll('span')];
-        const target = spans.find(s => s.textContent.trim() === "User Settings");
-        if(!target) return;
-
-        const container = target.closest('.d_flex.flex-d_column');
-        if(!container) return;
-
-        const clone = container.cloneNode(true);
-        clone.id = "avia-cloned-settings";
-
-        const header = clone.querySelector('span');
-        if(header) header.textContent = "AVIA CLIENT SETTINGS";
-
-        const list = clone.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
-        if(list) list.innerHTML = "";
-
-        container.parentNode.insertBefore(clone, container.nextSibling);
-        }
-
-        new MutationObserver(() => {
-            inject();
-        }).observe(document.body, { childList: true, subtree: true });
-
-    inject();
-
-})();
-
-
-
-/* --- inject.js --- */
-if(window.__US_BUILDER_INJECT_JS__){return;}window.__US_BUILDER_INJECT_JS__=true;
-
-(function () {
-
-    if (window.__AVIA_WEB_LOADED__) return;
-    window.__AVIA_WEB_LOADED__ = true;
-
-    const LINKTREE_URL = "https://linktr.ee/GermanAvaLilac";
-    const STOAT_SERVER_URL = "https://stt.gg/GvBhcejB";
-
-    function preloadMonaco() {
-        return new Promise(resolve => {
-            if (window.monaco) return resolve();
-            const loader = document.createElement("script");
-            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js";
-            loader.onload = function () {
-                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
-                require(["vs/editor/editor.main"], () => resolve());
-            };
-            document.head.appendChild(loader);
-        });
-    }
-
-    async function toggleQuickCSSPanel() {
-        await preloadMonaco();
-
-        let panel = document.getElementById('avia-quickcss-panel');
-        if (panel) {
-            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
-            return;
-        }
-
-        panel = document.createElement('div');
-        panel.id = 'avia-quickcss-panel';
-        Object.assign(panel.style, {
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            width: '650px',
-            height: '420px',
-            background: 'var(--md-sys-color-surface, #1e1e1e)',
-            color: 'var(--md-sys-color-on-surface, #fff)',
-            borderRadius: '16px',
-            boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
-            zIndex: '999999',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            border: '1px solid rgba(255,255,255,0.08)',
-            backdropFilter: 'blur(12px)'
-        });
-
-        const header = document.createElement('div');
-        header.textContent = 'QuickCSS';
-        Object.assign(header.style, {
-            padding: '14px 16px',
-            fontWeight: '600',
-            fontSize: '14px',
-            letterSpacing: '0.3px',
-            background: 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            cursor: 'move',
-            color: '#fff'
-        });
-
-        const closeBtn = document.createElement('div');
-        closeBtn.textContent = '✕';
-        Object.assign(closeBtn.style, {
-            position: 'absolute',
-            top: '12px',
-            right: '16px',
-            cursor: 'pointer',
-            opacity: '0.7',
-            color: '#fff'
-        });
-        closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
-        closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.7';
-        closeBtn.onclick = () => panel.style.display = 'none';
-
-        const editorContainer = document.createElement('div');
-        editorContainer.style.flex = '1';
-
-        panel.appendChild(header);
-        panel.appendChild(closeBtn);
-        panel.appendChild(editorContainer);
-        document.body.appendChild(panel);
-
-        const editor = monaco.editor.create(editorContainer, {
-            value: localStorage.getItem('avia_quickcss') || '',
-            language: 'css',
-            theme: 'vs-dark',
-            automaticLayout: true,
-            minimap: { enabled: false },
-            fontSize: 13,
-            scrollBeyondLastLine: false,
-            wordWrap: 'on'
-        });
-
-        editor.onDidChangeModelContent(() => {
-            const value = editor.getValue();
-            localStorage.setItem('avia_quickcss', value);
-            applyQuickCSS(value);
-        });
-
-        let isDragging = false, offsetX, offsetY;
-        header.addEventListener('mousedown', e => {
-            isDragging = true;
-            offsetX = e.clientX - panel.offsetLeft;
-            offsetY = e.clientY - panel.offsetTop;
-            document.body.style.userSelect = 'none';
-        });
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-            document.body.style.userSelect = '';
-        });
-        document.addEventListener('mousemove', e => {
-            if (!isDragging) return;
-            panel.style.left = (e.clientX - offsetX) + 'px';
-            panel.style.top = (e.clientY - offsetY) + 'px';
-            panel.style.right = 'auto';
-            panel.style.bottom = 'auto';
-        });
-    }
-
-    function setIcon(button, type) {
-        const oldSvg = button.querySelector('svg');
-        if (oldSvg) oldSvg.remove();
-
-        const icons = {
-            monitor: "M3 4h18v12H3V4zm2 2v8h14V6H5zm3 12h8v2H8v-2z",
-            upload: "M5 20h14v-2H5v2zm7-18L5.33 9h3.84v4h4.66V9h3.84L12 2z",
-            refresh: "M17.65 6.35A7.95 7.95 0 0012 4V1L7 6l5 5V7a5 5 0 11-5 5H5a7 7 0 107.75-6.65z",
-            code: "M8.7 16.3L4.4 12l4.3-4.3 1.4 1.4L7.2 12l2.9 2.9-1.4 1.4zm6.6 0l-1.4-1.4L16.8 12l-2.9-2.9 1.4-1.4L19.6 12l-4.3 4.3z"
-        };
-
-        const svgNS = "http://www.w3.org/2000/svg";
-        const svg = document.createElementNS(svgNS, "svg");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("width", "20");
-        svg.setAttribute("height", "20");
-        svg.setAttribute("fill", "currentColor");
-        svg.style.marginRight = "8px";
-
-        const path = document.createElementNS(svgNS, "path");
-        path.setAttribute("d", icons[type]);
-        svg.appendChild(path);
-
-        button.insertBefore(svg, button.firstChild);
-    }
-
-    function applyFont(src, name) {
-        const fontName = "CustomFont" + Date.now();
-        let styleTag = document.getElementById('custom-font-style');
-        if (!styleTag) {
-            styleTag = document.createElement('style');
-            styleTag.id = 'custom-font-style';
-            document.head.appendChild(styleTag);
-        }
-        const ext = (name || src).split('.').pop().split('?')[0].toLowerCase();
-        const formatMap = {
-            ttf: 'truetype',
-            otf: 'opentype',
-            woff: 'woff',
-            woff2: 'woff2',
-            eot: 'embedded-opentype'
-        };
-        const format = formatMap[ext] || '';
-        styleTag.textContent = `
-            @font-face {
-                font-family: '${fontName}';
-                src: url('${src}')${format ? " format('" + format + "')" : ""};
-                font-weight: normal;
-                font-style: normal;
-            }
-            body, body *:not(.material-symbols-outlined) {
-                font-family: '${fontName}', sans-serif !important;
-            }
-        `;
-        if (name) localStorage.setItem('avia_custom_font_name', name);
-    }
-
-    function removeFont() {
-        localStorage.removeItem('avia_custom_font_url');
-        localStorage.removeItem('avia_custom_font_data');
-        localStorage.removeItem('avia_custom_font_name');
-        const styleTag = document.getElementById('custom-font-style');
-        if (styleTag) styleTag.remove();
-    }
-
-    (function applySavedFont() {
-        const data = localStorage.getItem('avia_custom_font_data');
-        const url = localStorage.getItem('avia_custom_font_url');
-        const name = localStorage.getItem('avia_custom_font_name') || '';
-        if (data) applyFont(data, name);
-        else if (url) applyFont(url, name);
-    })();
-
-    function showFontLoaderModal() {
-        if (document.getElementById('avia-font-modal-scrim')) return;
-
-        const styleEl = document.createElement('style');
-        styleEl.id = 'avia-font-modal-styles';
-        styleEl.textContent = `
-            @keyframes avia-scrim-in { from { opacity: 0; } to { opacity: 1; } }
-            @keyframes avia-modal-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-            #avia-font-modal-inner { animation: avia-modal-in 0.15s forwards; }
-            .avia-tab-btn { transition: background 0.15s, color 0.15s; font-family: inherit; }
-            .avia-tab-btn:hover { opacity: 0.8; }
-            .avia-tab-btn.avia-tab-active {
-                background: var(--md-sys-color-primary, rgba(103,80,164,0.9)) !important;
-                color: #fff !important;
-            }
-            .avia-modal-action-btn {
-                height: 40px;
-                border-radius: 999px;
-                border: none;
-                padding: 0 16px;
-                font-size: 0.875rem;
-                font-weight: 500;
-                letter-spacing: 0.015625rem;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: opacity 0.15s;
-                font-family: inherit;
-            }
-            .avia-modal-action-btn:hover { opacity: 0.8; }
-            .avia-modal-action-btn:disabled { cursor: not-allowed; opacity: 0.38; }
-            .avia-font-input {
-                width: 100%;
-                box-sizing: border-box;
-                padding: 14px 16px;
-                border-radius: 12px;
-                border: 1px solid rgba(255,255,255,0.12);
-                background: rgba(255,255,255,0.06);
-                color: var(--md-sys-color-on-surface, #fff);
-                font-size: 0.875rem;
-                outline: none;
-                font-family: inherit;
-                transition: border-color 0.15s;
-            }
-            .avia-font-input:focus { border-color: var(--md-sys-color-primary, rgba(103,80,164,0.9)); }
-            .avia-font-input::placeholder { color: rgba(255,255,255,0.4); }
-            .avia-file-drop {
-                width: 100%;
-                box-sizing: border-box;
-                border: 2px dashed rgba(255,255,255,0.15);
-                border-radius: 12px;
-                padding: 28px 16px;
-                text-align: center;
-                cursor: pointer;
-                transition: border-color 0.15s, background 0.15s;
-                color: rgba(255,255,255,0.5);
-                font-size: 0.875rem;
-            }
-            .avia-file-drop:hover, .avia-file-drop.avia-drag-over {
-                border-color: var(--md-sys-color-primary, rgba(103,80,164,0.9));
-                background: rgba(103,80,164,0.08);
-            }
-        `;
-        document.head.appendChild(styleEl);
-
-        const scrim = document.createElement('div');
-        scrim.id = 'avia-font-modal-scrim';
-        Object.assign(scrim.style, {
-            position: 'fixed',
-            top: '0', left: '0', right: '0', bottom: '0',
-            zIndex: '999999',
-            display: 'grid',
-            placeItems: 'center',
-            background: 'rgba(0,0,0,0.6)',
-            padding: '80px',
-            overflowY: 'auto',
-            animation: 'avia-scrim-in 0.1s forwards',
-            boxSizing: 'border-box'
-        });
-
-        scrim.addEventListener('click', e => {
-            if (e.target === scrim) {
-                scrim.remove();
-                styleEl.remove();
-            }
-        });
-
-        const modal = document.createElement('div');
-        modal.id = 'avia-font-modal-inner';
-        Object.assign(modal.style, {
-            padding: '24px',
-            minWidth: '340px',
-            maxWidth: '480px',
-            width: '100%',
-            borderRadius: '28px',
-            display: 'flex',
-            flexDirection: 'column',
-            color: 'var(--md-sys-color-on-surface, #fff)',
-            background: 'var(--md-sys-color-surface-container-high, #2b2b2f)',
-            boxSizing: 'border-box'
-        });
-
-        const title = document.createElement('span');
-        title.textContent = 'Font Loader';
-        Object.assign(title.style, {
-            lineHeight: '2rem',
-            fontSize: '1.5rem',
-            letterSpacing: '0',
-            fontWeight: '400',
-            marginBottom: '6px'
-        });
-        modal.appendChild(title);
-
-        const activeFontEl = document.createElement('div');
-        activeFontEl.id = 'avia-font-active-label';
-        Object.assign(activeFontEl.style, {
-            fontSize: '0.8rem',
-            color: 'rgba(255,255,255,0.45)',
-            marginBottom: '18px',
-            minHeight: '16px'
-        });
-        const savedName = localStorage.getItem('avia_custom_font_name') || '';
-        activeFontEl.textContent = savedName ? 'Active: ' + savedName : 'No custom font active';
-        modal.appendChild(activeFontEl);
-
-        const tabRow = document.createElement('div');
-        Object.assign(tabRow.style, { display: 'flex', gap: '8px', marginBottom: '18px' });
-
-        const tabUrl = document.createElement('button');
-        tabUrl.textContent = 'URL';
-        tabUrl.className = 'avia-tab-btn avia-tab-active';
-        Object.assign(tabUrl.style, {
-            flex: '1', padding: '8px', borderRadius: '8px', border: 'none',
-            background: 'var(--md-sys-color-primary, rgba(103,80,164,0.9))',
-            color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer'
-        });
-
-        const tabFile = document.createElement('button');
-        tabFile.textContent = 'Local File';
-        tabFile.className = 'avia-tab-btn';
-        Object.assign(tabFile.style, {
-            flex: '1', padding: '8px', borderRadius: '8px', border: 'none',
-            background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)',
-            fontSize: '13px', fontWeight: '600', cursor: 'pointer'
-        });
-
-        tabRow.appendChild(tabUrl);
-        tabRow.appendChild(tabFile);
-        modal.appendChild(tabRow);
-
-        const body = document.createElement('div');
-        Object.assign(body.style, { marginBottom: '20px' });
-        modal.appendChild(body);
-
-        const urlInput = document.createElement('input');
-        urlInput.className = 'avia-font-input';
-        urlInput.type = 'text';
-        urlInput.placeholder = 'https://example.com/font.ttf';
-        const savedUrl = localStorage.getItem('avia_custom_font_url') || '';
-        if (savedUrl) urlInput.value = savedUrl;
-
-        const fileDropZone = document.createElement('div');
-        fileDropZone.className = 'avia-file-drop';
-
-        const fileDropText = document.createElement('div');
-        fileDropText.style.marginBottom = '6px';
-        fileDropText.textContent = 'Drop a font file here or click to browse';
-
-        const fileDropSub = document.createElement('div');
-        Object.assign(fileDropSub.style, { fontSize: '11px', opacity: '0.5' });
-        fileDropSub.textContent = '.ttf · .otf · .woff · .woff2';
-
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.ttf,.otf,.woff,.woff2';
-        fileInput.style.display = 'none';
-
-        fileDropZone.appendChild(fileDropText);
-        fileDropZone.appendChild(fileDropSub);
-        fileDropZone.appendChild(fileInput);
-
-        fileDropZone.addEventListener('click', () => fileInput.click());
-        fileDropZone.addEventListener('dragover', e => { e.preventDefault(); fileDropZone.classList.add('avia-drag-over'); });
-        fileDropZone.addEventListener('dragleave', () => fileDropZone.classList.remove('avia-drag-over'));
-        fileDropZone.addEventListener('drop', e => {
-            e.preventDefault();
-            fileDropZone.classList.remove('avia-drag-over');
-            const f = e.dataTransfer.files[0];
-            if (f) handleFileSelected(f);
-        });
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files[0]) handleFileSelected(fileInput.files[0]);
-        });
-
-        let selectedFile = null;
-        let currentTab = 'url';
-
-        function handleFileSelected(f) {
-            selectedFile = f;
-            fileDropText.textContent = f.name;
-            fileDropSub.textContent = (f.size / 1024).toFixed(1) + ' KB';
-            fileDropZone.style.borderColor = 'var(--md-sys-color-primary, rgba(103,80,164,0.9))';
-            fileDropZone.style.background = 'rgba(103,80,164,0.08)';
-            applyBtn.disabled = false;
-        }
-
-        function renderTab() {
-            body.innerHTML = '';
-            selectedFile = null;
-            if (currentTab === 'url') {
-                tabUrl.classList.add('avia-tab-active');
-                tabUrl.style.background = 'var(--md-sys-color-primary, rgba(103,80,164,0.9))';
-                tabUrl.style.color = '#fff';
-                tabFile.classList.remove('avia-tab-active');
-                tabFile.style.background = 'rgba(255,255,255,0.06)';
-                tabFile.style.color = 'rgba(255,255,255,0.7)';
-                applyBtn.disabled = false;
-                body.appendChild(urlInput);
-            } else {
-                tabFile.classList.add('avia-tab-active');
-                tabFile.style.background = 'var(--md-sys-color-primary, rgba(103,80,164,0.9))';
-                tabFile.style.color = '#fff';
-                tabUrl.classList.remove('avia-tab-active');
-                tabUrl.style.background = 'rgba(255,255,255,0.06)';
-                tabUrl.style.color = 'rgba(255,255,255,0.7)';
-                applyBtn.disabled = true;
-                body.appendChild(fileDropZone);
-            }
-        }
-
-        tabUrl.addEventListener('click', () => { currentTab = 'url'; renderTab(); });
-        tabFile.addEventListener('click', () => { currentTab = 'file'; renderTab(); });
-
-        const btnRow = document.createElement('div');
-        Object.assign(btnRow.style, {
-            display: 'flex', justifyContent: 'flex-end',
-            gap: '8px', marginTop: '4px', flexWrap: 'wrap', alignItems: 'center'
-        });
-
-        const removeBtn = document.createElement('button');
-        removeBtn.textContent = 'Remove Font';
-        removeBtn.className = 'avia-modal-action-btn';
-        Object.assign(removeBtn.style, {
-            color: 'var(--md-sys-color-error, #f2b8b8)',
-            background: 'transparent',
-            marginRight: 'auto'
-        });
-        removeBtn.addEventListener('click', () => {
-            removeFont();
-            activeFontEl.textContent = 'No custom font active';
-            fileDropText.textContent = 'Drop a font file here or click to browse';
-            fileDropSub.textContent = '.ttf · .otf · .woff · .woff2';
-            fileDropZone.style.borderColor = '';
-            fileDropZone.style.background = '';
-            urlInput.value = '';
-            selectedFile = null;
-        });
-
-        const closeModalBtn = document.createElement('button');
-        closeModalBtn.textContent = 'Close';
-        closeModalBtn.className = 'avia-modal-action-btn';
-        Object.assign(closeModalBtn.style, {
-            color: 'var(--md-sys-color-primary, #cfbcff)',
-            background: 'transparent'
-        });
-        closeModalBtn.addEventListener('click', () => { scrim.remove(); styleEl.remove(); });
-
-        const applyBtn = document.createElement('button');
-        applyBtn.textContent = 'Apply';
-        applyBtn.className = 'avia-modal-action-btn';
-        Object.assign(applyBtn.style, {
-            background: 'var(--md-sys-color-primary, rgba(103,80,164,0.9))',
-            color: '#fff'
-        });
-
-        applyBtn.addEventListener('click', () => {
-            if (currentTab === 'url') {
-                const url = urlInput.value.trim();
-                if (!url) return;
-                localStorage.removeItem('avia_custom_font_data');
-                localStorage.removeItem('avia_custom_font_name');
-                localStorage.setItem('avia_custom_font_url', url);
-                const name = url.split('/').pop().split('?')[0];
-                applyFont(url, name);
-                activeFontEl.textContent = 'Active: ' + name;
-            } else {
-                if (!selectedFile) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const dataUrl = reader.result;
-                    localStorage.removeItem('avia_custom_font_url');
-                    localStorage.setItem('avia_custom_font_data', dataUrl);
-                    applyFont(dataUrl, selectedFile.name);
-                    activeFontEl.textContent = 'Active: ' + selectedFile.name;
-                };
-                reader.readAsDataURL(selectedFile);
-            }
-        });
-
-        btnRow.appendChild(removeBtn);
-        btnRow.appendChild(closeModalBtn);
-        btnRow.appendChild(applyBtn);
-        modal.appendChild(btnRow);
-
-        scrim.appendChild(modal);
-        document.body.appendChild(scrim);
-
-        renderTab();
-    }
-
-    function injectButtons() {
-        const appearanceBtn = Array.from(document.querySelectorAll('a')).find(a => a.textContent.trim() === 'Appearance');
-        if (!appearanceBtn) return;
-
-        const aviaHeader = [...document.querySelectorAll('span')]
-            .find(s => s.textContent.trim() === "AVIA CLIENT SETTINGS");
-        if (!aviaHeader) return;
-
-        const aviaContainer = aviaHeader.closest('.d_flex.flex-d_column');
-        if (!aviaContainer) return;
-
-        const targetParent = aviaContainer.querySelector('.d_flex.flex-d_column.gap_var\\(--gap-s\\)');
-        if (!targetParent) return;
-
-        if (!document.getElementById('stoat-fake-linktree')) {
-            const linktreeBtn = appearanceBtn.cloneNode(true);
-            linktreeBtn.id = 'stoat-fake-linktree';
-            const textNode = Array.from(linktreeBtn.querySelectorAll('div')).find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
-            if (textNode) textNode.textContent = "(Avia) Ava's Linktree";
-            setIcon(linktreeBtn, "monitor");
-            linktreeBtn.addEventListener('click', () => window.open(LINKTREE_URL, "_blank"));
-            targetParent.appendChild(linktreeBtn);
-
-            const stoatBtn = appearanceBtn.cloneNode(true);
-            stoatBtn.id = 'stoat-fake-stoatserver';
-            const stoatTextNode = Array.from(stoatBtn.querySelectorAll('div')).find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
-            if (stoatTextNode) stoatTextNode.textContent = "(Avia) Stoat Server";
-            setIcon(stoatBtn, "monitor");
-            stoatBtn.addEventListener('click', () => window.open(STOAT_SERVER_URL, "_blank"));
-            targetParent.appendChild(stoatBtn);
-        }
-
-        if (!document.getElementById('stoat-fake-loadfont')) {
-            const newBtn = appearanceBtn.cloneNode(true);
-            newBtn.id = 'stoat-fake-loadfont';
-            const textNode = Array.from(newBtn.querySelectorAll('div')).find(d => d.children.length === 0);
-            if (textNode) textNode.textContent = "(Avia) Font Loader";
-            setIcon(newBtn, "upload");
-            newBtn.addEventListener('click', showFontLoaderModal);
-            targetParent.appendChild(newBtn);
-        }
-
-        if (!document.getElementById('stoat-fake-quickcss')) {
-            const quickCssBtn = appearanceBtn.cloneNode(true);
-            quickCssBtn.id = 'stoat-fake-quickcss';
-            const quickCssTextNode = Array.from(quickCssBtn.querySelectorAll('div')).find(d => d.children.length === 0);
-            if (quickCssTextNode) quickCssTextNode.textContent = "(Avia) QuickCSS";
-            setIcon(quickCssBtn, "code");
-            quickCssBtn.addEventListener('click', toggleQuickCSSPanel);
-            targetParent.appendChild(quickCssBtn);
-        }
-    }
-
-    function applyQuickCSS(css) {
-        let styleTag = document.getElementById('avia-quickcss-style');
-        if (!styleTag) {
-            styleTag = document.createElement('style');
-            styleTag.id = 'avia-quickcss-style';
-            document.head.appendChild(styleTag);
-        }
-        styleTag.textContent = css;
-    }
-
-    (function applySavedQuickCSS() {
-        const savedCSS = localStorage.getItem('avia_quickcss');
-        if (savedCSS) applyQuickCSS(savedCSS);
-    })();
-
-    function waitForBody(callback) {
-        if (document.body) callback();
-        else new MutationObserver((obs) => {
-            if (document.body) {
-                obs.disconnect();
-                callback();
-            }
-        }).observe(document.documentElement, { childList: true });
-    }
-
-    function registerWithAviaMenu() {
-        if (window.AviaMenu) {
-            window.AviaMenu.register({ id: "avia_fontloader", name: "Font Loader", icon: "upload", onClick: showFontLoaderModal });
-            window.AviaMenu.register({ id: "avia_quickcss", name: "QuickCSS", icon: "code", onClick: toggleQuickCSSPanel });
-        } else {
-            const interval = setInterval(() => {
-                if (window.AviaMenu) {
-                    clearInterval(interval);
-                    window.AviaMenu.register({ id: "avia_fontloader", name: "Font Loader", icon: "upload", onClick: showFontLoaderModal });
-                    window.AviaMenu.register({ id: "avia_quickcss", name: "QuickCSS", icon: "code", onClick: toggleQuickCSSPanel });
-                }
-            }, 100);
-        }
-    }
-
-    waitForBody(() => {
-        const observer = new MutationObserver(() => injectButtons());
-        observer.observe(document.body, { childList: true, subtree: true });
-        injectButtons();
-    });
-
-    preloadMonaco();
-    registerWithAviaMenu();
-
-})();
-
-
-/* --- pluginsupport.js --- */
-if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
-
-(function () {
-
-    if (window.__AVIA_PLUGINS__) return;
-    window.__AVIA_PLUGINS__ = true;
-
-    const STORAGE_KEY = "avia_plugins";
-
-    const runningPlugins = {};
-    const pluginErrors = {};
-    const injectionQueue = [];
-
-    const getPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    const setPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-    function normalizePluginUrl(url) {
-        try {
-            const u = new URL(url);
-            if (u.hostname === "github.com") {
-                const m = u.pathname.match(/^\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
-                if (m) return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`;
-                return url;
-            }
-            if (u.hostname === "raw.githubusercontent.com") return url;
-            if (u.hostname === "raw.codeberg.page") return url;
-            if (u.hostname === "codeberg.org") {
-                const parts = u.pathname.split("/").filter(Boolean);
-                if (parts.length >= 5 && (parts[2] === "raw" || parts[2] === "src")) {
-                    const user = parts[0], repo = parts[1];
-                    const branchName = ["branch","commit","tag"].includes(parts[3]) ? parts[4] : parts[3];
-                    const fileStart = ["branch","commit","tag"].includes(parts[3]) ? 5 : 4;
-                    const filePath = parts.slice(fileStart).join("/");
-                    return `https://raw.codeberg.page/${user}/${repo}/@${branchName}/${filePath}`;
-                }
-                if (parts.length >= 4 && parts[2] === "raw") {
-                    return `https://raw.codeberg.page/${parts[0]}/${parts[1]}/@${parts[3]}/${parts.slice(4).join("/")}`;
-                }
-            }
-        } catch (_) {}
-        return url;
-    }
-
-    async function processQueue() {
-        if (processQueue.running) return;
-        processQueue.running = true;
-        while (injectionQueue.length) {
-            const { plugin, force } = injectionQueue.shift();
-            await loadPluginInternal(plugin, force);
-        }
-        processQueue.running = false;
-    }
-
-    function queuePlugin(plugin, force = false) {
-        injectionQueue.push({ plugin, force });
-        processQueue();
-    }
-
-    async function loadPluginInternal(plugin, force = false) {
-        if (runningPlugins[plugin.url] && !force) return;
-        if (force) stopPlugin(plugin);
-        try {
-            const fetchUrl = normalizePluginUrl(plugin.url);
-            const res = await fetch(fetchUrl);
-            if (!res.ok) throw new Error("Fetch failed");
-            const code = await res.text();
-            delete pluginErrors[plugin.url];
-            const script = document.createElement("script");
-            script.textContent = code;
-            script.dataset.pluginUrl = plugin.url;
-            document.body.appendChild(script);
-            runningPlugins[plugin.url] = script;
-        } catch {
-            pluginErrors[plugin.url] = true;
-        }
-        renderPanel();
-    }
-
-    function stopPlugin(plugin) {
-        const script = runningPlugins[plugin.url];
-        if (!script) return;
-        script.remove();
-        delete runningPlugins[plugin.url];
-        delete pluginErrors[plugin.url];
-        renderPanel();
-    }
-
-    function preloadMonaco() {
-        return new Promise(resolve => {
-            if (window.monaco) return resolve();
-            const loader = document.createElement("script");
-            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js";
-            loader.onload = function () {
-                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
-                require(["vs/editor/editor.main"], () => resolve());
-            };
-            document.head.appendChild(loader);
-        });
-    }
-
-    async function openViewerPanel(plugin) {
-        await preloadMonaco();
-        const existing = document.getElementById("avia-plugin-viewer-panel");
-        if (existing) existing.remove();
-
-        const panel = document.createElement("div");
-        panel.id = "avia-plugin-viewer-panel";
-        Object.assign(panel.style, {
-            position: "fixed",
-            bottom: "24px",
-            left: "24px",
-            width: "700px",
-            height: "480px",
-            background: "var(--md-sys-color-surface, #1e1e1e)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 28px rgba(0,0,0,0.45)",
-            zIndex: "9999999",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(12px)",
-            color: "#fff"
-        });
-
-        const header = document.createElement("div");
-        Object.assign(header.style, {
-            padding: "14px 16px",
-            fontWeight: "600",
-            fontSize: "14px",
-            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            cursor: "move",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            flex: "0 0 auto"
-        });
-
-        const titleText = document.createElement("span");
-        titleText.textContent = `Viewing: ${plugin.name}`;
-        titleText.style.flex = "1";
-
-        const readOnlyBadge = document.createElement("span");
-        readOnlyBadge.textContent = "READ ONLY";
-        Object.assign(readOnlyBadge.style, {
-            fontSize: "10px",
-            fontWeight: "700",
-            letterSpacing: "0.08em",
-            padding: "2px 8px",
-            borderRadius: "20px",
-            background: "rgba(255,180,0,0.15)",
-            color: "#ffb400",
-            border: "1px solid rgba(255,180,0,0.3)"
-        });
-
-        const closeBtn = document.createElement("div");
-        closeBtn.textContent = "✕";
-        Object.assign(closeBtn.style, {
-            cursor: "pointer",
-            opacity: "0.6",
-            fontSize: "15px",
-            lineHeight: "1",
-            padding: "2px 4px"
-        });
-        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
-        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.6";
-        closeBtn.onclick = () => panel.remove();
-
-        header.appendChild(titleText);
-        header.appendChild(readOnlyBadge);
-        header.appendChild(closeBtn);
-
-        const urlBar = document.createElement("div");
-        Object.assign(urlBar.style, {
-            padding: "8px 16px",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            fontSize: "11px",
-            color: "rgba(255,255,255,0.35)",
-            fontFamily: "monospace",
-            background: "rgba(0,0,0,0.15)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            flex: "0 0 auto"
-        });
-        urlBar.textContent = plugin.url;
-        urlBar.title = plugin.url;
-
-        const editorContainer = document.createElement("div");
-        editorContainer.style.flex = "1";
-        editorContainer.style.overflow = "hidden";
-
-        const loadingMsg = document.createElement("div");
-        Object.assign(loadingMsg.style, {
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            opacity: "0.4",
-            fontSize: "13px"
-        });
-        loadingMsg.textContent = "Fetching source…";
-        editorContainer.appendChild(loadingMsg);
-
-        panel.appendChild(header);
-        panel.appendChild(urlBar);
-        panel.appendChild(editorContainer);
-        document.body.appendChild(panel);
-        enableDragOn(panel, header);
-
-        let code;
-        try {
-            const res = await fetch(normalizePluginUrl(plugin.url));
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            code = await res.text();
-        } catch (err) {
-            loadingMsg.textContent = `Failed to fetch source: ${err.message}`;
-            loadingMsg.style.color = "#ff4d4d";
-            loadingMsg.style.opacity = "1";
-            return;
-        }
-
-        editorContainer.removeChild(loadingMsg);
-        monaco.editor.create(editorContainer, {
-            value: code,
-            language: "javascript",
-            theme: "vs-dark",
-            readOnly: true,
-            automaticLayout: true,
-            minimap: { enabled: true },
-            fontSize: 13,
-            scrollBeyondLastLine: false,
-            wordWrap: "off",
-            domReadOnly: true,
-            renderValidationDecorations: "off",
-            renderLineHighlight: "none",
-            cursorStyle: "block",
-            cursorBlinking: "solid"
-        });
-    }
-
-    function togglePluginsPanel() {
-        let panel = document.getElementById('avia-plugins-panel');
-        if (panel) {
-            if (panel.style.display === 'none') {
-                panel.style.display = 'flex';
-                renderPanel();
-            } else {
-                panel.style.display = 'none';
-            }
-            return;
-        }
-
-        panel = document.createElement('div');
-        panel.id = 'avia-plugins-panel';
-        Object.assign(panel.style, {
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            width: '560px',
-            height: '520px',
-            background: 'var(--md-sys-color-surface, #1e1e1e)',
-            color: 'var(--md-sys-color-on-surface, #fff)',
-            borderRadius: '16px',
-            boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
-            zIndex: '999999',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            border: '1px solid rgba(255,255,255,0.08)',
-            backdropFilter: 'blur(12px)'
-        });
-
-        const header = document.createElement('div');
-        Object.assign(header.style, {
-            padding: '14px 16px',
-            fontWeight: '600',
-            fontSize: '14px',
-            background: 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            cursor: 'move',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flex: '0 0 auto'
-        });
-
-        const headerTitle = document.createElement('span');
-        headerTitle.textContent = 'Plugins';
-
-        const closeBtn = document.createElement('div');
-        closeBtn.textContent = '✕';
-        Object.assign(closeBtn.style, {
-            cursor: 'pointer',
-            opacity: '0.7',
-            fontSize: '15px',
-            lineHeight: '1',
-            padding: '2px 4px'
-        });
-        closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
-        closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.7';
-        closeBtn.onclick = () => panel.style.display = 'none';
-
-        header.appendChild(headerTitle);
-        header.appendChild(closeBtn);
-
-        const controlsBar = document.createElement('div');
-        Object.assign(controlsBar.style, {
-            padding: '12px 16px',
-            display: 'flex',
-            gap: '8px',
-            alignItems: 'center',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            flex: '0 0 auto'
-        });
-
-        const nameInput = document.createElement('input');
-        nameInput.placeholder = 'Name';
-        styleInput(nameInput);
-        nameInput.style.width = '110px';
-
-        const urlInput = document.createElement('input');
-        urlInput.placeholder = 'Plugin URL';
-        styleInput(urlInput);
-        urlInput.style.flex = '1';
-
-        const addBtn = document.createElement('button');
-        addBtn.textContent = '+ Add';
-        styleBtn(addBtn);
-        addBtn.onclick = () => {
-            const name = nameInput.value.trim();
-            const url = urlInput.value.trim();
-            if (!name || !url) return;
-            const plugins = getPlugins();
-            plugins.push({ name, url, enabled: false });
-            setPlugins(plugins);
-            nameInput.value = '';
-            urlInput.value = '';
-            renderPanel();
-        };
-
-        const refreshBtn = document.createElement('button');
-        refreshBtn.textContent = 'Refresh';
-        styleBtn(refreshBtn);
-        refreshBtn.onclick = () => {
-            getPlugins().forEach(p => { if (p.enabled) queuePlugin(p, true); });
-        };
-
-        controlsBar.appendChild(nameInput);
-        controlsBar.appendChild(urlInput);
-        controlsBar.appendChild(addBtn);
-        controlsBar.appendChild(refreshBtn);
-
-        const searchBar = document.createElement('div');
-        Object.assign(searchBar.style, {
-            padding: '10px 16px',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            flex: '0 0 auto'
-        });
-
-        const searchInput = document.createElement('input');
-        searchInput.placeholder = 'Search plugins…';
-        styleInput(searchInput);
-        searchInput.style.width = '100%';
-        searchInput.oninput = () => renderPanel(searchInput.value.toLowerCase());
-        searchBar.appendChild(searchInput);
-
-        const content = document.createElement('div');
-        content.id = 'avia-plugins-content';
-        Object.assign(content.style, {
-            flex: '1',
-            overflowY: 'auto',
-            padding: '12px 16px 16px',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none'
-        });
-        if (!document.getElementById('avia-scrollbar-hide')) {
-            const s = document.createElement('style');
-            s.id = 'avia-scrollbar-hide';
-            s.textContent = '#avia-plugins-content::-webkit-scrollbar{display:none}';
-            document.head.appendChild(s);
-        }
-
-        panel.appendChild(header);
-        panel.appendChild(controlsBar);
-        panel.appendChild(searchBar);
-        panel.appendChild(content);
-        document.body.appendChild(panel);
-        enableDragOn(panel, header);
-        renderPanel();
-    }
-
-    function renderPanel(filter = '') {
-        const content = document.getElementById('avia-plugins-content');
-        if (!content) return;
-        content.innerHTML = '';
-
-        const plugins = getPlugins();
-        const runSnap = { ...runningPlugins };
-        const errSnap = { ...pluginErrors };
-
-        const visible = (filter
-            ? plugins.filter(p => p.name.toLowerCase().includes(filter))
-            : plugins).slice().reverse();
-
-        if (visible.length === 0) {
-            const empty = document.createElement('div');
-            empty.textContent = plugins.length === 0
-                ? 'No plugins yet. Add one above.'
-                : 'No plugins match your search.';
-            Object.assign(empty.style, { opacity: '0.4', fontSize: '13px', textAlign: 'center', padding: '24px 0' });
-            content.appendChild(empty);
-            return;
-        }
-
-        const sectionLabel = document.createElement('div');
-        sectionLabel.textContent = `User Plugins: ${visible.length}`;
-        Object.assign(sectionLabel.style, {
-            fontSize: '11px',
-            fontWeight: '700',
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            color: 'rgba(255,255,255,0.35)',
-            marginBottom: '10px'
-        });
-        content.appendChild(sectionLabel);
-
-        const grid = document.createElement('div');
-        Object.assign(grid.style, {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: '10px'
-        });
-
-        visible.forEach((plugin) => {
-            const realIndex = plugins.indexOf(plugin);
-            const isRunning = !!runSnap[plugin.url];
-            const hasError = !!errSnap[plugin.url];
-
-            const card = document.createElement('div');
-            Object.assign(card.style, {
-                background: 'rgba(255,255,255,0.04)',
-                border: `1px solid ${hasError ? 'rgba(255,77,77,0.3)' : isRunning ? 'rgba(77,255,136,0.25)' : 'rgba(255,255,255,0.06)'}`,
-                borderRadius: '10px',
-                padding: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-            });
-            card.onmouseenter = () => {
-                if (!hasError && !isRunning) card.style.borderColor = 'rgba(255,255,255,0.13)';
-            };
-            card.onmouseleave = () => {
-                card.style.borderColor = hasError ? 'rgba(255,77,77,0.3)' : isRunning ? 'rgba(77,255,136,0.25)' : 'rgba(255,255,255,0.06)';
-            };
-
-            const topRow = document.createElement('div');
-            Object.assign(topRow.style, {
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px'
-            });
-
-            const nameWrap = document.createElement('div');
-            Object.assign(nameWrap.style, { display: 'flex', alignItems: 'center', gap: '7px', minWidth: '0', flex: '1' });
-
-            const dot = document.createElement('div');
-            Object.assign(dot.style, {
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                flexShrink: '0',
-                background: hasError ? '#ff4d4d' : isRunning ? '#4dff88' : '#555',
-                boxShadow: hasError ? '0 0 5px #ff4d4d' : isRunning ? '0 0 5px #4dff88' : 'none'
-            });
-
-            const nameEl = document.createElement('div');
-            nameEl.textContent = plugin.name;
-            Object.assign(nameEl.style, {
-                fontSize: '13px',
-                fontWeight: '600',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-            });
-
-            nameWrap.appendChild(dot);
-            nameWrap.appendChild(nameEl);
-
-            const switchWrap = document.createElement('div');
-            Object.assign(switchWrap.style, {
-                position: 'relative',
-                width: '36px',
-                height: '20px',
-                flexShrink: '0',
-                cursor: 'pointer'
-            });
-
-            const track = document.createElement('div');
-            Object.assign(track.style, {
-                position: 'absolute',
-                inset: '0',
-                borderRadius: '10px',
-                background: plugin.enabled ? 'rgba(100,160,255,0.6)' : 'rgba(255,255,255,0.15)',
-                transition: 'background 0.2s'
-            });
-
-            const thumb = document.createElement('div');
-            Object.assign(thumb.style, {
-                position: 'absolute',
-                top: '3px',
-                left: plugin.enabled ? '19px' : '3px',
-                width: '14px',
-                height: '14px',
-                borderRadius: '50%',
-                background: '#fff',
-                transition: 'left 0.2s',
-                pointerEvents: 'none'
-            });
-
-            switchWrap.appendChild(track);
-            switchWrap.appendChild(thumb);
-
-            switchWrap.onclick = () => {
-                plugin.enabled = !plugin.enabled;
-                setPlugins(plugins);
-                if (plugin.enabled) queuePlugin(plugin);
-                else stopPlugin(plugin);
-                renderPanel(filter);
-            };
-
-            topRow.appendChild(nameWrap);
-            topRow.appendChild(switchWrap);
-
-            const footer = document.createElement('div');
-            Object.assign(footer.style, { display: 'flex', gap: '6px', marginTop: 'auto', paddingTop: '2px' });
-
-            const viewBtn = document.createElement('button');
-            viewBtn.textContent = 'View';
-            styleBtn(viewBtn, 'rgba(100,160,255,0.15)');
-            viewBtn.style.flex = '1';
-            viewBtn.onclick = () => openViewerPanel(plugin);
-
-            const removeBtn = document.createElement('button');
-            removeBtn.textContent = '✕';
-            styleBtn(removeBtn, 'rgba(255,80,80,0.15)');
-            removeBtn.onclick = () => {
-                stopPlugin(plugin);
-                plugins.splice(realIndex, 1);
-                setPlugins(plugins);
-                renderPanel(filter);
-            };
-
-            footer.appendChild(viewBtn);
-            footer.appendChild(removeBtn);
-
-            card.appendChild(topRow);
-            card.appendChild(footer);
-            grid.appendChild(card);
-        });
-
-        content.appendChild(grid);
-    }
-
-    function styleInput(input) {
-        Object.assign(input.style, {
-            padding: '6px 8px',
-            borderRadius: '8px',
-            border: '1px solid rgba(255,255,255,0.1)',
-            background: 'rgba(255,255,255,0.05)',
-            color: '#fff',
-            fontSize: '13px'
-        });
-    }
-
-    function styleBtn(btn, bg) {
-        Object.assign(btn.style, {
-            padding: '5px 12px',
-            borderRadius: '8px',
-            border: 'none',
-            background: bg || 'rgba(255,255,255,0.08)',
-            color: '#fff',
-            cursor: 'pointer',
-            fontSize: '12px',
-            whiteSpace: 'nowrap'
-        });
-        btn.onmouseenter = () => btn.style.opacity = '0.75';
-        btn.onmouseleave = () => btn.style.opacity = '1';
-    }
-
-    function enableDragOn(panel, header) {
-        let isDragging = false, offsetX, offsetY;
-        header.addEventListener('mousedown', e => {
-            isDragging = true;
-            offsetX = e.clientX - panel.offsetLeft;
-            offsetY = e.clientY - panel.offsetTop;
-            document.body.style.userSelect = 'none';
-        });
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-            document.body.style.userSelect = '';
-        });
-        document.addEventListener('mousemove', e => {
-            if (!isDragging) return;
-            panel.style.left = (e.clientX - offsetX) + 'px';
-            panel.style.top = (e.clientY - offsetY) + 'px';
-            panel.style.right = 'auto';
-            panel.style.bottom = 'auto';
-        });
-    }
-
-    function injectButtons() {
-        if (document.getElementById('stoat-fake-plugins')) return;
-        const appearanceBtn = [...document.querySelectorAll('a')]
-            .find(a => a.textContent.trim() === 'Appearance');
-        if (!appearanceBtn) return;
-        const referenceNode = document.getElementById('stoat-fake-quickcss');
-        if (!referenceNode) return;
-        const pluginsBtn = appearanceBtn.cloneNode(true);
-        pluginsBtn.id = 'stoat-fake-plugins';
-        const textNode = [...pluginsBtn.querySelectorAll('div')]
-            .find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
-        if (textNode) textNode.textContent = "(Avia) Plugins";
-        const svgNS = "http://www.w3.org/2000/svg";
-        const oldSvg = pluginsBtn.querySelector('svg');
-        if (oldSvg) oldSvg.remove();
-        const svg = document.createElementNS(svgNS, "svg");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("width", "20");
-        svg.setAttribute("height", "20");
-        svg.setAttribute("fill", "currentColor");
-        svg.style.marginRight = "8px";
-        const path = document.createElementNS(svgNS, "path");
-        path.setAttribute("d", "M20.5 11H19V7a2 2 0 00-2-2h-4V3.5a2.5 2.5 0 00-5 0V5H4a2 2 0 00-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 002 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7V22H17a2 2 0 002-2v-4h1.5a2.5 2.5 0 000-5z");
-        svg.appendChild(path);
-        pluginsBtn.insertBefore(svg, pluginsBtn.firstChild);
-        pluginsBtn.addEventListener('click', togglePluginsPanel);
-        referenceNode.parentElement.insertBefore(pluginsBtn, referenceNode.nextSibling);
-    }
-
-    function waitForBody(callback) {
-        if (document.body) callback();
-        else new MutationObserver((obs) => {
-            if (document.body) { obs.disconnect(); callback(); }
-        }).observe(document.documentElement, { childList: true });
-    }
-
-    function registerWithAviaMenu() {
-        if (window.AviaMenu) {
-            window.AviaMenu.register({ id: "avia_plugins_online", name: "Plugins", icon: "extension", onClick: togglePluginsPanel });
-        } else {
-            const interval = setInterval(() => {
-                if (window.AviaMenu) {
-                    clearInterval(interval);
-                    window.AviaMenu.register({ id: "avia_plugins_online", name: "Plugins", icon: "extension", onClick: togglePluginsPanel });
-                }
-            }, 100);
-        }
-    }
-
-    waitForBody(() => {
-        const observer = new MutationObserver(() => injectButtons());
-        observer.observe(document.body, { childList: true, subtree: true });
-        injectButtons();
-        preloadMonaco();
-    });
-
-    getPlugins().forEach(plugin => {
-        if (plugin.enabled) queuePlugin(plugin);
-    });
-
-    registerWithAviaMenu();
-
-})();
-
-
 /* --- LoginWithToken.js --- */
 if(window.__US_BUILDER_LOGINWITHTOKEN_JS__){return;}window.__US_BUILDER_LOGINWITHTOKEN_JS__=true;
 
@@ -4253,542 +4816,185 @@ if(window.__US_BUILDER_LOGINWITHTOKEN_JS__){return;}window.__US_BUILDER_LOGINWIT
 
 
 
-/* --- backup.js --- */
-if(window.__US_BUILDER_BACKUP_JS__){return;}window.__US_BUILDER_BACKUP_JS__=true;
+/* --- badges.js --- */
+if(window.__US_BUILDER_BADGES_JS__){return;}window.__US_BUILDER_BADGES_JS__=true;
 
 (function () {
-  if (window.__clientBackup) return;
-  window.__clientBackup = true;
+    if (window.__AVIA_PROFILE_BADGESV2__) return;
+    window.__AVIA_PROFILE_BADGESV2__ = true;
 
-  const TARGET_TEXT = "Plugins v2 Placeholder";
-  const CLONE_KEY   = "data-lsbackup-cloned";
+    const BADGE_URL = "https://raw.githubusercontent.com/AvaLilac/AviaClientBadges/refs/heads/main/userbadgesbackend.js";
 
-  function exportLS() {
-    const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      data[key] = localStorage.getItem(key);
-    }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = "localstorage-backup.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
+    let badgeData = null, loadingPromise = null;
 
-  function importLS(file, onDone) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        const data = JSON.parse(e.target.result);
-        let count = 0;
-        for (const [key, value] of Object.entries(data)) {
-          localStorage.setItem(key, value);
-          count++;
-        }
-        onDone(null, count);
-      } catch (err) {
-        onDone(err);
-      }
-    };
-    reader.readAsText(file);
-  }
+    function loadBadges() {
+        if (badgeData) return Promise.resolve();
+        if (loadingPromise) return loadingPromise;
 
-  function buildPanel() {
-    const panel = document.createElement("div");
-    panel.style.cssText = `
-      display: none;
-      flex-direction: column;
-      gap: 8px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: var(--md-sys-color-surface-container-highest);
-      border: 1px solid var(--md-sys-color-outline-variant);
-      font-size: 12px;
-      color: var(--md-sys-color-on-surface);
-    `;
+        loadingPromise = fetch(BADGE_URL + "?t=" + Date.now())
+            .then(r => r.text())
+            .then(code => {
+                new Function(code)();
+                badgeData = window.AVIA_USER_BADGES || [];
+            })
+            .catch(() => { badgeData = []; });
 
-    const btnStyle = `
-      padding: 5px 12px;
-      border-radius: 4px;
-      border: none;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-    `;
-
-    const status = document.createElement("span");
-    status.style.cssText = "font-size: 11px; opacity: 0.7; min-height: 14px;";
-
-    const exportBtn = document.createElement("button");
-    exportBtn.textContent = "⬇ Export localStorage";
-    exportBtn.style.cssText = btnStyle + `
-      background: var(--md-sys-color-primary);
-      color: var(--md-sys-color-on-primary);
-    `;
-    exportBtn.addEventListener("click", e => {
-      e.preventDefault();
-      e.stopPropagation();
-      exportLS();
-      status.textContent = `✓ Exported ${localStorage.length} keys`;
-    });
-
-    const fileInput = document.createElement("input");
-    fileInput.type   = "file";
-    fileInput.accept = ".json";
-    fileInput.style.cssText = "display: none;";
-    fileInput.addEventListener("change", e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      importLS(file, (err, count) => {
-        if (err) {
-          status.textContent = "✗ Invalid JSON file";
-        } else {
-          status.textContent = `✓ Imported ${count} keys`;
-        }
-        fileInput.value = "";
-      });
-    });
-
-    const importBtn = document.createElement("button");
-    importBtn.textContent = "⬆ Import localStorage";
-    importBtn.style.cssText = btnStyle + `
-      background: var(--md-sys-color-surface-container);
-      color: var(--md-sys-color-on-surface);
-      border: 1px solid var(--md-sys-color-outline-variant);
-    `;
-    importBtn.addEventListener("click", e => {
-      e.preventDefault();
-      e.stopPropagation();
-      fileInput.click();
-    });
-
-    panel.appendChild(exportBtn);
-    panel.appendChild(importBtn);
-    panel.appendChild(fileInput);
-    panel.appendChild(status);
-    return panel;
-  }
-
-  function tryInject() {
-    document.querySelectorAll("a.pos_relative").forEach(btn => {
-      if (
-        btn.hasAttribute(CLONE_KEY) ||
-        btn.hasAttribute("data-lsbackup-entry") ||
-        !btn.innerText.includes(TARGET_TEXT)
-      ) return;
-
-      btn.setAttribute(CLONE_KEY, "true");
-
-      const clone = btn.cloneNode(true);
-      clone.removeAttribute(CLONE_KEY);
-      clone.setAttribute("data-lsbackup-entry", "true");
-
-      const title = clone.querySelector("div.d_flex.flex-g_1.flex-d_column > div");
-      if (title) title.textContent = "AviaClient Backup";
-
-      const desc = clone.querySelector("div.d_flex.flex-g_1.flex-d_column > span");
-      if (desc) desc.textContent = "Backup or Restore all client data";
-
-      const iconBtn = document.createElement("div");
-      iconBtn.title = "LocalStorage Backup";
-      iconBtn.style.cssText = "cursor: pointer; z-index: 10; flex-shrink: 0;";
-      iconBtn.innerHTML = `
-        <div class="fill_var(--md-sys-color-on-surface) bg_var(--md-sys-color-surface-dim) w_36px h_36px d_flex flex-sh_0 ai_center jc_center bdr_var(--borderRadius-full)">
-          <span aria-hidden="true" class="material-symbols-outlined fs_inherit fw_undefined!" style="display: block; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0;">database</span>
-        </div>
-      `;
-
-      const existingIcon = clone.querySelector("div.fill_var\\(--md-sys-color-on-surface\\)");
-      if (existingIcon) {
-        existingIcon.replaceWith(iconBtn);
-      } else {
-        clone.prepend(iconBtn);
-      }
-
-      clone.addEventListener("click", e => {
-        e.preventDefault();
-        e.stopPropagation();
-        panel.style.display = panel.style.display === "flex" ? "none" : "flex";
-      });
-
-      const wrapper = document.createElement("div");
-      wrapper.style.cssText = "display: flex; flex-direction: column;";
-
-      const panel = buildPanel();
-
-      wrapper.appendChild(clone);
-      wrapper.appendChild(panel);
-
-      btn.parentNode.insertBefore(wrapper, btn.nextSibling);
-    });
-  }
-
-  tryInject();
-
-  const observer = new MutationObserver(() => tryInject());
-  observer.observe(document.body, { childList: true, subtree: true });
-})();
-
-
-/* --- UpdateChecker.js --- */
-if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHECKER_JS__=true;
-
-(function() {
-    if (window.__AVIA_USERSCRIPT_UPDATE_CHECKER__) return;
-    window.__AVIA_USERSCRIPT_UPDATE_CHECKER__ = true;
-
-    const SCRIPT_URL = "https://api.github.com/repos/AvaLilac/Ava-Client/contents/userscript/AviaClient.user.js";
-    const RELEASES_URL = "https://github.com/AvaLilac/Ava-Client/raw/refs/heads/main/userscript/AviaClient.user.js";
-    const STORAGE_KEY = "avia_userscript_update_checker_enabled";
-
-    function isEnabled() {
-        return localStorage.getItem(STORAGE_KEY) !== "false";
+        return loadingPromise;
     }
 
-    function setEnabled(val) {
-        localStorage.setItem(STORAGE_KEY, val ? "true" : "false");
+    function getUsername(root) {
+        const tag = root.querySelector("span.fw_200");
+        if (!tag) return null;
+        const span = tag.parentElement;
+        return span ? span.textContent.trim() : null;
     }
 
-        function getInstalledVersion() {
-        try {
-            return window.__USERSCRIPT_VERSION__ || null;
-        } catch (_) {
-            return null;
-        }
+    function getUserBadges(username) {
+        if (!badgeData) return [];
+        const clean = username.trim().toLowerCase();
+        return badgeData.filter(b =>
+            b.users.some(u => u.toLowerCase() === clean)
+        );
     }
 
-        async function fetchLatestVersion() {
-        const res = await fetch(SCRIPT_URL, {
-            headers: { "Accept": "application/vnd.github.v3.raw" }
+    function findCardByTitle(root, title) {
+        return [...root.querySelectorAll("div.pos_relative")]
+            .find(c => {
+                const heading = c.querySelector("span.fw_550");
+                return heading && heading.textContent.trim() === title;
+            });
+    }
+
+    function makeBadgeSpan(b) {
+        const wrapper = document.createElement("span");
+        wrapper.setAttribute("aria-label", b.name);
+        wrapper.style.cssText = "display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:20px;line-height:1;cursor:default;position:relative;";
+        wrapper.textContent = b.icon;
+
+        let tip = null;
+
+        wrapper.addEventListener("mouseenter", () => {
+            tip = document.createElement("div");
+            tip.style.cssText = "position:fixed;z-index:99999;pointer-events:none;white-space:nowrap;";
+
+            const inner = document.createElement("div");
+            inner.className = "c_white bg_black p_var(--gap-md) bdr_var(--borderRadius-md) lh_0.875rem fs_0.6875rem ls_0.03125rem fw_500";
+            inner.style.cssText = "";
+
+            const color = b.color || "";
+            if (color.includes("gradient")) {
+                const textSpan = document.createElement("span");
+                textSpan.textContent = b.name;
+                textSpan.style.cssText = `background:${color};-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;`;
+                inner.appendChild(textSpan);
+            } else {
+                inner.textContent = b.name;
+                inner.style.color = color || "white";
+            }
+
+            tip.appendChild(inner);
+            document.body.appendChild(tip);
+
+            requestAnimationFrame(() => {
+                const badgeRect = wrapper.getBoundingClientRect();
+                const tipRect = tip.getBoundingClientRect();
+                const x = badgeRect.left + badgeRect.width / 2 - tipRect.width / 2;
+                const y = badgeRect.top - tipRect.height - 5;
+                tip.style.left = Math.max(4, x) + "px";
+                tip.style.top = Math.max(4, y) + "px";
+            });
         });
-        const text = await res.text();
-        const match = text.match(/@version\s+([^\s]+)/);
-        return match ? match[1].trim() : null;
+
+        wrapper.addEventListener("mouseleave", () => {
+            if (tip) { tip.remove(); tip = null; }
+        });
+
+        return wrapper;
     }
 
-    function showUpdateModal(installedVersion, latestVersion) {
-        if (document.getElementById("avia-userscript-update-modal")) return;
+    function injectBadges(root, username) {
+        if (root.querySelector("[data-avia-badge-injected='true']")) return;
 
-        const backdrop = document.createElement("div");
-        backdrop.id = "avia-userscript-update-modal";
-        backdrop.className = "top_0 left_0 right_0 bottom_0 pos_fixed z_100 max-h_100% d_grid us_none place-items_center pointer-events_all anim-n_scrimFadeIn anim-dur_0.1s anim-fm_forwards trs_var(--transitions-medium)_all p_80px ov-y_auto";
-        backdrop.style.cssText = "--background: rgba(0, 0, 0, 0.6); background: rgba(0, 0, 0, 0.6);";
+        const badges = getUserBadges(username);
+        if (!badges.length) return;
 
-        const motionWrap = document.createElement("div");
-        motionWrap.style.cssText = "opacity: 1; --motion-translateY: 0px; transform: translateY(var(--motion-translateY));";
+        const nativeBadgesCard = findCardByTitle(root, "Badges");
+        if (nativeBadgesCard) {
+            const grid = nativeBadgesCard.querySelector("div.d_flex.flex-wrap_wrap");
+            if (!grid) return;
+            badges.forEach(b => grid.appendChild(makeBadgeSpan(b)));
+            nativeBadgesCard.dataset.aviaBadgeInjected = "true";
+            return;
+        }
 
-        const card = document.createElement("div");
-        card.style.cssText = "min-width: 320px; max-width: 480px; padding: 24px; border-radius: 28px; display: flex; flex-direction: column; color: var(--md-sys-color-on-surface); background: var(--md-sys-color-surface-container-high);";
+        const joinedCard = findCardByTitle(root, "Joined");
+        if (!joinedCard) return;
 
-        const title = document.createElement("span");
-        title.textContent = "Userscript Update Available";
-        title.style.cssText = "line-height: 2rem; font-size: 1.5rem; letter-spacing: 0; font-weight: 400; margin-bottom: 16px;";
+        const card = joinedCard.cloneNode(false);
+        card.removeAttribute("data-avia-badge-injected");
+        card.dataset.aviaBadgeInjected = "true";
+        card.style.cssText = "overflow:hidden;";
+        if (!card.classList.contains("asp_1/1")) card.classList.add("asp_1/1");
 
-        const body = document.createElement("div");
-        body.style.cssText = "color: var(--md-sys-color-on-surface-variant); line-height: 1.25rem; font-size: 0.875rem; letter-spacing: 0.015625rem; font-weight: 400; display: flex; flex-direction: column; gap: 12px;";
-
-        const currentRow = document.createElement("div");
-        currentRow.style.cssText = "display: flex; flex-direction: column; gap: 2px;";
-        const currentLabel = document.createElement("span");
-        currentLabel.textContent = "Your installed version";
-        currentLabel.style.cssText = "font-size: 11px; opacity: 0.5; letter-spacing: 0.03em;";
-        const currentVersionEl = document.createElement("span");
-        currentVersionEl.textContent = installedVersion || "Unknown";
-        currentVersionEl.style.cssText = "font-size: 14px; font-weight: 500; color: var(--md-sys-color-on-surface);";
-        currentRow.appendChild(currentLabel);
-        currentRow.appendChild(currentVersionEl);
-
-        const latestRow = document.createElement("div");
-        latestRow.style.cssText = "display: flex; flex-direction: column; gap: 2px;";
-        const latestLabel = document.createElement("span");
-        latestLabel.textContent = "Latest version";
-        latestLabel.style.cssText = "font-size: 11px; opacity: 0.5; letter-spacing: 0.03em;";
-        const latestVersionEl = document.createElement("span");
-        latestVersionEl.textContent = latestVersion;
-        latestVersionEl.style.cssText = "font-size: 14px; font-weight: 600; color: var(--md-sys-color-primary);";
-        latestRow.appendChild(latestLabel);
-        latestRow.appendChild(latestVersionEl);
-
-        const message = document.createElement("span");
-        message.textContent = `You are currently on version ${installedVersion || "Unknown"}. The latest version of AviaClient userscript is ${latestVersion}.`;
-
-        body.appendChild(currentRow);
-        body.appendChild(latestRow);
-        body.appendChild(message);
-
-        const btnRow = document.createElement("div");
-        btnRow.style.cssText = "gap: 8px; display: flex; justify-content: flex-end; margin-top: 24px;";
-
-        const closeBtn = document.createElement("button");
-        closeBtn.type = "button";
-        closeBtn.style.cssText = "line-height: 1.25rem; font-size: 0.875rem; font-weight: 400; position: relative; padding: 0 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: inherit; cursor: pointer; border: none; transition: var(--transitions-medium) all; color: var(--md-sys-color-primary); height: 40px; border-radius: var(--borderRadius-full); background: none;";
-        closeBtn.innerHTML = "<md-ripple aria-hidden='true'></md-ripple>Close";
-        closeBtn.onclick = () => backdrop.remove();
-
-        const updateBtn = document.createElement("button");
-        updateBtn.type = "button";
-        updateBtn.style.cssText = "line-height: 1.25rem; font-size: 0.875rem; font-weight: 400; position: relative; padding: 0 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: inherit; cursor: pointer; border: none; transition: var(--transitions-medium) all; color: var(--md-sys-color-on-primary); height: 40px; border-radius: var(--borderRadius-full); background: var(--md-sys-color-primary);";
-        updateBtn.innerHTML = "<md-ripple aria-hidden='true'></md-ripple>Update Now";
-        updateBtn.onclick = () => window.open(RELEASES_URL, "_blank");
-
-        btnRow.appendChild(closeBtn);
-        btnRow.appendChild(updateBtn);
-
+        const titleSpan = joinedCard.querySelector("span.fw_550");
+        const title = titleSpan ? titleSpan.cloneNode(false) : document.createElement("span");
+        title.textContent = "Badges";
         card.appendChild(title);
-        card.appendChild(body);
-        card.appendChild(btnRow);
-        motionWrap.appendChild(card);
-        backdrop.appendChild(motionWrap);
-        document.body.appendChild(backdrop);
+
+        const grid = document.createElement("div");
+        grid.className = "gap_var(--gap-md) d_flex flex-wrap_wrap [&_img,_&_svg]:w_24px [&_img,_&_svg]:h_24px [&_img,_&_svg]:asp_1/1";
+        grid.style.overflow = "hidden";
+        badges.forEach(b => grid.appendChild(makeBadgeSpan(b)));
+        card.appendChild(grid);
+
+        joinedCard.insertAdjacentElement("afterend", card);
     }
 
-    async function check() {
-        if (!isEnabled()) return;
-        const installedVersion = getInstalledVersion();
-        const latestVersion = await fetchLatestVersion().catch(() => null);
-        if (!latestVersion) return;
-        if (installedVersion === latestVersion) return;
-        showUpdateModal(installedVersion, latestVersion);
-    }
+    async function processProfile(root) {
+        await loadBadges();
 
-    function applyToggleStyle(entry) {
-        const desc = entry.querySelector("span.lh_1rem");
-        const checkbox = entry.querySelector("mdui-checkbox");
-        if (isEnabled()) {
-            if (desc) desc.textContent = "Get notified when a new AviaClient userscript version is available";
-            if (checkbox) checkbox.setAttribute("checked", "");
-        } else {
-            if (desc) desc.textContent = "Get notified when a new AviaClient userscript version is available";
-            if (checkbox) checkbox.removeAttribute("checked");
-        }
-    }
+        const username = getUsername(root);
+        if (!username) return;
 
-    function tryInject() {
-        if (document.querySelector("[data-userscript-update-entry]")) return;
-
-        const target = [...document.querySelectorAll("a.pos_relative")]
-            .find(a => a.innerText.includes("Plugins v2 Placeholder"));
-        if (!target) return;
-
-        const entry = target.cloneNode(true);
-        entry.setAttribute("data-userscript-update-entry", "true");
-
-        const iconWrap = entry.querySelector("div.w_36px.h_36px");
-        if (iconWrap) {
-            iconWrap.innerHTML = "";
-            const icon = document.createElement("span");
-            icon.className = "material-symbols-outlined";
-            icon.style.cssText = "display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;font-size:20px;";
-            icon.textContent = "system_update_alt";
-            iconWrap.appendChild(icon);
+        if (findCardByTitle(root, "Badges")) {
+            injectBadges(root, username);
+            return;
         }
 
-        const titleEl = entry.querySelector("div.d_flex.flex-g_1.flex-d_column > div");
-        if (titleEl) titleEl.textContent = "Userscript Update Checker";
-
-        const descEl = entry.querySelector("span.lh_1rem");
-        if (descEl) descEl.setAttribute("data-userscript-desc", "true");
-
-        applyToggleStyle(entry);
-
-        entry.addEventListener("click", e => {
-            e.preventDefault();
-            e.stopPropagation();
-            setEnabled(!isEnabled());
-            applyToggleStyle(entry);
+        const obs = new MutationObserver(() => {
+            if (!findCardByTitle(root, "Joined")) return;
+            if (!findCardByTitle(root, "Bio")) return;
+            obs.disconnect();
+            injectBadges(root, username);
         });
 
-        target.parentNode.insertBefore(entry, target.nextSibling);
+        obs.observe(root, { childList: true, subtree: true });
+
+        if (findCardByTitle(root, "Joined") && findCardByTitle(root, "Bio")) {
+            obs.disconnect();
+            injectBadges(root, username);
+        }
+
+        setTimeout(() => obs.disconnect(), 10000);
     }
 
-    check();
+    const observer = new MutationObserver(muts => {
+        for (const m of muts) {
+            for (const n of m.addedNodes) {
+                if (!(n instanceof HTMLElement)) continue;
 
-    const observer = new MutationObserver(() => tryInject());
+                if (n.matches?.("div.will-change_transform")) processProfile(n);
+                if (n.matches?.("div.p_24px.min-w_280px.max-w_560px")) processProfile(n);
+
+                const small    = n.querySelector?.("div.will-change_transform");
+                const expanded = n.querySelector?.("div.p_24px.min-w_280px.max-w_560px");
+                if (small)    processProfile(small);
+                if (expanded) processProfile(expanded);
+            }
+        }
+    });
+
     observer.observe(document.body, { childList: true, subtree: true });
-    tryInject();
-})();
-
-
-/* --- clientBackup.js --- */
-if(window.__US_BUILDER_CLIENTBACKUP_JS__){return;}window.__US_BUILDER_CLIENTBACKUP_JS__=true;
-
-(function () {
-  if (window.__clientBackup) return;
-  window.__clientBackup = true;
-
-  const TARGET_TEXT = "Spellchecker";
-  const CLONE_KEY   = "data-lsbackup-cloned";
-
-  function exportLS() {
-    const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      data[key] = localStorage.getItem(key);
-    }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = "localstorage-backup.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function importLS(file, onDone) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        const data = JSON.parse(e.target.result);
-        let count = 0;
-        for (const [key, value] of Object.entries(data)) {
-          localStorage.setItem(key, value);
-          count++;
-        }
-        onDone(null, count);
-      } catch (err) {
-        onDone(err);
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  function buildPanel() {
-    const panel = document.createElement("div");
-    panel.style.cssText = `
-      display: none;
-      flex-direction: column;
-      gap: 8px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: var(--md-sys-color-surface-container-highest);
-      border: 1px solid var(--md-sys-color-outline-variant);
-      font-size: 12px;
-      color: var(--md-sys-color-on-surface);
-    `;
-
-    const btnStyle = `
-      padding: 5px 12px;
-      border-radius: 4px;
-      border: none;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-    `;
-
-    const status = document.createElement("span");
-    status.style.cssText = "font-size: 11px; opacity: 0.7; min-height: 14px;";
-
-    const exportBtn = document.createElement("button");
-    exportBtn.textContent = "⬇ Export localStorage";
-    exportBtn.style.cssText = btnStyle + `
-      background: var(--md-sys-color-primary);
-      color: var(--md-sys-color-on-primary);
-    `;
-    exportBtn.addEventListener("click", e => {
-      e.preventDefault();
-      e.stopPropagation();
-      exportLS();
-      status.textContent = `✓ Exported ${localStorage.length} keys`;
-    });
-
-    const fileInput = document.createElement("input");
-    fileInput.type   = "file";
-    fileInput.accept = ".json";
-    fileInput.style.cssText = "display: none;";
-    fileInput.addEventListener("change", e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      importLS(file, (err, count) => {
-        if (err) {
-          status.textContent = "✗ Invalid JSON file";
-        } else {
-          status.textContent = `✓ Imported ${count} keys`;
-        }
-        fileInput.value = "";
-      });
-    });
-
-    const importBtn = document.createElement("button");
-    importBtn.textContent = "⬆ Import localStorage";
-    importBtn.style.cssText = btnStyle + `
-      background: var(--md-sys-color-surface-container);
-      color: var(--md-sys-color-on-surface);
-      border: 1px solid var(--md-sys-color-outline-variant);
-    `;
-    importBtn.addEventListener("click", e => {
-      e.preventDefault();
-      e.stopPropagation();
-      fileInput.click();
-    });
-
-    panel.appendChild(exportBtn);
-    panel.appendChild(importBtn);
-    panel.appendChild(fileInput);
-    panel.appendChild(status);
-    return panel;
-  }
-
-  function tryInject() {
-    document.querySelectorAll("a.pos_relative").forEach(btn => {
-      if (
-        btn.hasAttribute(CLONE_KEY) ||
-        btn.hasAttribute("data-lsbackup-entry") ||
-        !btn.innerText.includes(TARGET_TEXT)
-      ) return;
-
-      btn.setAttribute(CLONE_KEY, "true");
-
-      const clone = btn.cloneNode(true);
-      clone.removeAttribute(CLONE_KEY);
-      clone.setAttribute("data-lsbackup-entry", "true");
-
-      const title = clone.querySelector("div.d_flex.flex-g_1.flex-d_column > div");
-      if (title) title.textContent = "AviaClient Backup";
-
-      const desc = clone.querySelector("div.d_flex.flex-g_1.flex-d_column > span");
-      if (desc) desc.textContent = "Backup or Restore all client data";
-
-      const iconBtn = document.createElement("div");
-      iconBtn.title = "LocalStorage Backup";
-      iconBtn.style.cssText = "cursor: pointer; z-index: 10; flex-shrink: 0;";
-      iconBtn.innerHTML = `
-        <div class="fill_var(--md-sys-color-on-surface) bg_var(--md-sys-color-surface-dim) w_36px h_36px d_flex flex-sh_0 ai_center jc_center bdr_var(--borderRadius-full)">
-          <span aria-hidden="true" class="material-symbols-outlined fs_inherit fw_undefined!" style="display: block; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0;">database</span>
-        </div>
-      `;
-
-      const existingIcon = clone.querySelector("div.fill_var\\(--md-sys-color-on-surface\\)");
-      if (existingIcon) {
-        existingIcon.replaceWith(iconBtn);
-      } else {
-        clone.prepend(iconBtn);
-      }
-
-      clone.addEventListener("click", e => {
-        e.preventDefault();
-        e.stopPropagation();
-        panel.style.display = panel.style.display === "flex" ? "none" : "flex";
-      });
-
-      const wrapper = document.createElement("div");
-      wrapper.style.cssText = "display: flex; flex-direction: column;";
-
-      const panel = buildPanel();
-
-      wrapper.appendChild(clone);
-      wrapper.appendChild(panel);
-
-      btn.parentNode.insertBefore(wrapper, btn.nextSibling);
-    });
-  }
-
-  tryInject();
-
-  const observer = new MutationObserver(() => tryInject());
-  observer.observe(document.body, { childList: true, subtree: true });
 })();
 
 
@@ -5178,340 +5384,6 @@ if(window.__US_BUILDER_WHATSNEW_JS__){return;}window.__US_BUILDER_WHATSNEW_JS__=
 
 })();
 
-
-
-/* --- ButtonFix.js --- */
-if(window.__US_BUILDER_BUTTONFIX_JS__){return;}window.__US_BUILDER_BUTTONFIX_JS__=true;
-
-(function () {
-    if (window.__BUTTON_FIX__) return;
-    window.__BUTTON_FIX__ = true;
-
-    function uninjectButton(button){
-        if(button){
-            button.parentElement.removeChild(button)
-        }
-    }
-    
-    const observer = new MutationObserver(()=>{
-        let balls = [];
-        document.querySelectorAll('div[class=\'flex-sh_0 d_flex ai_end jc_center w_42px\']').forEach(element=>{
-        if(element.id?.includes('avia')){
-            balls.push(element)
-        }
-        })
-        
-        const gifSpan = [...document.querySelectorAll("span.material-symbols-outlined")]
-        .find(s => s.textContent.trim() === "gif");
-
-        if(!gifSpan){
-            balls.forEach(element=>{
-                uninjectButton(element)
-            })
-        }
-    });
-    observer.observe(document.documentElement, {childList: true, subtree: true })
-})();
-
-
-/* --- menu.js --- */
-if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
-
-(function () {
-    if (window.__AVIA_MENU__) return;
-    window.__AVIA_MENU__ = true;
-
-    const ITEM_HEIGHT = 32;
-    const MAX_VISIBLE = 12;
-    const PIN_STORAGE_KEY = "avia_menu_pins";
-
-    const registeredItems = [];
-    let menuEl = null;
-    let menuOpen = false;
-
-    function getPins() {
-        try { return JSON.parse(localStorage.getItem(PIN_STORAGE_KEY) || "[]"); }
-        catch { return []; }
-    }
-
-    function savePins(arr) {
-        localStorage.setItem(PIN_STORAGE_KEY, JSON.stringify(arr));
-    }
-
-    function pinItem(id) {
-        const pins = getPins().filter(p => p !== id);
-        pins.unshift(id);
-        savePins(pins);
-    }
-
-    function unpinItem(id) {
-        savePins(getPins().filter(p => p !== id));
-    }
-
-    function isPinned(id) {
-        return getPins().includes(id);
-    }
-
-    function getSortedItems() {
-        const pins = getPins();
-        const pinned = [];
-        for (const id of pins) {
-            const found = registeredItems.find(i => i.id === id);
-            if (found) pinned.push(found);
-        }
-        const unpinned = registeredItems.filter(i => !isPinned(i.id));
-        return [...pinned, ...unpinned];
-    }
-
-    window.AviaMenu = {
-        register: function (item) {
-            if (!item || typeof item !== "object") {
-                console.error("[AviaMenu] Registration failed: item must be an object, got", typeof item);
-                return;
-            }
-            if (typeof item.id !== "string" || !item.id.trim()) {
-                console.error("[AviaMenu] Registration failed: item.id must be a non-empty string, got", item.id);
-                return;
-            }
-            if (!item.name || typeof item.name !== "string") {
-                console.error("[AviaMenu] Registration failed for id '%s': item.name must be a non-empty string, got", item.id, item.name);
-                return;
-            }
-            if (typeof item.onClick !== "function") {
-                console.error("[AviaMenu] Registration failed for id '%s': item.onClick must be a function, got", item.id, typeof item.onClick);
-                return;
-            }
-            if (registeredItems.find(i => i.id === item.id.trim())) {
-                console.error("[AviaMenu] Registration failed: an item with id '%s' is already registered", item.id.trim());
-                return;
-            }
-            registeredItems.push({
-                id: item.id.trim(),
-                name: item.name,
-                onClick: item.onClick,
-                icon: typeof item.icon === "string" && item.icon.trim() ? item.icon.trim() : null
-            });
-            if (menuEl) rebuildMenu();
-        }
-    };
-
-    function closeMenu() {
-        if (menuEl) {
-            menuEl.remove();
-            menuEl = null;
-        }
-        menuOpen = false;
-    }
-
-    function rebuildMenu() {
-        if (!menuEl) return;
-        const list = menuEl.querySelector("#avia-menu-list");
-        if (!list) return;
-        list.innerHTML = "";
-
-        if (registeredItems.length === 0) {
-            const empty = document.createElement("div");
-            empty.textContent = "No buttons registered";
-            Object.assign(empty.style, {
-                padding: "12px 16px",
-                fontSize: "13px",
-                opacity: "0.4",
-                color: "var(--md-sys-color-on-surface, #fff)",
-                userSelect: "none"
-            });
-            list.appendChild(empty);
-            list.style.maxHeight = "";
-            list.style.overflowY = "hidden";
-            list.style.scrollbarWidth = "none";
-            return;
-        }
-
-        const sorted = getSortedItems();
-
-        for (const item of sorted) {
-            const pinned = isPinned(item.id);
-
-            const btn = document.createElement("div");
-            Object.assign(btn.style, {
-                padding: "0 12px",
-                height: ITEM_HEIGHT + "px",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                fontSize: "13px",
-                fontWeight: "500",
-                color: "var(--md-sys-color-on-surface, #fff)",
-                cursor: "pointer",
-                borderRadius: "10px",
-                transition: "background 0.12s",
-                userSelect: "none",
-                flexShrink: "0",
-                position: "relative"
-            });
-
-            if (item.icon) {
-                const iconEl = document.createElement("span");
-                iconEl.className = "material-symbols-outlined";
-                iconEl.textContent = item.icon;
-                iconEl.style.cssText = "font-size:20px;display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;flex-shrink:0;opacity:0.85;";
-                btn.appendChild(iconEl);
-            }
-
-            const label = document.createElement("span");
-            label.textContent = item.name;
-            label.style.flex = "1";
-            btn.appendChild(label);
-
-            const pinBtn = document.createElement("span");
-            pinBtn.className = "material-symbols-outlined";
-            pinBtn.textContent = "push_pin";
-            Object.assign(pinBtn.style, {
-                fontSize: "14px",
-                display: "block",
-                fontVariationSettings: pinned ? "'FILL' 1,'wght' 400,'GRAD' 0" : "'FILL' 0,'wght' 400,'GRAD' 0",
-                color: pinned ? "var(--md-sys-color-primary, #cfbcff)" : "rgba(255,255,255,0.3)",
-                flexShrink: "0",
-                transition: "color 0.12s, font-variation-settings 0.12s",
-                cursor: "pointer"
-            });
-
-            pinBtn.addEventListener("mouseenter", (e) => {
-                e.stopPropagation();
-                pinBtn.style.color = pinned ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.7)";
-            });
-            pinBtn.addEventListener("mouseleave", (e) => {
-                e.stopPropagation();
-                pinBtn.style.color = pinned ? "var(--md-sys-color-primary, #cfbcff)" : "rgba(255,255,255,0.3)";
-            });
-            pinBtn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                if (isPinned(item.id)) {
-                    unpinItem(item.id);
-                } else {
-                    pinItem(item.id);
-                }
-                rebuildMenu();
-            });
-
-            btn.appendChild(pinBtn);
-
-            btn.addEventListener("mouseenter", () => {
-                btn.style.background = "rgba(255,255,255,0.07)";
-            });
-            btn.addEventListener("mouseleave", () => {
-                btn.style.background = "transparent";
-            });
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                closeMenu();
-                try { item.onClick(); } catch (err) { console.error("[AviaMenu]", err); }
-            });
-
-            list.appendChild(btn);
-        }
-
-        const total = getSortedItems().length;
-        list.style.maxHeight = (MAX_VISIBLE * ITEM_HEIGHT) + "px";
-        list.style.overflowY = total > MAX_VISIBLE ? "auto" : "hidden";
-        list.style.scrollbarWidth = "none";
-    }
-
-    function openMenu(anchorEl) {
-        if (menuOpen) { closeMenu(); return; }
-
-        menuEl = document.createElement("div");
-        Object.assign(menuEl.style, {
-            position: "fixed",
-            zIndex: "9999999",
-            background: "var(--md-sys-color-surface, #1e1e1e)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 28px rgba(0,0,0,0.4)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(12px)",
-            overflow: "hidden",
-            minWidth: "200px",
-            display: "flex",
-            flexDirection: "column"
-        });
-
-        const list = document.createElement("div");
-        list.id = "avia-menu-list";
-        Object.assign(list.style, {
-            display: "flex",
-            flexDirection: "column",
-            padding: "8px",
-            boxSizing: "border-box"
-        });
-
-        menuEl.appendChild(list);
-        document.body.appendChild(menuEl);
-
-        rebuildMenu();
-
-        const rect = anchorEl.getBoundingClientRect();
-        const menuRect = menuEl.getBoundingClientRect();
-        let top = rect.bottom + 6;
-        let left = rect.left;
-
-        if (left + menuRect.width > window.innerWidth - 8) {
-            left = window.innerWidth - menuRect.width - 8;
-        }
-        if (top + menuRect.height > window.innerHeight - 8) {
-            top = rect.top - menuRect.height - 6;
-        }
-
-        menuEl.style.top = top + "px";
-        menuEl.style.left = left + "px";
-
-        menuOpen = true;
-
-        setTimeout(() => {
-            document.addEventListener("click", onOutsideClick, { once: true });
-        }, 0);
-    }
-
-    function onOutsideClick(e) {
-        if (menuEl && !menuEl.contains(e.target)) {
-            closeMenu();
-        }
-    }
-
-    function injectToolbarButton() {
-        if (document.getElementById("avia-menu-toolbar-btn")) return;
-
-        const pinBtn = document.querySelector('button[aria-label="View pinned messages"]');
-        if (!pinBtn) return;
-
-        const btn = pinBtn.cloneNode(false);
-        btn.id = "avia-menu-toolbar-btn";
-        btn.setAttribute("aria-label", "Avia Menu");
-
-        const ripple = document.createElement("md-ripple");
-        ripple.setAttribute("aria-hidden", "true");
-        btn.appendChild(ripple);
-
-        const icon = document.createElement("span");
-        icon.className = "material-symbols-outlined";
-        icon.style.cssText = "display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;font-size:24px;";
-        icon.textContent = "apps";
-        btn.appendChild(icon);
-
-        btn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            openMenu(btn);
-        });
-
-        pinBtn.insertAdjacentElement("afterend", btn);
-    }
-
-    const observer = new MutationObserver(() => {
-        injectToolbarButton();
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-    injectToolbarButton();
-})();
 
 
 })();
