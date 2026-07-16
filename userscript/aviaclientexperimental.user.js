@@ -1,16 +1,764 @@
 // ==UserScript==
 // @name        AviaClient Experimental
 // @namespace   userscript.builder
-// @version     1.7.6
-// @description AviaClient is a client mod for stoat that adds extra features like plugins, themes, online fonts, local fonts. and more
+// @version     1.7.7
+// @description AviaClient is a client mod for stoat that adds extra features like plugins, themes, online fonts, Local fonts, local fonts. and more
 // @match       https://stoat.chat/*
 // @grant       none
 // @run-at      document-start
 // ==/UserScript==
 
 (function(){
-'@preserve - Built on 2026-05-23T11:57:10.186Z';
-window.__USERSCRIPT_VERSION__ = "1.7.6";
+'@preserve - Built on 2026-07-16T04:18:13.908Z';
+window.__USERSCRIPT_VERSION__ = "1.7.7";
+
+/* --- menu.js --- */
+if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
+
+(function () {
+    if (window.__AVIA_MENU__) return;
+    window.__AVIA_MENU__ = true;
+
+    const ITEM_HEIGHT = 32;
+    const MAX_VISIBLE = 12;
+    const SUBMENU_MAX_VISIBLE = 8;
+    const PIN_STORAGE_KEY = "avia_menu_pins";
+
+    const registeredItems = [];
+    const submenuParents = [];
+    const submenuItems = [];
+
+    let menuEl = null;
+    let menuOpen = false;
+    let activeSubmenuEl = null;
+    let activeSubmenuParentBtn = null;
+    let submenuHoverTimeout = null;
+
+    function allIds() {
+        return [
+            ...registeredItems.map(i => i.id),
+            ...submenuParents.map(i => i.id),
+            ...submenuItems.map(i => i.id)
+        ];
+    }
+
+    function getPins() {
+        try { return JSON.parse(localStorage.getItem(PIN_STORAGE_KEY) || "[]"); }
+        catch { return []; }
+    }
+
+    function savePins(arr) {
+        localStorage.setItem(PIN_STORAGE_KEY, JSON.stringify(arr));
+    }
+
+    function pinItem(id) {
+        const pins = getPins().filter(p => p !== id);
+        pins.unshift(id);
+        savePins(pins);
+    }
+
+    function unpinItem(id) {
+        savePins(getPins().filter(p => p !== id));
+    }
+
+    function isPinned(id) {
+        return getPins().includes(id);
+    }
+
+    function getSortedMainItems() {
+        const pins = getPins();
+        const all = [...registeredItems, ...submenuParents];
+        const pinned = [];
+        for (const id of pins) {
+            const found = all.find(i => i.id === id);
+            if (found) pinned.push(found);
+        }
+        const unpinned = all.filter(i => !isPinned(i.id));
+        return [...pinned, ...unpinned];
+    }
+
+    window.AviaMenu = {
+        register: function (item) {
+            if (!item || typeof item !== "object") {
+                console.error("[AviaMenu] register: item must be an object, got", typeof item); return;
+            }
+            if (typeof item.id !== "string" || !item.id.trim()) {
+                console.error("[AviaMenu] register: item.id must be a non-empty string, got", item.id); return;
+            }
+            if (!item.name || typeof item.name !== "string") {
+                console.error("[AviaMenu] register failed for id '%s': item.name must be a non-empty string, got", item.id, item.name); return;
+            }
+            if (typeof item.onClick !== "function") {
+                console.error("[AviaMenu] register failed for id '%s': item.onClick must be a function, got", item.id, typeof item.onClick); return;
+            }
+            if (allIds().includes(item.id.trim())) {
+                console.error("[AviaMenu] register: id '%s' is already registered", item.id.trim()); return;
+            }
+            registeredItems.push({
+                id: item.id.trim(),
+                name: item.name,
+                onClick: item.onClick,
+                icon: typeof item.icon === "string" && item.icon.trim() ? item.icon.trim() : null
+            });
+            if (menuEl) rebuildMenu();
+        },
+
+        submenuregister: function (item) {
+            if (!item || typeof item !== "object") {
+                console.error("[AviaMenu] submenuregister: item must be an object, got", typeof item); return;
+            }
+            if (typeof item.id !== "string" || !item.id.trim()) {
+                console.error("[AviaMenu] submenuregister: item.id must be a non-empty string, got", item.id); return;
+            }
+            if (!item.name || typeof item.name !== "string") {
+                console.error("[AviaMenu] submenuregister failed for id '%s': item.name must be a non-empty string, got", item.id, item.name); return;
+            }
+            if (allIds().includes(item.id.trim())) {
+                console.error("[AviaMenu] submenuregister: id '%s' is already registered", item.id.trim()); return;
+            }
+            submenuParents.push({
+                id: item.id.trim(),
+                name: item.name,
+                icon: typeof item.icon === "string" && item.icon.trim() ? item.icon.trim() : null
+            });
+            if (menuEl) rebuildMenu();
+        },
+
+        submenu: function (item) {
+            if (!item || typeof item !== "object") {
+                console.error("[AviaMenu] submenu: item must be an object, got", typeof item); return;
+            }
+            if (typeof item.parent !== "string" || !item.parent.trim()) {
+                console.error("[AviaMenu] submenu: item.parent must be a non-empty string, got", item.parent); return;
+            }
+            if (typeof item.id !== "string" || !item.id.trim()) {
+                console.error("[AviaMenu] submenu: item.id must be a non-empty string, got", item.id); return;
+            }
+            if (!item.name || typeof item.name !== "string") {
+                console.error("[AviaMenu] submenu failed for id '%s': item.name must be a non-empty string, got", item.id, item.name); return;
+            }
+            if (typeof item.onClick !== "function") {
+                console.error("[AviaMenu] submenu failed for id '%s': item.onClick must be a function, got", item.id, typeof item.onClick); return;
+            }
+            if (!submenuParents.find(p => p.id === item.parent.trim())) {
+                console.error("[AviaMenu] submenu: no submenuregister found with id '%s'", item.parent.trim()); return;
+            }
+            if (allIds().includes(item.id.trim())) {
+                console.error("[AviaMenu] submenu: id '%s' is already registered", item.id.trim()); return;
+            }
+            submenuItems.push({
+                parent: item.parent.trim(),
+                id: item.id.trim(),
+                name: item.name,
+                onClick: item.onClick,
+                icon: typeof item.icon === "string" && item.icon.trim() ? item.icon.trim() : null
+            });
+            if (menuEl) rebuildMenu();
+        },
+
+        updatesubmenu: function (item) {
+            if (!item || typeof item !== "object") {
+                console.error("[AviaMenu] updatesubmenu: item must be an object, got", typeof item); return;
+            }
+            if (typeof item.parent !== "string" || !item.parent.trim()) {
+                console.error("[AviaMenu] updatesubmenu: item.parent must be a non-empty string, got", item.parent); return;
+            }
+            if (typeof item.id !== "string" || !item.id.trim()) {
+                console.error("[AviaMenu] updatesubmenu: item.id must be a non-empty string, got", item.id); return;
+            }
+            const entry = submenuItems.find(i => i.parent === item.parent.trim() && i.id === item.id.trim());
+            if (!entry) {
+                console.error("[AviaMenu] updatesubmenu: no submenu item found with parent '%s' and id '%s'", item.parent.trim(), item.id.trim()); return;
+            }
+            if (typeof item.text === "string" && item.text.trim()) {
+                entry.name = item.text.trim();
+            }
+            if (typeof item.icon === "string") {
+                entry.icon = item.icon.trim() || null;
+            }
+            if (activeSubmenuEl && activeSubmenuParentBtn) {
+                const parentEntry = submenuParents.find(p => p.id === item.parent.trim());
+                if (parentEntry) openSubmenu(parentEntry, activeSubmenuParentBtn);
+            }
+        },
+
+        unregister: function (item) {
+            if (!item || typeof item.id !== "string" || !item.id.trim()) {
+                console.error("[AviaMenu] unregister: item.id must be a non-empty string, got", item?.id); return;
+            }
+            const id = item.id.trim();
+
+            const rIdx = registeredItems.findIndex(i => i.id === id);
+            if (rIdx !== -1) {
+                registeredItems.splice(rIdx, 1);
+                if (menuEl) rebuildMenu();
+                return;
+            }
+
+            const pIdx = submenuParents.findIndex(i => i.id === id);
+            if (pIdx !== -1) {
+                submenuParents.splice(pIdx, 1);
+                const children = submenuItems.filter(i => i.parent === id);
+                children.forEach(c => {
+                    const cIdx = submenuItems.findIndex(s => s.id === c.id);
+                    if (cIdx !== -1) submenuItems.splice(cIdx, 1);
+                });
+                closeSubmenu();
+                if (menuEl) rebuildMenu();
+                return;
+            }
+
+            const sIdx = submenuItems.findIndex(i => i.id === id);
+            if (sIdx !== -1) {
+                const parentId = submenuItems[sIdx].parent;
+                submenuItems.splice(sIdx, 1);
+                const remaining = submenuItems.filter(i => i.parent === parentId);
+                if (remaining.length === 0) {
+                    const pIdx2 = submenuParents.findIndex(i => i.id === parentId);
+                    if (pIdx2 !== -1) submenuParents.splice(pIdx2, 1);
+                    closeSubmenu();
+                }
+                if (menuEl) rebuildMenu();
+                return;
+            }
+
+            console.error("[AviaMenu] unregister: no item with id '%s' found", id);
+        }
+    };
+
+    function closeSubmenu() {
+        if (activeSubmenuEl) {
+            activeSubmenuEl.remove();
+            activeSubmenuEl = null;
+        }
+        activeSubmenuParentBtn = null;
+        clearTimeout(submenuHoverTimeout);
+    }
+
+    function closeMenu() {
+        closeSubmenu();
+        if (menuEl) {
+            menuEl.remove();
+            menuEl = null;
+        }
+        menuOpen = false;
+    }
+
+    function openSubmenu(parentItem, anchorBtn) {
+        if (activeSubmenuParentBtn === anchorBtn) return;
+        closeSubmenu();
+        activeSubmenuParentBtn = anchorBtn;
+
+        const items = submenuItems.filter(i => i.parent === parentItem.id);
+        if (items.length === 0) return;
+
+        const sub = document.createElement("div");
+        activeSubmenuEl = sub;
+        Object.assign(sub.style, {
+            position: "fixed",
+            zIndex: "9999999",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.4)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)",
+            overflow: "hidden",
+            minWidth: "180px",
+            display: "flex",
+            flexDirection: "column"
+        });
+
+        const subList = document.createElement("div");
+        Object.assign(subList.style, {
+            display: "flex",
+            flexDirection: "column",
+            padding: "8px",
+            boxSizing: "border-box",
+            maxHeight: (SUBMENU_MAX_VISIBLE * ITEM_HEIGHT + 16) + "px",
+            overflowY: items.length > SUBMENU_MAX_VISIBLE ? "auto" : "hidden",
+            scrollbarWidth: "none"
+        });
+
+        for (const subItem of items) {
+            const btn = document.createElement("div");
+            Object.assign(btn.style, {
+                padding: "0 12px",
+                height: ITEM_HEIGHT + "px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                fontSize: "13px",
+                fontWeight: "500",
+                color: "var(--md-sys-color-on-surface, #fff)",
+                cursor: "pointer",
+                borderRadius: "10px",
+                transition: "background 0.12s",
+                userSelect: "none",
+                flexShrink: "0"
+            });
+
+            if (subItem.icon) {
+                const iconEl = document.createElement("span");
+                iconEl.className = "material-symbols-outlined";
+                iconEl.textContent = subItem.icon;
+                iconEl.style.cssText = "font-size:20px;display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;flex-shrink:0;opacity:0.85;";
+                btn.appendChild(iconEl);
+            }
+
+            const label = document.createElement("span");
+            label.textContent = subItem.name;
+            label.style.flex = "1";
+            btn.appendChild(label);
+
+            btn.addEventListener("mouseenter", () => { btn.style.background = "rgba(255,255,255,0.07)"; });
+            btn.addEventListener("mouseleave", () => { btn.style.background = "transparent"; });
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                closeMenu();
+                try { subItem.onClick(); } catch (err) { console.error("[AviaMenu]", err); }
+            });
+
+            subList.appendChild(btn);
+        }
+
+        sub.appendChild(subList);
+        document.body.appendChild(sub);
+
+        if (items.length > SUBMENU_MAX_VISIBLE) {
+            function makeSubArrow(id, rotation) {
+                const el = document.createElement("div");
+                el.id = id;
+                Object.assign(el.style, {
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    height: "20px",
+                    pointerEvents: "none",
+                    flexShrink: "0",
+                    visibility: "hidden"
+                });
+                const icon = document.createElement("span");
+                icon.className = "material-symbols-outlined";
+                icon.textContent = "arrow_back_2";
+                icon.style.cssText = `font-size:16px;display:block;transform:rotate(${rotation}deg);color:var(--md-sys-color-on-surface,#fff);opacity:0.5;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;`;
+                el.appendChild(icon);
+                return el;
+            }
+
+            const subArrowTop = makeSubArrow("avia-submenu-scroll-top", 90);
+            const subArrowBot = makeSubArrow("avia-submenu-scroll-bot", 270);
+            subArrowBot.style.display = "none";
+            subArrowBot.style.visibility = "visible";
+
+            sub.insertBefore(subArrowTop, subList);
+            sub.insertBefore(subArrowBot, subList.nextSibling);
+
+            function updateSubArrows() {
+                const canUp = subList.scrollTop > 0;
+                const canDown = subList.scrollTop + subList.clientHeight < subList.scrollHeight - 1;
+                subArrowTop.style.visibility = canUp ? "visible" : "hidden";
+                subArrowBot.style.display = canDown ? "flex" : "none";
+            }
+
+            subList.addEventListener("scroll", updateSubArrows);
+            updateSubArrows();
+        }
+
+        const anchorRect = anchorBtn.getBoundingClientRect();
+        const subRect = sub.getBoundingClientRect();
+        let top = anchorRect.top;
+        let left = anchorRect.left - subRect.width - 6;
+
+        if (left < 8) left = anchorRect.right + 6;
+        if (top + subRect.height > window.innerHeight - 8) {
+            top = window.innerHeight - subRect.height - 8;
+        }
+
+        sub.style.top = top + "px";
+        sub.style.left = left + "px";
+
+        sub.addEventListener("mouseleave", () => {
+            submenuHoverTimeout = setTimeout(closeSubmenu, 120);
+        });
+        sub.addEventListener("mouseenter", () => {
+            clearTimeout(submenuHoverTimeout);
+        });
+    }
+
+    function rebuildMenu() {
+        if (!menuEl) return;
+        const list = menuEl.querySelector("#avia-menu-list");
+        if (!list) return;
+        list.innerHTML = "";
+
+        const sorted = getSortedMainItems();
+
+        if (sorted.length === 0) {
+            const empty = document.createElement("div");
+            empty.textContent = "No buttons registered";
+            Object.assign(empty.style, {
+                padding: "12px 16px",
+                fontSize: "13px",
+                opacity: "0.4",
+                color: "var(--md-sys-color-on-surface, #fff)",
+                userSelect: "none"
+            });
+            list.appendChild(empty);
+            list.style.maxHeight = "";
+            list.style.overflowY = "hidden";
+            list.style.scrollbarWidth = "none";
+            return;
+        }
+
+        for (const item of sorted) {
+            const isParent = submenuParents.some(p => p.id === item.id);
+            const pinned = isPinned(item.id);
+
+            const btn = document.createElement("div");
+            Object.assign(btn.style, {
+                padding: "0 12px",
+                height: ITEM_HEIGHT + "px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                fontSize: "13px",
+                fontWeight: "500",
+                color: "var(--md-sys-color-on-surface, #fff)",
+                cursor: "pointer",
+                borderRadius: "10px",
+                transition: "background 0.12s",
+                userSelect: "none",
+                flexShrink: "0",
+                position: "relative"
+            });
+
+            if (item.icon) {
+                const iconEl = document.createElement("span");
+                iconEl.className = "material-symbols-outlined";
+                iconEl.textContent = item.icon;
+                iconEl.style.cssText = "font-size:20px;display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;flex-shrink:0;opacity:0.85;";
+                btn.appendChild(iconEl);
+            }
+
+            const label = document.createElement("span");
+            label.textContent = item.name;
+            label.style.flex = "1";
+            btn.appendChild(label);
+
+            const pinBtn = document.createElement("span");
+            pinBtn.className = "material-symbols-outlined";
+            pinBtn.textContent = "push_pin";
+            Object.assign(pinBtn.style, {
+                fontSize: "14px",
+                display: "block",
+                fontVariationSettings: pinned ? "'FILL' 1,'wght' 400,'GRAD' 0" : "'FILL' 0,'wght' 400,'GRAD' 0",
+                color: pinned ? "var(--md-sys-color-primary, #cfbcff)" : "rgba(255,255,255,0.3)",
+                flexShrink: "0",
+                transition: "color 0.12s, font-variation-settings 0.12s",
+                cursor: "pointer"
+            });
+
+            pinBtn.addEventListener("mouseenter", (e) => {
+                e.stopPropagation();
+                pinBtn.style.color = pinned ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.7)";
+            });
+            pinBtn.addEventListener("mouseleave", (e) => {
+                e.stopPropagation();
+                pinBtn.style.color = pinned ? "var(--md-sys-color-primary, #cfbcff)" : "rgba(255,255,255,0.3)";
+            });
+            pinBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                if (isPinned(item.id)) unpinItem(item.id);
+                else pinItem(item.id);
+                rebuildMenu();
+            });
+
+            btn.appendChild(pinBtn);
+
+            if (isParent) {
+                const chevron = document.createElement("span");
+                chevron.className = "material-symbols-outlined";
+                chevron.textContent = "arrow_back_2";
+                chevron.style.cssText = "font-size:14px;display:block;transform:rotate(180deg);flex-shrink:0;opacity:0.5;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;";
+                btn.insertBefore(chevron, pinBtn);
+
+                btn.addEventListener("mouseenter", () => {
+                    btn.style.background = "rgba(255,255,255,0.07)";
+                    clearTimeout(submenuHoverTimeout);
+                    openSubmenu(item, btn);
+                });
+                btn.addEventListener("mouseleave", () => {
+                    btn.style.background = "transparent";
+                    submenuHoverTimeout = setTimeout(() => {
+                        if (activeSubmenuParentBtn === btn) closeSubmenu();
+                    }, 120);
+                });
+            } else {
+                btn.addEventListener("mouseenter", () => {
+                    btn.style.background = "rgba(255,255,255,0.07)";
+                    clearTimeout(submenuHoverTimeout);
+                    if (activeSubmenuEl) closeSubmenu();
+                });
+                btn.addEventListener("mouseleave", () => {
+                    btn.style.background = "transparent";
+                });
+                btn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    closeMenu();
+                    try { item.onClick(); } catch (err) { console.error("[AviaMenu]", err); }
+                });
+            }
+
+            list.appendChild(btn);
+        }
+
+        const total = sorted.length;
+        list.style.maxHeight = (MAX_VISIBLE * ITEM_HEIGHT + 16) + "px";
+        list.style.overflowY = total > MAX_VISIBLE ? "auto" : "hidden";
+        list.style.scrollbarWidth = "none";
+
+        const existingTop = menuEl.querySelector("#avia-scroll-top");
+        const existingBot = menuEl.querySelector("#avia-scroll-bot");
+        if (existingTop) existingTop.remove();
+        if (existingBot) existingBot.remove();
+
+        if (total > MAX_VISIBLE) {
+            function makeArrow(id, rotation) {
+                const el = document.createElement("div");
+                el.id = id;
+                Object.assign(el.style, {
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    height: "20px",
+                    pointerEvents: "none",
+                    flexShrink: "0",
+                    visibility: "hidden"
+                });
+                const icon = document.createElement("span");
+                icon.className = "material-symbols-outlined";
+                icon.textContent = "arrow_back_2";
+                icon.style.cssText = `font-size:16px;display:block;transform:rotate(${rotation}deg);color:var(--md-sys-color-on-surface,#fff);opacity:0.5;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;`;
+                el.appendChild(icon);
+                return el;
+            }
+
+            const arrowTop = makeArrow("avia-scroll-top", 90);
+            const arrowBot = makeArrow("avia-scroll-bot", 270);
+            arrowBot.style.display = "none";
+            arrowBot.style.visibility = "visible";
+
+            menuEl.insertBefore(arrowTop, list);
+            menuEl.insertBefore(arrowBot, list.nextSibling);
+
+            function updateArrows() {
+                const canUp = list.scrollTop > 0;
+                const canDown = list.scrollTop + list.clientHeight < list.scrollHeight - 1;
+                arrowTop.style.visibility = canUp ? "visible" : "hidden";
+                arrowBot.style.display = canDown ? "flex" : "none";
+            }
+
+            list.addEventListener("scroll", updateArrows);
+            updateArrows();
+        }
+    }
+
+    function openMenu(anchorEl) {
+        if (menuOpen) { closeMenu(); return; }
+
+        menuEl = document.createElement("div");
+        Object.assign(menuEl.style, {
+            position: "fixed",
+            zIndex: "9999999",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.4)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)",
+            overflow: "hidden",
+            minWidth: "200px",
+            display: "flex",
+            flexDirection: "column"
+        });
+
+        const list = document.createElement("div");
+        list.id = "avia-menu-list";
+        Object.assign(list.style, {
+            display: "flex",
+            flexDirection: "column",
+            padding: "8px",
+            boxSizing: "border-box"
+        });
+
+        menuEl.appendChild(list);
+        document.body.appendChild(menuEl);
+
+        rebuildMenu();
+
+        const rect = anchorEl.getBoundingClientRect();
+        const menuRect = menuEl.getBoundingClientRect();
+        let top = rect.bottom + 6;
+        let left = rect.left;
+
+        if (left + menuRect.width > window.innerWidth - 8) {
+            left = window.innerWidth - menuRect.width - 8;
+        }
+        if (top + menuRect.height > window.innerHeight - 8) {
+            top = rect.top - menuRect.height - 6;
+        }
+
+        menuEl.style.top = top + "px";
+        menuEl.style.left = left + "px";
+
+        menuOpen = true;
+
+        setTimeout(() => {
+            document.addEventListener("click", onOutsideClick, { once: true });
+        }, 0);
+    }
+
+    function onOutsideClick(e) {
+        if (menuEl && !menuEl.contains(e.target) && (!activeSubmenuEl || !activeSubmenuEl.contains(e.target))) {
+            closeMenu();
+        }
+    }
+
+    function injectToolbarButton() {
+        if (document.getElementById("avia-menu-toolbar-btn")) return;
+
+        const pinBtn = document.querySelector('button[aria-label="View pinned messages"]');
+        if (!pinBtn) return;
+
+        const btn = pinBtn.cloneNode(false);
+        btn.id = "avia-menu-toolbar-btn";
+        btn.setAttribute("aria-label", "Avia Menu");
+
+        const ripple = document.createElement("md-ripple");
+        ripple.setAttribute("aria-hidden", "true");
+        btn.appendChild(ripple);
+
+        const icon = document.createElement("span");
+        icon.className = "material-symbols-outlined";
+        icon.style.cssText = "display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;font-size:24px;";
+        icon.textContent = "apps";
+        btn.appendChild(icon);
+
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            openMenu(btn);
+        });
+
+        pinBtn.insertAdjacentElement("afterend", btn);
+    }
+
+    const observer = new MutationObserver(() => {
+        injectToolbarButton();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    injectToolbarButton();
+})();
+
+
+
+/* --- forceapperance.js --- */
+
+(function () {
+  "@preserve - Built on 2026-03-18T15:07:32.044Z";
+
+  if (window.__US_BUILDER_FORCEUSERSETTINGS_JS__) {
+    return;
+  }
+  window.__US_BUILDER_FORCEUSERSETTINGS_JS__ = true;
+
+  (function () {
+    "use strict";
+
+    if (window.__AVIA_FORCE_USER_SETTINGS__) return;
+    window.__AVIA_FORCE_USER_SETTINGS__ = true;
+
+    let userSettingsSpan = null;
+
+    function findUserSettingsSpan() {
+      if (userSettingsSpan && document.body.contains(userSettingsSpan))
+        return userSettingsSpan;
+      const spans = document.querySelectorAll("span.ov_hidden");
+      for (const s of spans) {
+        const parent = s.parentElement;
+        if (!parent) continue;
+        if (parent.id === "avia-cloned-settings") continue;
+        if (parent.querySelector("#avia-cloned-settings")) continue;
+        const svgPath = parent.querySelector("a svg path");
+        if (!svgPath) continue;
+        const d = svgPath.getAttribute("d") || "";
+        if (d.startsWith("M12 2C6.48 2")) {
+          userSettingsSpan = s;
+          return s;
+        }
+      }
+      userSettingsSpan = null;
+      return null;
+    }
+
+    function enforceUserSettingsLabel() {
+      const span = findUserSettingsSpan();
+      if (span && span.textContent !== "User Settings")
+        span.textContent = "User Settings";
+    }
+
+    const observer = new MutationObserver(() => enforceUserSettingsLabel());
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    enforceUserSettingsLabel();
+  })();
+
+  if (window.__US_BUILDER_FORCEAPPARENCE_JS__) {
+    return;
+  }
+  window.__US_BUILDER_FORCEAPPARENCE_JS__ = true;
+
+  (function () {
+    if (window.__AVIA_FORCE_APPEARANCE__) return;
+    window.__AVIA_FORCE_APPEARANCE__ = true;
+
+    function setAppearanceLabel(root = document) {
+      const links = root.querySelectorAll(
+        ".settings_sidebar .content a.button:not([id^='avia-']):not([id^='stoat-fake-'])",
+      );
+
+      links.forEach((a) => {
+        const svg = a.querySelector("svg");
+        if (!svg) return;
+
+        const path = svg.querySelector("path");
+        if (!path) return;
+
+        if (path.getAttribute("d")?.startsWith("M12 22C6.49 22")) {
+          const label = a.querySelector("div.ov_hidden");
+          if (label && label.textContent !== "Appearance") {
+            label.textContent = "Appearance";
+          }
+        }
+      });
+    }
+
+    const observer = new MutationObserver((muts) => {
+      for (const m of muts) {
+        for (const n of m.addedNodes) {
+          if (!(n instanceof HTMLElement)) continue;
+          setAppearanceLabel(n);
+        }
+      }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    setAppearanceLabel();
+  })();
+})();
+
+
 
 /* --- aviaclientcategory.js --- */
 if(window.__US_BUILDER_AVIACLIENTCATEGORY_JS__){return;}window.__US_BUILDER_AVIACLIENTCATEGORY_JS__=true;
@@ -47,1244 +795,6 @@ if(window.__US_BUILDER_AVIACLIENTCATEGORY_JS__){return;}window.__US_BUILDER_AVIA
         }).observe(document.body, { childList: true, subtree: true });
 
     inject();
-
-})();
-
-
-
-/* --- LoginWithToken.js --- */
-if(window.__US_BUILDER_LOGINWITHTOKEN_JS__){return;}window.__US_BUILDER_LOGINWITHTOKEN_JS__=true;
-
-(function () {
-  if (window.__LOGIN_WITH_TOKEN__) return;
-  window.__LOGIN_WITH_TOKEN__ = true;
-
-  async function loginWithToken(token) {
-    const res = await fetch('https://stoat.chat/api/users/@me', {
-      headers: { 'x-session-token': token }
-    });
-    if (!res.ok) throw new Error('Invalid token');
-    const user = await res.json();
-
-    const db = await new Promise((resolve, reject) => {
-      const r = indexedDB.open('localforage');
-      r.onsuccess = () => resolve(r.result);
-      r.onerror = () => reject(r.error);
-    });
-
-    const tx = db.transaction('keyvaluepairs', 'readwrite');
-    await new Promise((resolve, reject) => {
-      const r = tx.objectStore('keyvaluepairs').put({
-        session: {
-          _id: user._id,
-          token: token,
-          userId: user._id,
-          valid: true
-        }
-      }, 'auth');
-      r.onsuccess = () => resolve();
-      r.onerror = () => reject(r.error);
-    });
-
-    location.reload();
-  }
-
-  function openTokenDialog() {
-    const backdrop = document.createElement('div');
-    backdrop.className = 'top_0 left_0 right_0 bottom_0 pos_fixed z_100 max-h_100% d_grid us_none place-items_center pointer-events_all anim-n_scrimFadeIn anim-dur_0.1s anim-fm_forwards trs_var(--transitions-medium)_all p_80px ov-y_auto';
-    backdrop.style.cssText = '--background: rgba(0, 0, 0, 0.6);';
-
-    backdrop.innerHTML = `
-      <div style="opacity: 1; --motion-translateY: 0px; transform: translateY(var(--motion-translateY));">
-        <div class="p_24px min-w_280px max-w_560px bdr_28px d_flex flex-d_column c_var(--md-sys-color-on-surface) bg_var(--md-sys-color-surface-container-high)">
-          <span class="lh_2rem fs_1.5rem ls_0 fw_400 mbe_16px">Login With Token</span>
-          <div class="c_var(--md-sys-color-on-surface-variant) lh_1.25rem fs_0.875rem ls_0.015625rem fw_400">
-            <div class="d_flex flex-d_column flex-g_initial m_0 ai_initial jc_initial gap_var(--gap-md)">
-              <mdui-text-field id="lwt-token-input" variant="filled" type="password" name="token" required label="Session Token"></mdui-text-field>
-            </div>
-          </div>
-          <div class="gap_8px d_flex jc_end mbs_24px">
-            <button id="lwt-close-btn" type="button" class="lh_1.25rem fs_0.875rem ls_0.015625rem fw_400 pos_relative px_16px flex-sh_0 d_flex ai_center jc_center ff_inherit cursor_pointer bd_none trs_var(--transitions-medium)_all c_var(--color) fill_var(--color) h_40px bdr_var(--borderRadius-full) --color_var(--md-sys-color-primary)">
-              <md-ripple aria-hidden="true"></md-ripple>Close
-            </button>
-            <button id="lwt-login-btn" type="button" class="lh_1.25rem fs_0.875rem ls_0.015625rem fw_400 pos_relative px_16px flex-sh_0 d_flex ai_center jc_center ff_inherit cursor_pointer bd_none trs_var(--transitions-medium)_all c_var(--color) fill_var(--color) h_40px bdr_var(--borderRadius-full) --color_var(--md-sys-color-on-primary) bg_var(--md-sys-color-primary)">
-              <md-ripple aria-hidden="true"></md-ripple>Login
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(backdrop);
-
-    const closeBtn = backdrop.querySelector('#lwt-close-btn');
-    const loginBtn = backdrop.querySelector('#lwt-login-btn');
-    const tokenInput = backdrop.querySelector('#lwt-token-input');
-
-    function close() { backdrop.remove(); }
-
-    function setLoading(loading) {
-      loginBtn.disabled = loading;
-      loginBtn.style.cursor = loading ? 'not-allowed' : 'pointer';
-      const ripple = loginBtn.querySelector('md-ripple');
-      loginBtn.textContent = loading ? 'Logging in…' : 'Login';
-      if (ripple) loginBtn.prepend(ripple);
-    }
-
-    function setError(msg) {
-      loginBtn.disabled = false;
-      loginBtn.style.cursor = 'pointer';
-      const ripple = loginBtn.querySelector('md-ripple');
-      loginBtn.textContent = msg;
-      if (ripple) loginBtn.prepend(ripple);
-      setTimeout(() => {
-        loginBtn.textContent = 'Login';
-        if (ripple) loginBtn.prepend(ripple);
-      }, 2000);
-    }
-
-    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-    closeBtn.addEventListener('click', close);
-
-    loginBtn.addEventListener('click', async () => {
-      const token = tokenInput.value?.trim();
-      if (!token) {
-        setError('Enter a token!');
-        return;
-      }
-      setLoading(true);
-      try {
-        await loginWithToken(token);
-      } catch (err) {
-        setError('Invalid token!');
-      }
-    });
-  }
-
-  function injectLoginButton() {
-    const signUpBtn = [...document.querySelectorAll('button')]
-      .find(b => b.textContent.trim() === 'Sign Up');
-    if (!signUpBtn) return;
-
-    const parent = signUpBtn.parentElement;
-    if (parent.querySelector('[data-lwt-btn]')) return;
-
-    const clone = signUpBtn.cloneNode(false);
-    clone.dataset.lwtBtn = 'true';
-    clone.textContent = 'Login With Token';
-
-    const ripple = document.createElement('md-ripple');
-    ripple.setAttribute('aria-hidden', 'true');
-    clone.prepend(ripple);
-
-    clone.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openTokenDialog();
-    });
-
-    signUpBtn.insertAdjacentElement('afterend', clone);
-  }
-
-  let debounceTimer = null;
-  new MutationObserver(() => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(injectLoginButton, 150);
-  }).observe(document.body, { childList: true, subtree: true });
-
-  injectLoginButton();
-})();
-
-
-
-/* --- aviafavsystem.js --- */
-if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSYSTEM_JS__=true;
-
-(function () {
-    if (window.__AVIA_FAVORITES_LOADED__) return;
-    window.__AVIA_FAVORITES_LOADED__ = true;
-
-    const STORAGE_KEY = "avia_favorites";
-
-    const getFavorites = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    const setFavorites = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-    function extractYouTubeID(url) {
-        const reg = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([^&?/]+)/;
-        const match = url.match(reg);
-        return match ? match[1] : null;
-    }
-
-    function fallbackCopy(text) {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.cssText = "position:fixed;opacity:0;";
-        document.body.appendChild(ta);
-        ta.focus(); ta.select();
-        try { document.execCommand("copy"); } catch {}
-        document.body.removeChild(ta);
-    }
-
-    function updateBadge() {
-        const badge = document.getElementById("avia-favorites-badge");
-        if (!badge) return;
-        const count = getFavorites().length;
-        badge.textContent = count;
-        badge.style.display = count > 0 ? "flex" : "none";
-    }
-
-    function showToast(card, msg) {
-        const old = card.querySelector(".fav-toast");
-        if (old) old.remove();
-        const toast = document.createElement("div");
-        toast.className = "fav-toast";
-        toast.textContent = msg || "Copied!";
-        Object.assign(toast.style, {
-            position: "absolute",
-            bottom: "6px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(0,0,0,0.85)",
-            padding: "3px 8px",
-            borderRadius: "6px",
-            fontSize: "10px",
-            color: "#fff",
-            opacity: "0",
-            transition: "opacity 0.15s",
-            pointerEvents: "none",
-            whiteSpace: "nowrap",
-            zIndex: "3"
-        });
-        card.appendChild(toast);
-        requestAnimationFrame(() => toast.style.opacity = "1");
-        setTimeout(() => {
-            toast.style.opacity = "0";
-            setTimeout(() => toast.remove(), 150);
-        }, 1500);
-    }
-
-    function flashDupe(url) {
-        const card = document.querySelector(`[data-fav-url="${CSS.escape(url)}"]`);
-        if (!card) return;
-        card.style.outline = "2px solid rgba(255,80,80,0.9)";
-        setTimeout(() => { card.style.outline = ""; }, 700);
-        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-
-    function buildCard(item, onRemove) {
-        const card = document.createElement("div");
-        card.dataset.favUrl = item.url;
-        Object.assign(card.style, {
-            position: "relative",
-            width: "90px",
-            height: "90px",
-            borderRadius: "12px",
-            overflow: "hidden",
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            cursor: "pointer",
-            flexShrink: "0",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "border-color 0.2s, transform 0.15s"
-        });
-
-        const removeBtn = document.createElement("div");
-        removeBtn.textContent = "✕";
-        Object.assign(removeBtn.style, {
-            position: "absolute",
-            top: "4px",
-            right: "5px",
-            fontSize: "10px",
-            cursor: "pointer",
-            background: "rgba(0,0,0,0.7)",
-            color: "#fff",
-            padding: "1px 4px",
-            borderRadius: "4px",
-            zIndex: "2",
-            opacity: "0",
-            transition: "opacity 0.15s"
-        });
-        removeBtn.onclick = e => {
-            e.stopPropagation();
-            onRemove(item.url);
-        };
-        card.appendChild(removeBtn);
-
-        card.addEventListener("mouseenter", () => {
-            card.style.borderColor = "rgba(255,255,255,0.25)";
-            card.style.transform = "scale(1.04)";
-            removeBtn.style.opacity = "1";
-        });
-        card.addEventListener("mouseleave", () => {
-            card.style.borderColor = "rgba(255,255,255,0.08)";
-            card.style.transform = "scale(1)";
-            removeBtn.style.opacity = "0";
-        });
-
-        const ytID = extractYouTubeID(item.url);
-        if (ytID) {
-            const img = new Image();
-            img.draggable = false;
-            img.src = `https://img.youtube.com/vi/${ytID}/hqdefault.jpg`;
-            Object.assign(img.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
-            img.onerror = () => fallback();
-            card.appendChild(img);
-        } else {
-            const ext = item.url.split(".").pop().split("?")[0].toLowerCase();
-            const isVideo = ["mp4", "webm", "mov", "gifv"].includes(ext);
-
-            if (isVideo) {
-                const video = document.createElement("video");
-                video.src = item.url.replace(".gifv", ".mp4");
-                video.autoplay = true; video.loop = true;
-                video.muted = true; video.playsInline = true;
-                video.draggable = false;
-                Object.assign(video.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
-                video.onerror = () => fallback();
-                card.appendChild(video);
-            } else {
-                const img = new Image();
-                img.draggable = false;
-                img.src = item.url;
-                Object.assign(img.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
-                img.onerror = () => fallback();
-                card.appendChild(img);
-            }
-        }
-
-        function fallback() {
-            [...card.children].forEach(c => { if (c !== removeBtn) c.remove(); });
-            const inner = document.createElement("div");
-            Object.assign(inner.style, {
-                display: "flex", flexDirection: "column", alignItems: "center",
-                justifyContent: "center", gap: "4px", padding: "6px",
-                width: "100%", height: "100%", boxSizing: "border-box", pointerEvents: "none"
-            });
-            const icon = document.createElement("span");
-            icon.className = "material-symbols-outlined";
-            icon.textContent = "link";
-            icon.style.cssText = "font-size:20px;opacity:0.35;color:#fff;display:block;";
-            inner.appendChild(icon);
-            const label = document.createElement("div");
-            if (item.title) {
-                label.textContent = item.title;
-            } else {
-                try { label.textContent = new URL(item.url).hostname.replace("www.", ""); } catch { label.textContent = "link"; }
-            }
-            Object.assign(label.style, {
-                fontSize: "9px", color: "#fff", opacity: "0.55",
-                textAlign: "center", wordBreak: "break-word", overflow: "hidden",
-                maxHeight: "36px", lineHeight: "1.3", padding: "0 4px"
-            });
-            inner.appendChild(label);
-            card.appendChild(inner);
-        }
-
-        if (item.title) {
-            const titleOverlay = document.createElement("div");
-            titleOverlay.textContent = item.title;
-            Object.assign(titleOverlay.style, {
-                position: "absolute",
-                bottom: "0",
-                width: "100%",
-                background: "rgba(0,0,0,0.6)",
-                fontSize: "11px",
-                padding: "4px",
-                textAlign: "center",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                zIndex: "1",
-                pointerEvents: "none"
-            });
-            card.appendChild(titleOverlay);
-        }
-
-        card.addEventListener("click", () => {
-            const done = () => showToast(card, "Copied!");
-            if (navigator.clipboard?.writeText) {
-                navigator.clipboard.writeText(item.url).then(done).catch(() => { fallbackCopy(item.url); done(); });
-            } else {
-                fallbackCopy(item.url); done();
-            }
-        });
-
-        return card;
-    }
-
-    function toggleFavoritesPanel() {
-        let panel = document.getElementById("avia-favorites-panel");
-        if (panel) {
-            const isHidden = panel.style.display === "none";
-            panel.style.display = isHidden ? "flex" : "none";
-            if (isHidden) renderGrid();
-            return;
-        }
-
-        panel = document.createElement("div");
-        panel.id = "avia-favorites-panel";
-        Object.assign(panel.style, {
-            position: "fixed",
-            bottom: "24px",
-            right: "40px",
-            width: "460px",
-            height: "400px",
-            background: "var(--md-sys-color-surface, #141418)",
-            color: "var(--md-sys-color-on-surface, #fff)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-            zIndex: "999999",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(16px)"
-        });
-
-        const header = document.createElement("div");
-        Object.assign(header.style, {
-            padding: "13px 16px",
-            fontWeight: "600",
-            fontSize: "14px",
-            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            cursor: "move",
-            userSelect: "none",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            flexShrink: "0"
-        });
-
-        const headerIcon = document.createElement("span");
-        headerIcon.className = "material-symbols-outlined";
-        headerIcon.textContent = "star";
-        headerIcon.style.cssText = "font-size:18px;opacity:0.7;display:block;font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0;";
-        header.appendChild(headerIcon);
-
-        const headerTitle = document.createElement("span");
-        headerTitle.textContent = "Favorites";
-        header.appendChild(headerTitle);
-
-        const closeBtn = document.createElement("div");
-        closeBtn.textContent = "✕";
-        Object.assign(closeBtn.style, {
-            marginLeft: "auto", cursor: "pointer", opacity: "0.5",
-            fontSize: "13px", lineHeight: "1"
-        });
-        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
-        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.5";
-        closeBtn.onclick = () => panel.style.display = "none";
-        header.appendChild(closeBtn);
-
-        const inputRow = document.createElement("div");
-        Object.assign(inputRow.style, {
-            padding: "10px 14px", display: "flex", gap: "6px",
-            alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.06)",
-            flexShrink: "0"
-        });
-
-        const urlInput = document.createElement("input");
-        urlInput.placeholder = "Paste a link...";
-        Object.assign(urlInput.style, {
-            flex: "1", padding: "7px 10px", borderRadius: "8px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(255,255,255,0.05)",
-            color: "var(--md-sys-color-on-surface, #fff)",
-            fontSize: "12px", outline: "none", minWidth: "0"
-        });
-
-        const titleInput = document.createElement("input");
-        titleInput.placeholder = "Title (optional)";
-        Object.assign(titleInput.style, {
-            width: "110px", flexShrink: "0", padding: "7px 10px",
-            borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(255,255,255,0.05)",
-            color: "var(--md-sys-color-on-surface, #fff)",
-            fontSize: "12px", outline: "none"
-        });
-
-        const addBtn = document.createElement("button");
-        addBtn.textContent = "Add";
-        Object.assign(addBtn.style, {
-            padding: "7px 14px", borderRadius: "8px", border: "none",
-            background: "var(--md-sys-color-primary, rgba(255,255,255,0.15))",
-            color: "var(--md-sys-color-on-primary, #fff)",
-            fontSize: "12px", fontWeight: "600", cursor: "pointer",
-            flexShrink: "0", transition: "opacity 0.15s"
-        });
-        addBtn.onmouseenter = () => addBtn.style.opacity = "0.8";
-        addBtn.onmouseleave = () => addBtn.style.opacity = "1";
-
-        inputRow.appendChild(urlInput);
-        inputRow.appendChild(titleInput);
-        inputRow.appendChild(addBtn);
-
-        const gridWrapper = document.createElement("div");
-        Object.assign(gridWrapper.style, {
-            flex: "1", minHeight: "0", overflowY: "auto",
-            padding: "14px", boxSizing: "border-box"
-        });
-
-        const grid = document.createElement("div");
-        grid.id = "avia-favorites-grid";
-        Object.assign(grid.style, {
-            display: "flex", flexWrap: "wrap", gap: "10px", alignContent: "start"
-        });
-
-        gridWrapper.appendChild(grid);
-        panel.appendChild(header);
-        panel.appendChild(inputRow);
-        panel.appendChild(gridWrapper);
-        document.body.appendChild(panel);
-
-        let isPanelDragging = false, pOffsetX, pOffsetY;
-        header.addEventListener("mousedown", e => {
-            isPanelDragging = true;
-            const rect = panel.getBoundingClientRect();
-            pOffsetX = e.clientX - rect.left;
-            pOffsetY = e.clientY - rect.top;
-            panel.style.bottom = "auto"; panel.style.right = "auto";
-            panel.style.left = rect.left + "px"; panel.style.top = rect.top + "px";
-            document.body.style.userSelect = "none";
-        });
-        document.addEventListener("mouseup", () => {
-            isPanelDragging = false;
-            document.body.style.userSelect = "";
-        });
-        document.addEventListener("mousemove", e => {
-            if (!isPanelDragging) return;
-            panel.style.left = (e.clientX - pOffsetX) + "px";
-            panel.style.top = (e.clientY - pOffsetY) + "px";
-        });
-
-        function tryAdd() {
-            const url = urlInput.value.trim();
-            const title = titleInput.value.trim();
-            if (!url) return;
-            const favs = getFavorites();
-            if (favs.some(f => f.url === url)) { flashDupe(url); return; }
-            favs.push({ url, title, addedAt: Date.now() });
-            setFavorites(favs);
-            urlInput.value = ""; titleInput.value = "";
-            updateBadge(); renderGrid();
-        }
-
-        addBtn.onclick = tryAdd;
-        urlInput.addEventListener("keydown", e => { if (e.key === "Enter") tryAdd(); });
-        titleInput.addEventListener("keydown", e => { if (e.key === "Enter") tryAdd(); });
-
-        renderGrid();
-    }
-
-    function renderGrid() {
-        const grid = document.getElementById("avia-favorites-grid");
-        if (!grid) return;
-        grid.innerHTML = "";
-
-        const favs = getFavorites();
-
-        if (favs.length === 0) {
-            const empty = document.createElement("div");
-            Object.assign(empty.style, {
-                width: "100%", padding: "24px 0", textAlign: "center",
-                opacity: "0.35", fontSize: "13px",
-                color: "var(--md-sys-color-on-surface, #fff)"
-            });
-            const emptyIcon = document.createElement("span");
-            emptyIcon.className = "material-symbols-outlined";
-            emptyIcon.textContent = "star_border";
-            emptyIcon.style.cssText = "display:block;font-size:32px;margin-bottom:6px;";
-            empty.appendChild(emptyIcon);
-            const emptyText = document.createElement("div");
-            emptyText.textContent = "No favorites yet";
-            empty.appendChild(emptyText);
-            grid.appendChild(empty);
-            return;
-        }
-
-        const onRemove = (url) => {
-            setFavorites(getFavorites().filter(f => f.url !== url));
-            updateBadge();
-            renderGrid();
-        };
-
-        favs.forEach(item => grid.insertBefore(buildCard(item, onRemove), grid.firstChild));
-    }
-
-    function injectButton() {
-        if (document.getElementById("avia-favorites-btn")) return;
-        const gifSpan = [...document.querySelectorAll("span.material-symbols-outlined")]
-            .find(s => s.textContent.trim() === "gif");
-        if (!gifSpan) return;
-        const wrapper = gifSpan.closest("div.flex-sh_0");
-        if (!wrapper) return;
-        const clone = wrapper.cloneNode(true);
-        clone.id = "avia-favorites-btn";
-        clone.style.position = "relative";
-
-        const btn = clone.querySelector("button");
-        btn.onclick = toggleFavoritesPanel;
-
-        btn.style.position = "relative";
-
-        clone.querySelector("span.material-symbols-outlined").textContent = "star";
-
-        const badge = document.createElement("div");
-        badge.id = "avia-favorites-badge";
-        Object.assign(badge.style, {
-            position: "absolute",
-            top: "2px",
-            right: "2px",
-            background: "var(--md-sys-color-primary, #6750a4)",
-            color: "var(--md-sys-color-on-primary, #fff)",
-            borderRadius: "99px",
-            fontSize: "9px",
-            fontWeight: "700",
-            minWidth: "14px",
-            height: "14px",
-            display: "none",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "0 3px",
-            pointerEvents: "none",
-            zIndex: "1"
-        });
-
-        btn.appendChild(badge);
-
-        wrapper.parentElement.insertBefore(clone, wrapper.nextSibling);
-        updateBadge();
-    }
-
-    new MutationObserver(injectButton).observe(document.body, { childList: true, subtree: true });
-    injectButton();
-})();
-
-
-
-/* --- LocalPlugins.js --- */
-if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGINS_JS__=true;
-
-(function () {
-
-    if (window.__AVIA_LOCAL_PLUGINS_LOADED__) return;
-    window.__AVIA_LOCAL_PLUGINS_LOADED__ = true;
-
-    const STORAGE_KEY = "avia_local_plugins";
-
-    const runningLocalPlugins = {};
-    const localPluginErrors = {};
-
-    const getLocalPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    const setLocalPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-    function preloadMonaco() {
-        return new Promise(resolve => {
-            if (window.monaco) return resolve();
-            const loader = document.createElement("script");
-            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js";
-            loader.onload = function () {
-                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
-                require(["vs/editor/editor.main"], () => resolve());
-            };
-            document.head.appendChild(loader);
-        });
-    }
-
-    function runLocalPlugin(plugin) {
-        stopLocalPlugin(plugin);
-        try {
-            const script = document.createElement("script");
-            script.textContent = plugin.code || "";
-            script.dataset.localPluginId = plugin.id;
-            document.body.appendChild(script);
-            runningLocalPlugins[plugin.id] = script;
-            delete localPluginErrors[plugin.id];
-        } catch (e) {
-            localPluginErrors[plugin.id] = true;
-        }
-        renderLocalPanel();
-    }
-
-    function stopLocalPlugin(plugin) {
-        const script = runningLocalPlugins[plugin.id];
-        if (!script) return;
-        script.remove();
-        delete runningLocalPlugins[plugin.id];
-        delete localPluginErrors[plugin.id];
-        renderLocalPanel();
-    }
-
-    async function openEditorPanel(plugin, onSave) {
-        await preloadMonaco();
-
-        const existing = document.getElementById("avia-local-editor-panel");
-        if (existing) existing.remove();
-
-        const panel = document.createElement("div");
-        panel.id = "avia-local-editor-panel";
-        Object.assign(panel.style, {
-            position: "fixed",
-            bottom: "24px",
-            left: "24px",
-            width: "680px",
-            height: "460px",
-            background: "var(--md-sys-color-surface, #1e1e1e)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
-            zIndex: "9999999",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(12px)"
-        });
-
-        const header = document.createElement("div");
-        header.textContent = `Editing: ${plugin.name}`;
-        Object.assign(header.style, {
-            padding: "14px 16px",
-            fontWeight: "600",
-            fontSize: "14px",
-            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            cursor: "move",
-            color: "#fff",
-            flex: "0 0 auto"
-        });
-
-        const closeBtn = document.createElement("div");
-        closeBtn.textContent = "✕";
-        Object.assign(closeBtn.style, {
-            position: "absolute",
-            top: "12px",
-            right: "16px",
-            cursor: "pointer",
-            opacity: "0.7",
-            color: "#fff",
-            zIndex: "1"
-        });
-        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
-        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.7";
-        closeBtn.onclick = () => panel.remove();
-
-        const toolbar = document.createElement("div");
-        Object.assign(toolbar.style, {
-            padding: "8px 16px",
-            display: "flex",
-            gap: "8px",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            flex: "0 0 auto"
-        });
-
-        const saveBtn = document.createElement("button");
-        saveBtn.textContent = "💾 Save";
-        styleEditorBtn(saveBtn, "#2d6a4f");
-
-        const saveRunBtn = document.createElement("button");
-        saveRunBtn.textContent = "▶ Save & Run";
-        styleEditorBtn(saveRunBtn, "#1b4332");
-
-        toolbar.appendChild(saveBtn);
-        toolbar.appendChild(saveRunBtn);
-
-        const editorContainer = document.createElement("div");
-        editorContainer.style.flex = "1";
-
-        panel.appendChild(header);
-        panel.appendChild(closeBtn);
-        panel.appendChild(toolbar);
-        panel.appendChild(editorContainer);
-        document.body.appendChild(panel);
-
-        const editor = monaco.editor.create(editorContainer, {
-            value: plugin.code || "// Write your plugin code here\n",
-            language: "javascript",
-            theme: "vs-dark",
-            automaticLayout: true,
-            minimap: { enabled: false },
-            fontSize: 13,
-            scrollBeyondLastLine: false,
-            wordWrap: "on"
-        });
-
-        saveBtn.onclick = () => {
-            onSave(editor.getValue(), false);
-            saveBtn.textContent = "✓ Saved";
-            setTimeout(() => saveBtn.textContent = "💾 Save", 1200);
-        };
-
-        saveRunBtn.onclick = () => {
-            onSave(editor.getValue(), true);
-            saveRunBtn.textContent = "✓ Ran!";
-            setTimeout(() => saveRunBtn.textContent = "▶ Save & Run", 1200);
-        };
-
-        enableEditorDrag(panel, header);
-    }
-
-    function styleEditorBtn(btn, bg) {
-        Object.assign(btn.style, {
-            padding: "5px 14px",
-            borderRadius: "8px",
-            border: "none",
-            background: bg || "rgba(255,255,255,0.1)",
-            color: "#fff",
-            cursor: "pointer",
-            fontSize: "12px",
-            fontWeight: "500"
-        });
-        btn.onmouseenter = () => btn.style.opacity = "0.8";
-        btn.onmouseleave = () => btn.style.opacity = "1";
-    }
-
-    function enableEditorDrag(panel, handle) {
-        let isDragging = false, offsetX, offsetY;
-        handle.addEventListener("mousedown", e => {
-            isDragging = true;
-            offsetX = e.clientX - panel.offsetLeft;
-            offsetY = e.clientY - panel.offsetTop;
-            document.body.style.userSelect = "none";
-        });
-        document.addEventListener("mouseup", () => {
-            isDragging = false;
-            document.body.style.userSelect = "";
-        });
-        document.addEventListener("mousemove", e => {
-            if (!isDragging) return;
-            panel.style.left = (e.clientX - offsetX) + "px";
-            panel.style.top = (e.clientY - offsetY) + "px";
-            panel.style.right = "auto";
-            panel.style.bottom = "auto";
-        });
-    }
-
-    function toggleLocalPanel() {
-        let panel = document.getElementById("avia-local-plugins-panel");
-        if (panel) {
-            panel.style.display = panel.style.display === "none" ? "flex" : "none";
-            return;
-        }
-
-        panel = document.createElement("div");
-        panel.id = "avia-local-plugins-panel";
-        Object.assign(panel.style, {
-            position: "fixed",
-            bottom: "24px",
-            right: "560px",
-            width: "520px",
-            height: "460px",
-            background: "var(--md-sys-color-surface, #1e1e1e)",
-            color: "var(--md-sys-color-on-surface, #fff)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
-            zIndex: "999999",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(12px)"
-        });
-
-        const header = document.createElement("div");
-        header.textContent = "Local Plugins";
-        Object.assign(header.style, {
-            padding: "14px 16px",
-            fontWeight: "600",
-            fontSize: "14px",
-            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            cursor: "move"
-        });
-
-        const closeBtn = document.createElement("div");
-        closeBtn.textContent = "✕";
-        Object.assign(closeBtn.style, {
-            position: "absolute",
-            top: "12px",
-            right: "16px",
-            cursor: "pointer",
-            opacity: "0.7"
-        });
-        closeBtn.onclick = () => panel.style.display = "none";
-
-        const controlsBar = document.createElement("div");
-        Object.assign(controlsBar.style, {
-            padding: "12px 16px",
-            display: "flex",
-            gap: "8px",
-            alignItems: "center",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            flex: "0 0 auto"
-        });
-
-        const nameInput = document.createElement("input");
-        nameInput.placeholder = "Plugin name";
-        styleLocalInput(nameInput);
-        nameInput.style.flex = "1";
-
-        const addBtn = document.createElement("button");
-        addBtn.textContent = "+ New";
-        styleLocalBtn(addBtn);
-        addBtn.onclick = () => {
-            const name = nameInput.value.trim();
-            if (!name) return;
-            const plugins = getLocalPlugins();
-            const newPlugin = {
-                id: "local_" + Date.now(),
-                name,
-                code: "// " + name + "\n",
-                enabled: false
-            };
-            plugins.push(newPlugin);
-            setLocalPlugins(plugins);
-            nameInput.value = "";
-            renderLocalPanel();
-        };
-
-        const importBtn = document.createElement("button");
-        importBtn.textContent = "Import";
-        styleLocalBtn(importBtn, "#2d6a4f");
-        importBtn.onmouseenter = () => importBtn.style.opacity = "0.75";
-        importBtn.onmouseleave = () => importBtn.style.opacity = "1";
-
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept = ".js";
-        fileInput.multiple = true;
-        fileInput.style.display = "none";
-
-        importBtn.onclick = () => fileInput.click();
-
-        fileInput.onchange = async () => {
-            const files = [...fileInput.files];
-            if (!files.length) return;
-
-            const plugins = getLocalPlugins();
-
-            for (const file of files) {
-                const text = await file.text();
-                const name = file.name.replace(/\.js$/i, "");
-                plugins.push({
-                    id: "local_" + Date.now() + "_" + Math.random(),
-                    name,
-                    code: text,
-                    enabled: false
-                });
-            }
-
-            setLocalPlugins(plugins);
-            fileInput.value = "";
-            renderLocalPanel();
-        };
-
-        controlsBar.appendChild(nameInput);
-        controlsBar.appendChild(addBtn);
-        controlsBar.appendChild(importBtn);
-        controlsBar.appendChild(fileInput);
-
-        const content = document.createElement("div");
-        content.id = "avia-local-plugins-content";
-        Object.assign(content.style, {
-            flex: "1",
-            overflow: "auto",
-            padding: "16px"
-        });
-
-        panel.appendChild(header);
-        panel.appendChild(closeBtn);
-        panel.appendChild(controlsBar);
-        panel.appendChild(content);
-        document.body.appendChild(panel);
-
-        const dropOverlay = document.createElement("div");
-        dropOverlay.textContent = "Import JS files";
-        Object.assign(dropOverlay.style, {
-            position: "absolute",
-            inset: "0",
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "18px",
-            fontWeight: "600",
-            color: "#fff",
-            opacity: "0",
-            pointerEvents: "none",
-            transition: "opacity 0.15s ease",
-            borderRadius: "16px"
-        });
-        panel.appendChild(dropOverlay);
-
-        let dragDepth = 0;
-
-        panel.addEventListener("dragenter", e => {
-            e.preventDefault();
-            e.stopPropagation();
-            dragDepth++;
-            dropOverlay.style.opacity = "1";
-            panel.style.border = "1px dashed rgba(255,255,255,0.4)";
-        });
-
-        panel.addEventListener("dragover", e => {
-            e.preventDefault();
-            e.stopPropagation();
-        });
-
-        panel.addEventListener("dragleave", e => {
-            e.preventDefault();
-            e.stopPropagation();
-            dragDepth--;
-            if (dragDepth <= 0) {
-                dropOverlay.style.opacity = "0";
-                panel.style.border = "1px solid rgba(255,255,255,0.08)";
-                dragDepth = 0;
-            }
-        });
-
-        panel.addEventListener("drop", async e => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            dropOverlay.style.opacity = "0";
-            panel.style.border = "1px solid rgba(255,255,255,0.08)";
-            dragDepth = 0;
-
-            const files = [...e.dataTransfer.files].filter(f => f.name.endsWith(".js"));
-            if (!files.length) return;
-
-            const plugins = getLocalPlugins();
-
-            for (const file of files) {
-                const text = await file.text();
-                const name = file.name.replace(/\.js$/i, "");
-                plugins.push({
-                    id: "local_" + Date.now() + "_" + Math.random(),
-                    name,
-                    code: text,
-                    enabled: false
-                });
-            }
-
-            setLocalPlugins(plugins);
-            renderLocalPanel();
-        });
-
-        let isDragging = false, offsetX, offsetY;
-        header.addEventListener("mousedown", e => {
-            isDragging = true;
-            offsetX = e.clientX - panel.offsetLeft;
-            offsetY = e.clientY - panel.offsetTop;
-        });
-        document.addEventListener("mouseup", () => isDragging = false);
-        document.addEventListener("mousemove", e => {
-            if (!isDragging) return;
-            panel.style.left = (e.clientX - offsetX) + "px";
-            panel.style.top = (e.clientY - offsetY) + "px";
-            panel.style.right = "auto";
-            panel.style.bottom = "auto";
-        });
-
-        renderLocalPanel();
-    }
-
-    function renderLocalPanel() {
-        const content = document.getElementById("avia-local-plugins-content");
-        if (!content) return;
-        content.innerHTML = "";
-        const plugins = getLocalPlugins();
-
-        if (plugins.length === 0) {
-            const empty = document.createElement("div");
-            empty.textContent = "No local plugins yet. Add one above.";
-            empty.style.opacity = "0.4";
-            empty.style.fontSize = "13px";
-            content.appendChild(empty);
-            return;
-        }
-
-        plugins.forEach((plugin, index) => {
-            const isRunning = !!runningLocalPlugins[plugin.id];
-            const hasError = !!localPluginErrors[plugin.id];
-
-            const row = document.createElement("div");
-            Object.assign(row.style, {
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "12px",
-                padding: "10px 12px",
-                borderRadius: "10px",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.06)"
-            });
-
-            const left = document.createElement("div");
-            Object.assign(left.style, { display: "flex", alignItems: "center", gap: "10px" });
-
-            const statusDot = document.createElement("div");
-            Object.assign(statusDot.style, { width: "10px", height: "10px", borderRadius: "50%", flexShrink: "0" });
-            if (hasError) {
-                statusDot.style.background = "#ff4d4d";
-                statusDot.style.boxShadow = "0 0 6px #ff4d4d";
-            } else if (isRunning) {
-                statusDot.style.background = "#4dff88";
-                statusDot.style.boxShadow = "0 0 6px #4dff88";
-            } else {
-                statusDot.style.background = "#777";
-            }
-
-            const name = document.createElement("div");
-            name.textContent = plugin.name;
-            name.style.fontSize = "13px";
-
-            left.appendChild(statusDot);
-            left.appendChild(name);
-
-            const controls = document.createElement("div");
-            Object.assign(controls.style, { display: "flex", gap: "6px" });
-
-            const editBtn = document.createElement("button");
-            editBtn.textContent = "✏ Edit";
-            styleLocalBtn(editBtn, "rgba(100,140,255,0.2)");
-            editBtn.onclick = () => {
-                openEditorPanel(plugin, (newCode, andRun) => {
-                    const all = getLocalPlugins();
-                    const target = all.find(p => p.id === plugin.id);
-                    if (target) {
-                        target.code = newCode;
-                        plugin.code = newCode;
-                        setLocalPlugins(all);
-                    }
-                    if (andRun) {
-                        plugin.enabled = true;
-                        if (target) target.enabled = true;
-                        setLocalPlugins(getLocalPlugins().map(p => p.id === plugin.id ? { ...p, code: newCode, enabled: true } : p));
-                        runLocalPlugin(plugin);
-                    }
-                    renderLocalPanel();
-                });
-            };
-
-            const toggleBtn = document.createElement("button");
-            toggleBtn.textContent = plugin.enabled ? "Disable" : "Enable";
-            styleLocalBtn(toggleBtn);
-            toggleBtn.onclick = () => {
-                const all = getLocalPlugins();
-                const target = all.find(p => p.id === plugin.id);
-                if (!target) return;
-                target.enabled = !target.enabled;
-                plugin.enabled = target.enabled;
-                setLocalPlugins(all);
-                if (target.enabled) runLocalPlugin(plugin);
-                else stopLocalPlugin(plugin);
-                renderLocalPanel();
-            };
-
-            const removeBtn = document.createElement("button");
-            removeBtn.textContent = "✕";
-            styleLocalBtn(removeBtn, "rgba(255,80,80,0.15)");
-            removeBtn.onclick = () => {
-                stopLocalPlugin(plugin);
-                const editorPanel = document.getElementById("avia-local-editor-panel");
-                if (editorPanel) editorPanel.remove();
-                const all = getLocalPlugins();
-                all.splice(all.findIndex(p => p.id === plugin.id), 1);
-                setLocalPlugins(all);
-                renderLocalPanel();
-            };
-
-            controls.appendChild(editBtn);
-            controls.appendChild(toggleBtn);
-            controls.appendChild(removeBtn);
-            row.appendChild(left);
-            row.appendChild(controls);
-            content.appendChild(row);
-        });
-    }
-
-    function styleLocalInput(input) {
-        Object.assign(input.style, {
-            padding: "6px 8px",
-            borderRadius: "8px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(255,255,255,0.05)",
-            color: "#fff",
-            fontSize: "13px"
-        });
-    }
-
-    function styleLocalBtn(btn, bg) {
-        Object.assign(btn.style, {
-            padding: "5px 12px",
-            borderRadius: "8px",
-            border: "none",
-            background: bg || "rgba(255,255,255,0.08)",
-            color: "#fff",
-            cursor: "pointer",
-            fontSize: "12px",
-            whiteSpace: "nowrap"
-        });
-        btn.onmouseenter = () => btn.style.opacity = "0.75";
-        btn.onmouseleave = () => btn.style.opacity = "1";
-    }
-
-    function injectLocalButton() {
-        if (document.getElementById("avia-local-plugins-btn")) return;
-        const appearanceBtn = [...document.querySelectorAll("a")]
-            .find(a => a.textContent.trim() === "Appearance");
-        if (!appearanceBtn) return;
-
-        const aviaPluginsBtn = document.getElementById("stoat-fake-plugins");
-        if (!aviaPluginsBtn) return;
-
-        const localBtn = appearanceBtn.cloneNode(true);
-        localBtn.id = "avia-local-plugins-btn";
-
-        const textNode = [...localBtn.querySelectorAll("div")]
-            .find(d => d.children.length === 0 && d.textContent.trim() === "Appearance");
-        if (textNode) textNode.textContent = "(Avia) Local Plugins";
-
-        const oldSvg = localBtn.querySelector("svg");
-        if (oldSvg) oldSvg.remove();
-        const svgNS = "http://www.w3.org/2000/svg";
-        const svg = document.createElementNS(svgNS, "svg");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("width", "20");
-        svg.setAttribute("height", "20");
-        svg.setAttribute("fill", "currentColor");
-        svg.style.marginRight = "8px";
-        const path = document.createElementNS(svgNS, "path");
-
-        path.setAttribute("d", "M20.5 11H19V7a2 2 0 00-2-2h-4V3.5a2.5 2.5 0 00-5 0V5H4a2 2 0 00-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 002 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7V22H17a2 2 0 002-2v-4h1.5a2.5 2.5 0 000-5z");
-        svg.appendChild(path);
-        localBtn.insertBefore(svg, localBtn.firstChild);
-
-        localBtn.addEventListener("click", toggleLocalPanel);
-        aviaPluginsBtn.parentElement.insertBefore(localBtn, aviaPluginsBtn.nextSibling);
-    }
-
-    function waitForBody(callback) {
-        if (document.body) callback();
-        else new MutationObserver((obs) => {
-            if (document.body) { obs.disconnect(); callback(); }
-        }).observe(document.documentElement, { childList: true });
-    }
-
-    waitForBody(() => {
-        const observer = new MutationObserver(() => injectLocalButton());
-        observer.observe(document.body, { childList: true, subtree: true });
-        injectLocalButton();
-    });
-
-    getLocalPlugins().forEach(plugin => {
-        if (plugin.enabled) runLocalPlugin(plugin);
-    });
-
-    preloadMonaco();
 
 })();
 
@@ -1877,6 +1387,21 @@ if(window.__US_BUILDER_INJECT_JS__){return;}window.__US_BUILDER_INJECT_JS__=true
         }).observe(document.documentElement, { childList: true });
     }
 
+    function registerWithAviaMenu() {
+        if (window.AviaMenu) {
+            window.AviaMenu.register({ id: "avia_fontloader", name: "Font Loader", icon: "upload", onClick: showFontLoaderModal });
+            window.AviaMenu.register({ id: "avia_quickcss", name: "QuickCSS", icon: "code", onClick: toggleQuickCSSPanel });
+        } else {
+            const interval = setInterval(() => {
+                if (window.AviaMenu) {
+                    clearInterval(interval);
+                    window.AviaMenu.register({ id: "avia_fontloader", name: "Font Loader", icon: "upload", onClick: showFontLoaderModal });
+                    window.AviaMenu.register({ id: "avia_quickcss", name: "QuickCSS", icon: "code", onClick: toggleQuickCSSPanel });
+                }
+            }, 100);
+        }
+    }
+
     waitForBody(() => {
         const observer = new MutationObserver(() => injectButtons());
         observer.observe(document.body, { childList: true, subtree: true });
@@ -1884,8 +1409,10 @@ if(window.__US_BUILDER_INJECT_JS__){return;}window.__US_BUILDER_INJECT_JS__=true
     });
 
     preloadMonaco();
+    registerWithAviaMenu();
 
 })();
+
 
 
 /* --- repofrontend.js --- */
@@ -1893,8 +1420,8 @@ if(window.__US_BUILDER_REPOFRONTEND_JS__){return;}window.__US_BUILDER_REPOFRONTE
 
 (function () {
 
-    if (window.__AVIA_OFFICIAL_REPO__) return;
-    window.__AVIA_OFFICIAL_REPO__ = true;
+    if (window.__AVIA_OFFICIAL_REPO_LOADED__) return;
+    window.__AVIA_OFFICIAL_REPO_LOADED__ = true;
 
     const STORAGE_KEY = "avia_plugins";
     const OFFICIAL_REPO_URL = "https://raw.githubusercontent.com/AvaLilac/PluginRepo/refs/heads/main/pluginrepobackend.js";
@@ -2038,7 +1565,6 @@ if(window.__US_BUILDER_REPOFRONTEND_JS__){return;}window.__US_BUILDER_REPOFRONTE
                 border-color: rgba(255,255,255,0.2);
                 background: rgba(255,255,255,0.07);
             }
-
             .avia-repo-count {
                 font-size: 10px;
                 font-weight: 500;
@@ -2080,15 +1606,59 @@ if(window.__US_BUILDER_REPOFRONTEND_JS__){return;}window.__US_BUILDER_REPOFRONTE
     }
 
     function rawUrlFromLink(link) {
+        try {
+            const u = new URL(link);
 
-        const ghBlob = link.match(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/blob\/(.+)$/);
-        if (ghBlob) return `https://raw.githubusercontent.com/${ghBlob[1]}/${ghBlob[2]}`;
+            if (u.hostname === "github.com") {
+                const m = u.pathname.match(/^\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
+                if (m) {
+                    return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`;
+                }
+                return link;
+            }
 
-        if (link.includes("raw.githubusercontent.com")) return link;
+            if (u.hostname === "raw.githubusercontent.com") return link;
 
-        const cbSrc = link.match(/^(https:\/\/codeberg\.org\/[^/]+\/[^/]+)\/src\/branch\/([^/]+)\/(.+)$/);
-        if (cbSrc) return `${cbSrc[1]}/raw/branch/${cbSrc[2]}/${cbSrc[3]}`;
+            if (u.hostname === "raw.codeberg.page") return link;
 
+            if (u.hostname === "codeberg.org") {
+
+                if (u.pathname.startsWith("/api/v1/repos/")) return link;
+
+                const parts = u.pathname.split("/").filter(Boolean);
+
+                if (parts.length >= 5 && (parts[2] === "raw" || parts[2] === "src")) {
+                    const user       = parts[0];
+                    const repo       = parts[1];
+                    const branchName = parts[3] === "branch" || parts[3] === "commit" || parts[3] === "tag"
+                        ? parts[4]
+                        : parts[3];
+                    const fileStart  = parts[3] === "branch" || parts[3] === "commit" || parts[3] === "tag"
+                        ? 5
+                        : 4;
+                    const filePath   = parts.slice(fileStart).join("/");
+
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branchName}`;
+                }
+
+                if (parts.length >= 4 && parts[2] === "raw") {
+                    const user       = parts[0];
+                    const repo       = parts[1];
+                    const branchName = parts[3];
+                    const filePath   = parts.slice(4).join("/");
+
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branchName}`;
+                }
+
+                if (parts.length >= 5 && parts[2] === "src" && parts[3] === "branch") {
+                    const user     = parts[0];
+                    const repo     = parts[1];
+                    const branch   = parts[4];
+                    const filePath = parts.slice(5).join("/");
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branch}`;
+                }
+            }
+        } catch (_) {}
         return link;
     }
 
@@ -2589,6 +2159,19 @@ if(window.__US_BUILDER_REPOFRONTEND_JS__){return;}window.__US_BUILDER_REPOFRONTE
         referenceNode.parentElement.insertBefore(clone, referenceNode.nextSibling);
     }
 
+    function registerWithAviaMenu() {
+        if (window.AviaMenu) {
+            window.AviaMenu.register({ id: "avia_official_repo", name: "Plugins & Themes Repo", icon: "palette", onClick: openWindow });
+        } else {
+            const interval = setInterval(() => {
+                if (window.AviaMenu) {
+                    clearInterval(interval);
+                    window.AviaMenu.register({ id: "avia_official_repo", name: "Plugins & Themes Repo", icon: "palette", onClick: openWindow });
+                }
+            }, 100);
+        }
+    }
+
     window.addEventListener("avia-plugin-list-changed", () => {
         if (document.getElementById("avia-official-repo-window")) updateInstallStates();
     });
@@ -2601,703 +2184,7 @@ if(window.__US_BUILDER_REPOFRONTEND_JS__){return;}window.__US_BUILDER_REPOFRONTE
         .observe(document.body, { childList: true, subtree: true });
 
     injectSettingsButton();
-
-})();
-
-
-/* --- aviaclientbrowsertab.js --- */
-if(window.__US_BUILDER_AVIACLIENTBROWSERTAB_JS__){return;}window.__US_BUILDER_AVIACLIENTBROWSERTAB_JS__=true;
-(function(){
-
-const TITLE = "Avia Client";
-const ICON_URL = "https://raw.githubusercontent.com/AvaLilac/Ava-Client/refs/heads/main/userscript/icon.png"; // <-- change this
-
-document.title = TITLE;
-
-function setFavicon(url) {
-  let link = document.querySelector("link[rel*='icon']");
-  
-  if (!link) {
-    link = document.createElement("link");
-    link.rel = "icon";
-    document.head.appendChild(link);
-  }
-  
-  link.href = url;
-}
-
-setFavicon(ICON_URL);
-
-const titleObserver = new MutationObserver(() => {
-  if (document.title !== TITLE) {
-    document.title = TITLE;
-  }
-});
-
-const faviconObserver = new MutationObserver(() => {
-  setFavicon(ICON_URL);
-});
-
-titleObserver.observe(document.querySelector("title"), { childList: true });
-faviconObserver.observe(document.head, { childList: true, subtree: true });
-
-})();
-
-/* --- pluginsupport.js --- */
-if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
-
-(function () {
-
-    if (window.__AVIA_PLUGINS_LOADED__) return;
-    window.__AVIA_PLUGINS_LOADED__ = true;
-
-    const STORAGE_KEY = "avia_plugins";
-
-    const runningPlugins = {};
-    const pluginErrors = {};
-    const injectionQueue = [];
-
-    const getPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    const setPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-    function normalizePluginUrl(url) {
-        try {
-            const u = new URL(url);
-            if (u.hostname === "github.com") {
-                const m = u.pathname.match(/^\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
-                if (m) return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`;
-                return url;
-            }
-            if (u.hostname === "raw.githubusercontent.com") return url;
-            if (u.hostname === "raw.codeberg.page") return url;
-            if (u.hostname === "codeberg.org") {
-                const parts = u.pathname.split("/").filter(Boolean);
-                if (parts.length >= 5 && (parts[2] === "raw" || parts[2] === "src")) {
-                    const user = parts[0], repo = parts[1];
-                    const branchName = ["branch","commit","tag"].includes(parts[3]) ? parts[4] : parts[3];
-                    const fileStart = ["branch","commit","tag"].includes(parts[3]) ? 5 : 4;
-                    const filePath = parts.slice(fileStart).join("/");
-                    return `https://raw.codeberg.page/${user}/${repo}/@${branchName}/${filePath}`;
-                }
-                if (parts.length >= 4 && parts[2] === "raw") {
-                    return `https://raw.codeberg.page/${parts[0]}/${parts[1]}/@${parts[3]}/${parts.slice(4).join("/")}`;
-                }
-            }
-        } catch (_) {}
-        return url;
-    }
-
-    async function processQueue() {
-        if (processQueue.running) return;
-        processQueue.running = true;
-        while (injectionQueue.length) {
-            const { plugin, force } = injectionQueue.shift();
-            await loadPluginInternal(plugin, force);
-        }
-        processQueue.running = false;
-    }
-
-    function queuePlugin(plugin, force = false) {
-        injectionQueue.push({ plugin, force });
-        processQueue();
-    }
-
-    async function loadPluginInternal(plugin, force = false) {
-        if (runningPlugins[plugin.url] && !force) return;
-        if (force) stopPlugin(plugin);
-        try {
-            const fetchUrl = normalizePluginUrl(plugin.url);
-            const res = await fetch(fetchUrl);
-            if (!res.ok) throw new Error("Fetch failed");
-            const code = await res.text();
-            delete pluginErrors[plugin.url];
-            const script = document.createElement("script");
-            script.textContent = code;
-            script.dataset.pluginUrl = plugin.url;
-            document.body.appendChild(script);
-            runningPlugins[plugin.url] = script;
-        } catch {
-            pluginErrors[plugin.url] = true;
-        }
-        renderPanel();
-    }
-
-    function stopPlugin(plugin) {
-        const script = runningPlugins[plugin.url];
-        if (!script) return;
-        script.remove();
-        delete runningPlugins[plugin.url];
-        delete pluginErrors[plugin.url];
-        renderPanel();
-    }
-
-    function preloadMonaco() {
-        return new Promise(resolve => {
-            if (window.monaco) return resolve();
-            const loader = document.createElement("script");
-            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js";
-            loader.onload = function () {
-                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
-                require(["vs/editor/editor.main"], () => resolve());
-            };
-            document.head.appendChild(loader);
-        });
-    }
-
-    async function openViewerPanel(plugin) {
-        await preloadMonaco();
-        const existing = document.getElementById("avia-plugin-viewer-panel");
-        if (existing) existing.remove();
-
-        const panel = document.createElement("div");
-        panel.id = "avia-plugin-viewer-panel";
-        Object.assign(panel.style, {
-            position: "fixed",
-            bottom: "24px",
-            left: "24px",
-            width: "700px",
-            height: "480px",
-            background: "var(--md-sys-color-surface, #1e1e1e)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 28px rgba(0,0,0,0.45)",
-            zIndex: "9999999",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(12px)",
-            color: "#fff"
-        });
-
-        const header = document.createElement("div");
-        Object.assign(header.style, {
-            padding: "14px 16px",
-            fontWeight: "600",
-            fontSize: "14px",
-            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            cursor: "move",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            flex: "0 0 auto"
-        });
-
-        const titleText = document.createElement("span");
-        titleText.textContent = `Viewing: ${plugin.name}`;
-        titleText.style.flex = "1";
-
-        const readOnlyBadge = document.createElement("span");
-        readOnlyBadge.textContent = "READ ONLY";
-        Object.assign(readOnlyBadge.style, {
-            fontSize: "10px",
-            fontWeight: "700",
-            letterSpacing: "0.08em",
-            padding: "2px 8px",
-            borderRadius: "20px",
-            background: "rgba(255,180,0,0.15)",
-            color: "#ffb400",
-            border: "1px solid rgba(255,180,0,0.3)"
-        });
-
-        const closeBtn = document.createElement("div");
-        closeBtn.textContent = "✕";
-        Object.assign(closeBtn.style, {
-            cursor: "pointer",
-            opacity: "0.6",
-            fontSize: "15px",
-            lineHeight: "1",
-            padding: "2px 4px"
-        });
-        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
-        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.6";
-        closeBtn.onclick = () => panel.remove();
-
-        header.appendChild(titleText);
-        header.appendChild(readOnlyBadge);
-        header.appendChild(closeBtn);
-
-        const urlBar = document.createElement("div");
-        Object.assign(urlBar.style, {
-            padding: "8px 16px",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            fontSize: "11px",
-            color: "rgba(255,255,255,0.35)",
-            fontFamily: "monospace",
-            background: "rgba(0,0,0,0.15)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            flex: "0 0 auto"
-        });
-        urlBar.textContent = plugin.url;
-        urlBar.title = plugin.url;
-
-        const editorContainer = document.createElement("div");
-        editorContainer.style.flex = "1";
-        editorContainer.style.overflow = "hidden";
-
-        const loadingMsg = document.createElement("div");
-        Object.assign(loadingMsg.style, {
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            opacity: "0.4",
-            fontSize: "13px"
-        });
-        loadingMsg.textContent = "Fetching source…";
-        editorContainer.appendChild(loadingMsg);
-
-        panel.appendChild(header);
-        panel.appendChild(urlBar);
-        panel.appendChild(editorContainer);
-        document.body.appendChild(panel);
-        enableDragOn(panel, header);
-
-        let code;
-        try {
-            const res = await fetch(normalizePluginUrl(plugin.url));
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            code = await res.text();
-        } catch (err) {
-            loadingMsg.textContent = `Failed to fetch source: ${err.message}`;
-            loadingMsg.style.color = "#ff4d4d";
-            loadingMsg.style.opacity = "1";
-            return;
-        }
-
-        editorContainer.removeChild(loadingMsg);
-        monaco.editor.create(editorContainer, {
-            value: code,
-            language: "javascript",
-            theme: "vs-dark",
-            readOnly: true,
-            automaticLayout: true,
-            minimap: { enabled: true },
-            fontSize: 13,
-            scrollBeyondLastLine: false,
-            wordWrap: "off",
-            domReadOnly: true,
-            renderValidationDecorations: "off",
-            renderLineHighlight: "none",
-            cursorStyle: "block",
-            cursorBlinking: "solid"
-        });
-    }
-
-    function togglePluginsPanel() {
-        let panel = document.getElementById('avia-plugins-panel');
-        if (panel) {
-            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
-            return;
-        }
-
-        panel = document.createElement('div');
-        panel.id = 'avia-plugins-panel';
-        Object.assign(panel.style, {
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            width: '560px',
-            height: '520px',
-            background: 'var(--md-sys-color-surface, #1e1e1e)',
-            color: 'var(--md-sys-color-on-surface, #fff)',
-            borderRadius: '16px',
-            boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
-            zIndex: '999999',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            border: '1px solid rgba(255,255,255,0.08)',
-            backdropFilter: 'blur(12px)'
-        });
-
-        const header = document.createElement('div');
-        Object.assign(header.style, {
-            padding: '14px 16px',
-            fontWeight: '600',
-            fontSize: '14px',
-            background: 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            cursor: 'move',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flex: '0 0 auto'
-        });
-
-        const headerTitle = document.createElement('span');
-        headerTitle.textContent = 'Plugins';
-
-        const closeBtn = document.createElement('div');
-        closeBtn.textContent = '✕';
-        Object.assign(closeBtn.style, {
-            cursor: 'pointer',
-            opacity: '0.7',
-            fontSize: '15px',
-            lineHeight: '1',
-            padding: '2px 4px'
-        });
-        closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
-        closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.7';
-        closeBtn.onclick = () => panel.style.display = 'none';
-
-        header.appendChild(headerTitle);
-        header.appendChild(closeBtn);
-
-        const controlsBar = document.createElement('div');
-        Object.assign(controlsBar.style, {
-            padding: '12px 16px',
-            display: 'flex',
-            gap: '8px',
-            alignItems: 'center',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            flex: '0 0 auto'
-        });
-
-        const nameInput = document.createElement('input');
-        nameInput.placeholder = 'Name';
-        styleInput(nameInput);
-        nameInput.style.width = '110px';
-
-        const urlInput = document.createElement('input');
-        urlInput.placeholder = 'Plugin URL';
-        styleInput(urlInput);
-        urlInput.style.flex = '1';
-
-        const addBtn = document.createElement('button');
-        addBtn.textContent = '+ Add';
-        styleBtn(addBtn);
-        addBtn.onclick = () => {
-            const name = nameInput.value.trim();
-            const url = urlInput.value.trim();
-            if (!name || !url) return;
-            const plugins = getPlugins();
-            plugins.push({ name, url, enabled: false });
-            setPlugins(plugins);
-            nameInput.value = '';
-            urlInput.value = '';
-            renderPanel();
-        };
-
-        const refreshBtn = document.createElement('button');
-        refreshBtn.textContent = 'Refresh';
-        styleBtn(refreshBtn);
-        refreshBtn.onclick = () => {
-            getPlugins().forEach(p => { if (p.enabled) queuePlugin(p, true); });
-        };
-
-        controlsBar.appendChild(nameInput);
-        controlsBar.appendChild(urlInput);
-        controlsBar.appendChild(addBtn);
-        controlsBar.appendChild(refreshBtn);
-
-        const searchBar = document.createElement('div');
-        Object.assign(searchBar.style, {
-            padding: '10px 16px',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            flex: '0 0 auto'
-        });
-
-        const searchInput = document.createElement('input');
-        searchInput.placeholder = 'Search plugins…';
-        styleInput(searchInput);
-        searchInput.style.width = '100%';
-        searchInput.oninput = () => renderPanel(searchInput.value.toLowerCase());
-        searchBar.appendChild(searchInput);
-
-        const content = document.createElement('div');
-        content.id = 'avia-plugins-content';
-        Object.assign(content.style, {
-            flex: '1',
-            overflowY: 'auto',
-            padding: '12px 16px 16px',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none'
-        });
-        if (!document.getElementById('avia-scrollbar-hide')) {
-            const s = document.createElement('style');
-            s.id = 'avia-scrollbar-hide';
-            s.textContent = '#avia-plugins-content::-webkit-scrollbar{display:none}';
-            document.head.appendChild(s);
-        }
-
-        panel.appendChild(header);
-        panel.appendChild(controlsBar);
-        panel.appendChild(searchBar);
-        panel.appendChild(content);
-        document.body.appendChild(panel);
-        enableDragOn(panel, header);
-        renderPanel();
-    }
-
-    function renderPanel(filter = '') {
-        const content = document.getElementById('avia-plugins-content');
-        if (!content) return;
-        content.innerHTML = '';
-
-        const plugins = getPlugins();
-        const runSnap = { ...runningPlugins };
-        const errSnap = { ...pluginErrors };
-
-        const visible = filter
-            ? plugins.filter(p => p.name.toLowerCase().includes(filter))
-            : plugins;
-
-        if (visible.length === 0) {
-            const empty = document.createElement('div');
-            empty.textContent = plugins.length === 0
-                ? 'No plugins yet. Add one above.'
-                : 'No plugins match your search.';
-            Object.assign(empty.style, { opacity: '0.4', fontSize: '13px', textAlign: 'center', padding: '24px 0' });
-            content.appendChild(empty);
-            return;
-        }
-
-        const sectionLabel = document.createElement('div');
-        sectionLabel.textContent = `User Plugins: ${visible.length}`;
-        Object.assign(sectionLabel.style, {
-            fontSize: '11px',
-            fontWeight: '700',
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            color: 'rgba(255,255,255,0.35)',
-            marginBottom: '10px'
-        });
-        content.appendChild(sectionLabel);
-
-        const grid = document.createElement('div');
-        Object.assign(grid.style, {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: '10px'
-        });
-
-        visible.forEach((plugin) => {
-            const realIndex = plugins.indexOf(plugin);
-            const isRunning = !!runSnap[plugin.url];
-            const hasError = !!errSnap[plugin.url];
-
-            const card = document.createElement('div');
-            Object.assign(card.style, {
-                background: 'rgba(255,255,255,0.04)',
-                border: `1px solid ${hasError ? 'rgba(255,77,77,0.3)' : isRunning ? 'rgba(77,255,136,0.25)' : 'rgba(255,255,255,0.06)'}`,
-                borderRadius: '10px',
-                padding: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-            });
-            card.onmouseenter = () => {
-                if (!hasError && !isRunning) card.style.borderColor = 'rgba(255,255,255,0.13)';
-            };
-            card.onmouseleave = () => {
-                card.style.borderColor = hasError ? 'rgba(255,77,77,0.3)' : isRunning ? 'rgba(77,255,136,0.25)' : 'rgba(255,255,255,0.06)';
-            };
-
-            const topRow = document.createElement('div');
-            Object.assign(topRow.style, {
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px'
-            });
-
-            const nameWrap = document.createElement('div');
-            Object.assign(nameWrap.style, { display: 'flex', alignItems: 'center', gap: '7px', minWidth: '0', flex: '1' });
-
-            const dot = document.createElement('div');
-            Object.assign(dot.style, {
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                flexShrink: '0',
-                background: hasError ? '#ff4d4d' : isRunning ? '#4dff88' : '#555',
-                boxShadow: hasError ? '0 0 5px #ff4d4d' : isRunning ? '0 0 5px #4dff88' : 'none'
-            });
-
-            const nameEl = document.createElement('div');
-            nameEl.textContent = plugin.name;
-            Object.assign(nameEl.style, {
-                fontSize: '13px',
-                fontWeight: '600',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-            });
-
-            nameWrap.appendChild(dot);
-            nameWrap.appendChild(nameEl);
-
-            const switchWrap = document.createElement('div');
-            Object.assign(switchWrap.style, {
-                position: 'relative',
-                width: '36px',
-                height: '20px',
-                flexShrink: '0',
-                cursor: 'pointer'
-            });
-
-            const track = document.createElement('div');
-            Object.assign(track.style, {
-                position: 'absolute',
-                inset: '0',
-                borderRadius: '10px',
-                background: plugin.enabled ? 'rgba(100,160,255,0.6)' : 'rgba(255,255,255,0.15)',
-                transition: 'background 0.2s'
-            });
-
-            const thumb = document.createElement('div');
-            Object.assign(thumb.style, {
-                position: 'absolute',
-                top: '3px',
-                left: plugin.enabled ? '19px' : '3px',
-                width: '14px',
-                height: '14px',
-                borderRadius: '50%',
-                background: '#fff',
-                transition: 'left 0.2s',
-                pointerEvents: 'none'
-            });
-
-            switchWrap.appendChild(track);
-            switchWrap.appendChild(thumb);
-
-            switchWrap.onclick = () => {
-                plugin.enabled = !plugin.enabled;
-                setPlugins(plugins);
-                if (plugin.enabled) queuePlugin(plugin);
-                else stopPlugin(plugin);
-                renderPanel(filter);
-            };
-
-            topRow.appendChild(nameWrap);
-            topRow.appendChild(switchWrap);
-
-            const footer = document.createElement('div');
-            Object.assign(footer.style, { display: 'flex', gap: '6px', marginTop: 'auto', paddingTop: '2px' });
-
-            const viewBtn = document.createElement('button');
-            viewBtn.textContent = 'View';
-            styleBtn(viewBtn, 'rgba(100,160,255,0.15)');
-            viewBtn.style.flex = '1';
-            viewBtn.onclick = () => openViewerPanel(plugin);
-
-            const removeBtn = document.createElement('button');
-            removeBtn.textContent = '✕';
-            styleBtn(removeBtn, 'rgba(255,80,80,0.15)');
-            removeBtn.onclick = () => {
-                stopPlugin(plugin);
-                plugins.splice(realIndex, 1);
-                setPlugins(plugins);
-                renderPanel(filter);
-            };
-
-            footer.appendChild(viewBtn);
-            footer.appendChild(removeBtn);
-
-            card.appendChild(topRow);
-            card.appendChild(footer);
-            grid.appendChild(card);
-        });
-
-        content.appendChild(grid);
-    }
-
-    function styleInput(input) {
-        Object.assign(input.style, {
-            padding: '6px 8px',
-            borderRadius: '8px',
-            border: '1px solid rgba(255,255,255,0.1)',
-            background: 'rgba(255,255,255,0.05)',
-            color: '#fff',
-            fontSize: '13px'
-        });
-    }
-
-    function styleBtn(btn, bg) {
-        Object.assign(btn.style, {
-            padding: '5px 12px',
-            borderRadius: '8px',
-            border: 'none',
-            background: bg || 'rgba(255,255,255,0.08)',
-            color: '#fff',
-            cursor: 'pointer',
-            fontSize: '12px',
-            whiteSpace: 'nowrap'
-        });
-        btn.onmouseenter = () => btn.style.opacity = '0.75';
-        btn.onmouseleave = () => btn.style.opacity = '1';
-    }
-
-    function enableDragOn(panel, header) {
-        let isDragging = false, offsetX, offsetY;
-        header.addEventListener('mousedown', e => {
-            isDragging = true;
-            offsetX = e.clientX - panel.offsetLeft;
-            offsetY = e.clientY - panel.offsetTop;
-            document.body.style.userSelect = 'none';
-        });
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-            document.body.style.userSelect = '';
-        });
-        document.addEventListener('mousemove', e => {
-            if (!isDragging) return;
-            panel.style.left = (e.clientX - offsetX) + 'px';
-            panel.style.top = (e.clientY - offsetY) + 'px';
-            panel.style.right = 'auto';
-            panel.style.bottom = 'auto';
-        });
-    }
-
-    function injectButtons() {
-        if (document.getElementById('stoat-fake-plugins')) return;
-        const appearanceBtn = [...document.querySelectorAll('a')]
-            .find(a => a.textContent.trim() === 'Appearance');
-        if (!appearanceBtn) return;
-        const referenceNode = document.getElementById('stoat-fake-quickcss');
-        if (!referenceNode) return;
-        const pluginsBtn = appearanceBtn.cloneNode(true);
-        pluginsBtn.id = 'stoat-fake-plugins';
-        const textNode = [...pluginsBtn.querySelectorAll('div')]
-            .find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
-        if (textNode) textNode.textContent = "(Avia) Plugins";
-        const svgNS = "http://www.w3.org/2000/svg";
-        const oldSvg = pluginsBtn.querySelector('svg');
-        if (oldSvg) oldSvg.remove();
-        const svg = document.createElementNS(svgNS, "svg");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("width", "20");
-        svg.setAttribute("height", "20");
-        svg.setAttribute("fill", "currentColor");
-        svg.style.marginRight = "8px";
-        const path = document.createElementNS(svgNS, "path");
-        path.setAttribute("d", "M20.5 11H19V7a2 2 0 00-2-2h-4V3.5a2.5 2.5 0 00-5 0V5H4a2 2 0 00-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 002 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7V22H17a2 2 0 002-2v-4h1.5a2.5 2.5 0 000-5z");
-        svg.appendChild(path);
-        pluginsBtn.insertBefore(svg, pluginsBtn.firstChild);
-        pluginsBtn.addEventListener('click', togglePluginsPanel);
-        referenceNode.parentElement.insertBefore(pluginsBtn, referenceNode.nextSibling);
-    }
-
-    function waitForBody(callback) {
-        if (document.body) callback();
-        else new MutationObserver((obs) => {
-            if (document.body) { obs.disconnect(); callback(); }
-        }).observe(document.documentElement, { childList: true });
-    }
-
-    waitForBody(() => {
-        const observer = new MutationObserver(() => injectButtons());
-        observer.observe(document.body, { childList: true, subtree: true });
-        injectButtons();
-        preloadMonaco();
-    });
-
-    getPlugins().forEach(plugin => {
-        if (plugin.enabled) queuePlugin(plugin);
-    });
+    registerWithAviaMenu();
 
 })();
 
@@ -3308,8 +2195,8 @@ if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true
 
 (function () {
 
-    if (window.__AVIA_THEMES_LOADED__) return;
-    window.__AVIA_THEMES_LOADED__ = true;
+    if (window.__AVIA_THEMES__) return;
+    window.__AVIA_THEMES__ = true;
 
     const STORAGE_KEY = "avia_themes";
     let editingThemeId = null;
@@ -3548,7 +2435,14 @@ if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true
     function toggleThemesPanel() {
         let panel = document.getElementById("avia-themes-panel");
         if (panel) {
-            panel.style.display = panel.style.display === "none" ? "flex" : "none";
+            if (panel.style.display === "none") {
+                panel.style.display = "flex";
+                if (typeof window.__avia_refresh_themes_panel === "function") {
+                    window.__avia_refresh_themes_panel();
+                }
+            } else {
+                panel.style.display = "none";
+            }
             return;
         }
 
@@ -3841,11 +2735,3111 @@ if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true
         quickCSS.parentElement.insertBefore(clone, quickCSS.nextSibling);
     }
 
+    function registerWithAviaMenu() {
+        if (window.AviaMenu) {
+            window.AviaMenu.register({ id: "avia_themes", name: "Themes", icon: "palette", onClick: toggleThemesPanel });
+        } else {
+            const interval = setInterval(() => {
+                if (window.AviaMenu) {
+                    clearInterval(interval);
+                    window.AviaMenu.register({ id: "avia_themes", name: "Themes", icon: "palette", onClick: toggleThemesPanel });
+                }
+            }, 100);
+        }
+    }
+
     new MutationObserver(injectButton).observe(document.body, { childList: true, subtree: true });
     injectButton();
     applyThemes();
     preloadMonaco();
+    registerWithAviaMenu();
 
+})();
+
+
+
+/* --- aviafavsystem.js --- */
+if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSYSTEM_JS__=true;
+
+(function () {
+    if (window.__AVIA_FAVORITES_LOADED__) return;
+    window.__AVIA_FAVORITES_LOADED__ = true;
+
+    const STORAGE_KEY = "avia_favorites";
+
+    const getFavorites = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const setFavorites = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    function extractYouTubeID(url) {
+        const reg = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([^&?/]+)/;
+        const match = url.match(reg);
+        return match ? match[1] : null;
+    }
+
+    function fallbackCopy(text) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.cssText = "position:fixed;opacity:0;";
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        try { document.execCommand("copy"); } catch {}
+        document.body.removeChild(ta);
+    }
+
+    function updateBadge() {
+        const badge = document.getElementById("avia-favorites-badge");
+        if (!badge) return;
+        const count = getFavorites().length;
+        badge.textContent = count;
+        badge.style.display = count > 0 ? "flex" : "none";
+    }
+
+    function showToast(card, msg) {
+        const old = card.querySelector(".fav-toast");
+        if (old) old.remove();
+        const toast = document.createElement("div");
+        toast.className = "fav-toast";
+        toast.textContent = msg || "Copied!";
+        Object.assign(toast.style, {
+            position: "absolute",
+            bottom: "6px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(0,0,0,0.85)",
+            padding: "3px 8px",
+            borderRadius: "6px",
+            fontSize: "10px",
+            color: "#fff",
+            opacity: "0",
+            transition: "opacity 0.15s",
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            zIndex: "3"
+        });
+        card.appendChild(toast);
+        requestAnimationFrame(() => toast.style.opacity = "1");
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            setTimeout(() => toast.remove(), 150);
+        }, 1500);
+    }
+
+    function flashDupe(url) {
+        const card = document.querySelector(`[data-fav-url="${CSS.escape(url)}"]`);
+        if (!card) return;
+        card.style.outline = "2px solid rgba(255,80,80,0.9)";
+        setTimeout(() => { card.style.outline = ""; }, 700);
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    function buildCard(item, onRemove) {
+        const card = document.createElement("div");
+        card.dataset.favUrl = item.url;
+        Object.assign(card.style, {
+            position: "relative",
+            width: "90px",
+            height: "90px",
+            borderRadius: "12px",
+            overflow: "hidden",
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            cursor: "pointer",
+            flexShrink: "0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "border-color 0.2s, transform 0.15s"
+        });
+
+        const removeBtn = document.createElement("div");
+        removeBtn.textContent = "✕";
+        Object.assign(removeBtn.style, {
+            position: "absolute",
+            top: "4px",
+            right: "5px",
+            fontSize: "10px",
+            cursor: "pointer",
+            background: "rgba(0,0,0,0.7)",
+            color: "#fff",
+            padding: "1px 4px",
+            borderRadius: "4px",
+            zIndex: "2",
+            opacity: "0",
+            transition: "opacity 0.15s"
+        });
+        removeBtn.onclick = e => {
+            e.stopPropagation();
+            onRemove(item.url);
+        };
+        card.appendChild(removeBtn);
+
+        card.addEventListener("mouseenter", () => {
+            card.style.borderColor = "rgba(255,255,255,0.25)";
+            card.style.transform = "scale(1.04)";
+            removeBtn.style.opacity = "1";
+        });
+        card.addEventListener("mouseleave", () => {
+            card.style.borderColor = "rgba(255,255,255,0.08)";
+            card.style.transform = "scale(1)";
+            removeBtn.style.opacity = "0";
+        });
+
+        const ytID = extractYouTubeID(item.url);
+        if (ytID) {
+            const img = new Image();
+            img.draggable = false;
+            img.src = `https://img.youtube.com/vi/${ytID}/hqdefault.jpg`;
+            Object.assign(img.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
+            img.onerror = () => fallback();
+            card.appendChild(img);
+        } else {
+            const ext = item.url.split(".").pop().split("?")[0].toLowerCase();
+            const isVideo = ["mp4", "webm", "mov", "gifv"].includes(ext);
+
+            if (isVideo) {
+                const video = document.createElement("video");
+                video.src = item.url.replace(".gifv", ".mp4");
+                video.autoplay = true; video.loop = true;
+                video.muted = true; video.playsInline = true;
+                video.draggable = false;
+                Object.assign(video.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
+                video.onerror = () => fallback();
+                card.appendChild(video);
+            } else {
+                const img = new Image();
+                img.draggable = false;
+                img.src = item.url;
+                Object.assign(img.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
+                img.onerror = () => fallback();
+                card.appendChild(img);
+            }
+        }
+
+        function fallback() {
+            [...card.children].forEach(c => { if (c !== removeBtn) c.remove(); });
+            const inner = document.createElement("div");
+            Object.assign(inner.style, {
+                display: "flex", flexDirection: "column", alignItems: "center",
+                justifyContent: "center", gap: "4px", padding: "6px",
+                width: "100%", height: "100%", boxSizing: "border-box", pointerEvents: "none"
+            });
+            const icon = document.createElement("span");
+            icon.className = "material-symbols-outlined";
+            icon.textContent = "link";
+            icon.style.cssText = "font-size:20px;opacity:0.35;color:#fff;display:block;";
+            inner.appendChild(icon);
+            const label = document.createElement("div");
+            if (item.title) {
+                label.textContent = item.title;
+            } else {
+                try { label.textContent = new URL(item.url).hostname.replace("www.", ""); } catch { label.textContent = "link"; }
+            }
+            Object.assign(label.style, {
+                fontSize: "9px", color: "#fff", opacity: "0.55",
+                textAlign: "center", wordBreak: "break-word", overflow: "hidden",
+                maxHeight: "36px", lineHeight: "1.3", padding: "0 4px"
+            });
+            inner.appendChild(label);
+            card.appendChild(inner);
+        }
+
+        if (item.title) {
+            const titleOverlay = document.createElement("div");
+            titleOverlay.textContent = item.title;
+            Object.assign(titleOverlay.style, {
+                position: "absolute",
+                bottom: "0",
+                width: "100%",
+                background: "rgba(0,0,0,0.6)",
+                fontSize: "11px",
+                padding: "4px",
+                textAlign: "center",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                zIndex: "1",
+                pointerEvents: "none"
+            });
+            card.appendChild(titleOverlay);
+        }
+
+        card.addEventListener("click", () => {
+            const done = () => showToast(card, "Copied!");
+            if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(item.url).then(done).catch(() => { fallbackCopy(item.url); done(); });
+            } else {
+                fallbackCopy(item.url); done();
+            }
+        });
+
+        return card;
+    }
+
+    function toggleFavoritesPanel() {
+        let panel = document.getElementById("avia-favorites-panel");
+        if (panel) {
+            const isHidden = panel.style.display === "none";
+            panel.style.display = isHidden ? "flex" : "none";
+            if (isHidden) renderGrid();
+            return;
+        }
+
+        panel = document.createElement("div");
+        panel.id = "avia-favorites-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "24px",
+            right: "40px",
+            width: "460px",
+            height: "400px",
+            background: "var(--md-sys-color-surface, #141418)",
+            color: "var(--md-sys-color-on-surface, #fff)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            zIndex: "999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(16px)"
+        });
+
+        const header = document.createElement("div");
+        Object.assign(header.style, {
+            padding: "13px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move",
+            userSelect: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexShrink: "0"
+        });
+
+        const headerIcon = document.createElement("span");
+        headerIcon.className = "material-symbols-outlined";
+        headerIcon.textContent = "star";
+        headerIcon.style.cssText = "font-size:18px;opacity:0.7;display:block;font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0;";
+        header.appendChild(headerIcon);
+
+        const headerTitle = document.createElement("span");
+        headerTitle.textContent = "Favorites";
+        header.appendChild(headerTitle);
+
+        const closeBtn = document.createElement("div");
+        closeBtn.textContent = "✕";
+        Object.assign(closeBtn.style, {
+            marginLeft: "auto", cursor: "pointer", opacity: "0.5",
+            fontSize: "13px", lineHeight: "1"
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.5";
+        closeBtn.onclick = () => panel.style.display = "none";
+        header.appendChild(closeBtn);
+
+        const inputRow = document.createElement("div");
+        Object.assign(inputRow.style, {
+            padding: "10px 14px", display: "flex", gap: "6px",
+            alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: "0"
+        });
+
+        const urlInput = document.createElement("input");
+        urlInput.placeholder = "Paste a link...";
+        Object.assign(urlInput.style, {
+            flex: "1", padding: "7px 10px", borderRadius: "8px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.05)",
+            color: "var(--md-sys-color-on-surface, #fff)",
+            fontSize: "12px", outline: "none", minWidth: "0"
+        });
+
+        const titleInput = document.createElement("input");
+        titleInput.placeholder = "Title (optional)";
+        Object.assign(titleInput.style, {
+            width: "110px", flexShrink: "0", padding: "7px 10px",
+            borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.05)",
+            color: "var(--md-sys-color-on-surface, #fff)",
+            fontSize: "12px", outline: "none"
+        });
+
+        const addBtn = document.createElement("button");
+        addBtn.textContent = "Add";
+        Object.assign(addBtn.style, {
+            padding: "7px 14px", borderRadius: "8px", border: "none",
+            background: "var(--md-sys-color-primary, rgba(255,255,255,0.15))",
+            color: "var(--md-sys-color-on-primary, #fff)",
+            fontSize: "12px", fontWeight: "600", cursor: "pointer",
+            flexShrink: "0", transition: "opacity 0.15s"
+        });
+        addBtn.onmouseenter = () => addBtn.style.opacity = "0.8";
+        addBtn.onmouseleave = () => addBtn.style.opacity = "1";
+
+        inputRow.appendChild(urlInput);
+        inputRow.appendChild(titleInput);
+        inputRow.appendChild(addBtn);
+
+        const gridWrapper = document.createElement("div");
+        Object.assign(gridWrapper.style, {
+            flex: "1", minHeight: "0", overflowY: "auto",
+            padding: "14px", boxSizing: "border-box"
+        });
+
+        const grid = document.createElement("div");
+        grid.id = "avia-favorites-grid";
+        Object.assign(grid.style, {
+            display: "flex", flexWrap: "wrap", gap: "10px", alignContent: "start"
+        });
+
+        gridWrapper.appendChild(grid);
+        panel.appendChild(header);
+        panel.appendChild(inputRow);
+        panel.appendChild(gridWrapper);
+        document.body.appendChild(panel);
+
+        let isPanelDragging = false, pOffsetX, pOffsetY;
+        header.addEventListener("mousedown", e => {
+            isPanelDragging = true;
+            const rect = panel.getBoundingClientRect();
+            pOffsetX = e.clientX - rect.left;
+            pOffsetY = e.clientY - rect.top;
+            panel.style.bottom = "auto"; panel.style.right = "auto";
+            panel.style.left = rect.left + "px"; panel.style.top = rect.top + "px";
+            document.body.style.userSelect = "none";
+        });
+        document.addEventListener("mouseup", () => {
+            isPanelDragging = false;
+            document.body.style.userSelect = "";
+        });
+        document.addEventListener("mousemove", e => {
+            if (!isPanelDragging) return;
+            panel.style.left = (e.clientX - pOffsetX) + "px";
+            panel.style.top = (e.clientY - pOffsetY) + "px";
+        });
+
+        function tryAdd() {
+            const url = urlInput.value.trim();
+            const title = titleInput.value.trim();
+            if (!url) return;
+            const favs = getFavorites();
+            if (favs.some(f => f.url === url)) { flashDupe(url); return; }
+            favs.push({ url, title, addedAt: Date.now() });
+            setFavorites(favs);
+            urlInput.value = ""; titleInput.value = "";
+            updateBadge(); renderGrid();
+        }
+
+        addBtn.onclick = tryAdd;
+        urlInput.addEventListener("keydown", e => { if (e.key === "Enter") tryAdd(); });
+        titleInput.addEventListener("keydown", e => { if (e.key === "Enter") tryAdd(); });
+
+        renderGrid();
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById("avia-favorites-grid");
+        if (!grid) return;
+        grid.innerHTML = "";
+
+        const favs = getFavorites();
+
+        if (favs.length === 0) {
+            const empty = document.createElement("div");
+            Object.assign(empty.style, {
+                width: "100%", padding: "24px 0", textAlign: "center",
+                opacity: "0.35", fontSize: "13px",
+                color: "var(--md-sys-color-on-surface, #fff)"
+            });
+            const emptyIcon = document.createElement("span");
+            emptyIcon.className = "material-symbols-outlined";
+            emptyIcon.textContent = "star_border";
+            emptyIcon.style.cssText = "display:block;font-size:32px;margin-bottom:6px;";
+            empty.appendChild(emptyIcon);
+            const emptyText = document.createElement("div");
+            emptyText.textContent = "No favorites yet";
+            empty.appendChild(emptyText);
+            grid.appendChild(empty);
+            return;
+        }
+
+        const onRemove = (url) => {
+            setFavorites(getFavorites().filter(f => f.url !== url));
+            updateBadge();
+            renderGrid();
+        };
+
+        favs.forEach(item => grid.insertBefore(buildCard(item, onRemove), grid.firstChild));
+    }
+
+    function injectButton() {
+        if (document.getElementById("avia-favorites-btn")) return;
+        const gifSpan = [...document.querySelectorAll("span.material-symbols-outlined")]
+            .find(s => s.textContent.trim() === "gif");
+        if (!gifSpan) return;
+        const wrapper = gifSpan.closest("div.flex-sh_0");
+        if (!wrapper) return;
+        const clone = wrapper.cloneNode(true);
+        clone.id = "avia-favorites-btn";
+        clone.style.position = "relative";
+
+        const btn = clone.querySelector("button");
+        btn.onclick = toggleFavoritesPanel;
+
+        btn.style.position = "relative";
+
+        clone.querySelector("span.material-symbols-outlined").textContent = "star";
+
+        const badge = document.createElement("div");
+        badge.id = "avia-favorites-badge";
+        Object.assign(badge.style, {
+            position: "absolute",
+            top: "2px",
+            right: "2px",
+            background: "var(--md-sys-color-primary, #6750a4)",
+            color: "var(--md-sys-color-on-primary, #fff)",
+            borderRadius: "99px",
+            fontSize: "9px",
+            fontWeight: "700",
+            minWidth: "14px",
+            height: "14px",
+            display: "none",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0 3px",
+            pointerEvents: "none",
+            zIndex: "1"
+        });
+
+        btn.appendChild(badge);
+
+        wrapper.parentElement.insertBefore(clone, wrapper.nextSibling);
+        updateBadge();
+    }
+
+    new MutationObserver(injectButton).observe(document.body, { childList: true, subtree: true });
+    injectButton();
+})();
+
+
+
+/* --- pluginsupport.js --- */
+if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
+
+(function () {
+
+    if (window.__AVIA_PLUGINS__) return;
+    window.__AVIA_PLUGINS__ = true;
+
+    const STORAGE_KEY = "avia_plugins";
+
+    const runningPlugins = {};
+    const pluginErrors = {};
+    const injectionQueue = [];
+
+    const getPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const setPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    function normalizePluginUrl(url) {
+        try {
+            const u = new URL(url);
+
+            if (u.hostname === "github.com") {
+                const m = u.pathname.match(/^\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
+                if (m) {
+                    return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}/${m[4]}`;
+                }
+                return url;
+            }
+
+            if (u.hostname === "raw.githubusercontent.com") return url;
+
+            if (u.hostname === "raw.codeberg.page") return url;
+
+            if (u.hostname === "codeberg.org") {
+
+                if (u.pathname.startsWith("/api/v1/repos/")) return url;
+
+                const parts = u.pathname.split("/").filter(Boolean);
+
+                if (parts.length >= 5 && (parts[2] === "raw" || parts[2] === "src")) {
+                    const user       = parts[0];
+                    const repo       = parts[1];
+                    const branchName = parts[3] === "branch" || parts[3] === "commit" || parts[3] === "tag"
+                        ? parts[4]
+                        : parts[3];
+                    const fileStart  = parts[3] === "branch" || parts[3] === "commit" || parts[3] === "tag"
+                        ? 5
+                        : 4;
+                    const filePath   = parts.slice(fileStart).join("/");
+
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branchName}`;
+                }
+
+                if (parts.length >= 4 && parts[2] === "raw") {
+                    const user       = parts[0];
+                    const repo       = parts[1];
+                    const branchName = parts[3];
+                    const filePath   = parts.slice(4).join("/");
+
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branchName}`;
+                }
+
+                if (parts.length >= 5 && parts[2] === "src" && parts[3] === "branch") {
+                    const user     = parts[0];
+                    const repo     = parts[1];
+                    const branch   = parts[4];
+                    const filePath = parts.slice(5).join("/");
+                    return `https://codeberg.org/api/v1/repos/${user}/${repo}/raw/${filePath}?ref=${branch}`;
+                }
+            }
+        } catch (_) {}
+        return url;
+    }
+
+    async function processQueue() {
+        if (processQueue.running) return;
+        processQueue.running = true;
+        while (injectionQueue.length) {
+            const { plugin, force } = injectionQueue.shift();
+            await loadPluginInternal(plugin, force);
+        }
+        processQueue.running = false;
+    }
+
+    function queuePlugin(plugin, force = false) {
+        injectionQueue.push({ plugin, force });
+        processQueue();
+    }
+
+    async function loadPluginInternal(plugin, force = false) {
+        if (runningPlugins[plugin.url] && !force) return;
+        if (force) stopPlugin(plugin);
+        try {
+            const fetchUrl = normalizePluginUrl(plugin.url);
+            const res = await fetch(fetchUrl);
+            if (!res.ok) throw new Error("Fetch failed");
+            const code = await res.text();
+            delete pluginErrors[plugin.url];
+            const script = document.createElement("script");
+            script.textContent = code;
+            script.dataset.pluginUrl = plugin.url;
+            document.body.appendChild(script);
+            runningPlugins[plugin.url] = script;
+        } catch {
+            pluginErrors[plugin.url] = true;
+        }
+        renderPanel();
+    }
+
+    function stopPlugin(plugin) {
+        const script = runningPlugins[plugin.url];
+        if (!script) return;
+        script.remove();
+        delete runningPlugins[plugin.url];
+        delete pluginErrors[plugin.url];
+        renderPanel();
+    }
+
+    function preloadMonaco() {
+        return new Promise(resolve => {
+            if (window.monaco) return resolve();
+            const loader = document.createElement("script");
+            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js";
+            loader.onload = function () {
+                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
+                require(["vs/editor/editor.main"], () => resolve());
+            };
+            document.head.appendChild(loader);
+        });
+    }
+
+    async function openViewerPanel(plugin) {
+        await preloadMonaco();
+        const existing = document.getElementById("avia-plugin-viewer-panel");
+        if (existing) existing.remove();
+
+        const panel = document.createElement("div");
+        panel.id = "avia-plugin-viewer-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "24px",
+            left: "24px",
+            width: "700px",
+            height: "480px",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.45)",
+            zIndex: "9999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)",
+            color: "#fff"
+        });
+
+        const header = document.createElement("div");
+        Object.assign(header.style, {
+            padding: "14px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            flex: "0 0 auto"
+        });
+
+        const titleText = document.createElement("span");
+        titleText.textContent = `Viewing: ${plugin.name}`;
+        titleText.style.flex = "1";
+
+        const readOnlyBadge = document.createElement("span");
+        readOnlyBadge.textContent = "READ ONLY";
+        Object.assign(readOnlyBadge.style, {
+            fontSize: "10px",
+            fontWeight: "700",
+            letterSpacing: "0.08em",
+            padding: "2px 8px",
+            borderRadius: "20px",
+            background: "rgba(255,180,0,0.15)",
+            color: "#ffb400",
+            border: "1px solid rgba(255,180,0,0.3)"
+        });
+
+        const closeBtn = document.createElement("div");
+        closeBtn.textContent = "✕";
+        Object.assign(closeBtn.style, {
+            cursor: "pointer",
+            opacity: "0.6",
+            fontSize: "15px",
+            lineHeight: "1",
+            padding: "2px 4px"
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.6";
+        closeBtn.onclick = () => panel.remove();
+
+        header.appendChild(titleText);
+        header.appendChild(readOnlyBadge);
+        header.appendChild(closeBtn);
+
+        const urlBar = document.createElement("div");
+        Object.assign(urlBar.style, {
+            padding: "8px 16px",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            fontSize: "11px",
+            color: "rgba(255,255,255,0.35)",
+            fontFamily: "monospace",
+            background: "rgba(0,0,0,0.15)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: "0 0 auto"
+        });
+        urlBar.textContent = plugin.url;
+        urlBar.title = plugin.url;
+
+        const editorContainer = document.createElement("div");
+        editorContainer.style.flex = "1";
+        editorContainer.style.overflow = "hidden";
+
+        const loadingMsg = document.createElement("div");
+        Object.assign(loadingMsg.style, {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            opacity: "0.4",
+            fontSize: "13px"
+        });
+        loadingMsg.textContent = "Fetching source…";
+        editorContainer.appendChild(loadingMsg);
+
+        panel.appendChild(header);
+        panel.appendChild(urlBar);
+        panel.appendChild(editorContainer);
+        document.body.appendChild(panel);
+        enableDragOn(panel, header);
+
+        let code;
+        try {
+            const res = await fetch(normalizePluginUrl(plugin.url));
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            code = await res.text();
+        } catch (err) {
+            loadingMsg.textContent = `Failed to fetch source: ${err.message}`;
+            loadingMsg.style.color = "#ff4d4d";
+            loadingMsg.style.opacity = "1";
+            return;
+        }
+
+        editorContainer.removeChild(loadingMsg);
+        monaco.editor.create(editorContainer, {
+            value: code,
+            language: "javascript",
+            theme: "vs-dark",
+            readOnly: true,
+            automaticLayout: true,
+            minimap: { enabled: true },
+            fontSize: 13,
+            scrollBeyondLastLine: false,
+            wordWrap: "off",
+            domReadOnly: true,
+            renderValidationDecorations: "off",
+            renderLineHighlight: "none",
+            cursorStyle: "block",
+            cursorBlinking: "solid"
+        });
+    }
+
+    function togglePluginsPanel() {
+        let panel = document.getElementById('avia-plugins-panel');
+        if (panel) {
+            if (panel.style.display === 'none') {
+                panel.style.display = 'flex';
+                renderPanel();
+            } else {
+                panel.style.display = 'none';
+            }
+            return;
+        }
+
+        panel = document.createElement('div');
+        panel.id = 'avia-plugins-panel';
+        Object.assign(panel.style, {
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            width: '560px',
+            height: '520px',
+            background: 'var(--md-sys-color-surface, #1e1e1e)',
+            color: 'var(--md-sys-color-on-surface, #fff)',
+            borderRadius: '16px',
+            boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+            zIndex: '999999',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            border: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(12px)'
+        });
+
+        const header = document.createElement('div');
+        Object.assign(header.style, {
+            padding: '14px 16px',
+            fontWeight: '600',
+            fontSize: '14px',
+            background: 'var(--md-sys-color-surface-container, rgba(255,255,255,0.04))',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            cursor: 'move',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flex: '0 0 auto'
+        });
+
+        const headerTitle = document.createElement('span');
+        headerTitle.textContent = 'Plugins';
+
+        const closeBtn = document.createElement('div');
+        closeBtn.textContent = '✕';
+        Object.assign(closeBtn.style, {
+            cursor: 'pointer',
+            opacity: '0.7',
+            fontSize: '15px',
+            lineHeight: '1',
+            padding: '2px 4px'
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = '1';
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = '0.7';
+        closeBtn.onclick = () => panel.style.display = 'none';
+
+        header.appendChild(headerTitle);
+        header.appendChild(closeBtn);
+
+        const controlsBar = document.createElement('div');
+        Object.assign(controlsBar.style, {
+            padding: '12px 16px',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            flex: '0 0 auto'
+        });
+
+        const nameInput = document.createElement('input');
+        nameInput.placeholder = 'Name';
+        styleInput(nameInput);
+        nameInput.style.width = '110px';
+
+        const urlInput = document.createElement('input');
+        urlInput.placeholder = 'Plugin URL';
+        styleInput(urlInput);
+        urlInput.style.flex = '1';
+
+        const addBtn = document.createElement('button');
+        addBtn.textContent = '+ Add';
+        styleBtn(addBtn);
+        addBtn.onclick = () => {
+            const name = nameInput.value.trim();
+            const url = urlInput.value.trim();
+            if (!name || !url) return;
+            const plugins = getPlugins();
+            plugins.push({ name, url, enabled: false });
+            setPlugins(plugins);
+            nameInput.value = '';
+            urlInput.value = '';
+            renderPanel();
+        };
+
+        const refreshBtn = document.createElement('button');
+        refreshBtn.textContent = 'Refresh';
+        styleBtn(refreshBtn);
+        refreshBtn.onclick = () => {
+            getPlugins().forEach(p => { if (p.enabled) queuePlugin(p, true); });
+        };
+
+        controlsBar.appendChild(nameInput);
+        controlsBar.appendChild(urlInput);
+        controlsBar.appendChild(addBtn);
+        controlsBar.appendChild(refreshBtn);
+
+        const searchBar = document.createElement('div');
+        Object.assign(searchBar.style, {
+            padding: '10px 16px',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            flex: '0 0 auto'
+        });
+
+        const searchInput = document.createElement('input');
+        searchInput.placeholder = 'Search plugins…';
+        styleInput(searchInput);
+        searchInput.style.width = '100%';
+        searchInput.oninput = () => renderPanel(searchInput.value.toLowerCase());
+        searchBar.appendChild(searchInput);
+
+        const content = document.createElement('div');
+        content.id = 'avia-plugins-content';
+        Object.assign(content.style, {
+            flex: '1',
+            overflowY: 'auto',
+            padding: '12px 16px 16px',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+        });
+        if (!document.getElementById('avia-scrollbar-hide')) {
+            const s = document.createElement('style');
+            s.id = 'avia-scrollbar-hide';
+            s.textContent = '#avia-plugins-content::-webkit-scrollbar{display:none}';
+            document.head.appendChild(s);
+        }
+
+        panel.appendChild(header);
+        panel.appendChild(controlsBar);
+        panel.appendChild(searchBar);
+        panel.appendChild(content);
+        document.body.appendChild(panel);
+        enableDragOn(panel, header);
+        renderPanel();
+    }
+
+    function renderPanel(filter = '') {
+        const content = document.getElementById('avia-plugins-content');
+        if (!content) return;
+        content.innerHTML = '';
+
+        const plugins = getPlugins();
+        const runSnap = { ...runningPlugins };
+        const errSnap = { ...pluginErrors };
+
+        const visible = (filter
+            ? plugins.filter(p => p.name.toLowerCase().includes(filter))
+            : plugins).slice().reverse();
+
+        if (visible.length === 0) {
+            const empty = document.createElement('div');
+            empty.textContent = plugins.length === 0
+                ? 'No plugins yet. Add one above.'
+                : 'No plugins match your search.';
+            Object.assign(empty.style, { opacity: '0.4', fontSize: '13px', textAlign: 'center', padding: '24px 0' });
+            content.appendChild(empty);
+            return;
+        }
+
+        const sectionLabel = document.createElement('div');
+        sectionLabel.textContent = `User Plugins: ${visible.length}`;
+        Object.assign(sectionLabel.style, {
+            fontSize: '11px',
+            fontWeight: '700',
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.35)',
+            marginBottom: '10px'
+        });
+        content.appendChild(sectionLabel);
+
+        const grid = document.createElement('div');
+        Object.assign(grid.style, {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: '10px'
+        });
+
+        visible.forEach((plugin) => {
+            const realIndex = plugins.indexOf(plugin);
+            const isRunning = !!runSnap[plugin.url];
+            const hasError = !!errSnap[plugin.url];
+
+            const card = document.createElement('div');
+            Object.assign(card.style, {
+                background: 'rgba(255,255,255,0.04)',
+                border: `1px solid ${hasError ? 'rgba(255,77,77,0.3)' : isRunning ? 'rgba(77,255,136,0.25)' : 'rgba(255,255,255,0.06)'}`,
+                borderRadius: '10px',
+                padding: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+            });
+            card.onmouseenter = () => {
+                if (!hasError && !isRunning) card.style.borderColor = 'rgba(255,255,255,0.13)';
+            };
+            card.onmouseleave = () => {
+                card.style.borderColor = hasError ? 'rgba(255,77,77,0.3)' : isRunning ? 'rgba(77,255,136,0.25)' : 'rgba(255,255,255,0.06)';
+            };
+
+            const topRow = document.createElement('div');
+            Object.assign(topRow.style, {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px'
+            });
+
+            const nameWrap = document.createElement('div');
+            Object.assign(nameWrap.style, { display: 'flex', alignItems: 'center', gap: '7px', minWidth: '0', flex: '1' });
+
+            const dot = document.createElement('div');
+            Object.assign(dot.style, {
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                flexShrink: '0',
+                background: hasError ? '#ff4d4d' : isRunning ? '#4dff88' : '#555',
+                boxShadow: hasError ? '0 0 5px #ff4d4d' : isRunning ? '0 0 5px #4dff88' : 'none'
+            });
+
+            const nameEl = document.createElement('div');
+            nameEl.textContent = plugin.name;
+            Object.assign(nameEl.style, {
+                fontSize: '13px',
+                fontWeight: '600',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+            });
+
+            nameWrap.appendChild(dot);
+            nameWrap.appendChild(nameEl);
+
+            const switchWrap = document.createElement('div');
+            Object.assign(switchWrap.style, {
+                position: 'relative',
+                width: '36px',
+                height: '20px',
+                flexShrink: '0',
+                cursor: 'pointer'
+            });
+
+            const track = document.createElement('div');
+            Object.assign(track.style, {
+                position: 'absolute',
+                inset: '0',
+                borderRadius: '10px',
+                background: plugin.enabled ? 'rgba(100,160,255,0.6)' : 'rgba(255,255,255,0.15)',
+                transition: 'background 0.2s'
+            });
+
+            const thumb = document.createElement('div');
+            Object.assign(thumb.style, {
+                position: 'absolute',
+                top: '3px',
+                left: plugin.enabled ? '19px' : '3px',
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                background: '#fff',
+                transition: 'left 0.2s',
+                pointerEvents: 'none'
+            });
+
+            switchWrap.appendChild(track);
+            switchWrap.appendChild(thumb);
+
+            switchWrap.onclick = () => {
+                plugin.enabled = !plugin.enabled;
+                setPlugins(plugins);
+                if (plugin.enabled) queuePlugin(plugin);
+                else stopPlugin(plugin);
+                renderPanel(filter);
+            };
+
+            topRow.appendChild(nameWrap);
+            topRow.appendChild(switchWrap);
+
+            const footer = document.createElement('div');
+            Object.assign(footer.style, { display: 'flex', gap: '6px', marginTop: 'auto', paddingTop: '2px' });
+
+            const LOCAL_KEY = "avia_local_plugins";
+            const getLocals = () => JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]");
+
+            const toLocalBtn = document.createElement('button');
+            styleBtn(toLocalBtn, 'rgba(80,200,120,0.15)');
+            toLocalBtn.style.flex = '1';
+            const alreadyLocal = getLocals().some(p => p.name === plugin.name);
+            if (alreadyLocal) {
+                toLocalBtn.textContent = 'In Local';
+                toLocalBtn.disabled = true;
+                toLocalBtn.style.opacity = '0.45';
+                toLocalBtn.onmouseenter = null;
+                toLocalBtn.onmouseleave = null;
+            } else {
+                toLocalBtn.textContent = 'To Local';
+            }
+
+            toLocalBtn.onclick = async () => {
+                if (toLocalBtn.disabled) return;
+                toLocalBtn.textContent = '…';
+                toLocalBtn.disabled = true;
+
+                let code = null;
+                const scriptEl = runningPlugins[plugin.url];
+                if (scriptEl && scriptEl.textContent) code = scriptEl.textContent;
+
+                if (!code) {
+                    try {
+                        const res = await fetch(normalizePluginUrl(plugin.url));
+                        if (!res.ok) throw new Error("HTTP " + res.status);
+                        code = await res.text();
+                    } catch {
+                        toLocalBtn.textContent = 'Failed';
+                        setTimeout(() => { toLocalBtn.textContent = 'Local'; toLocalBtn.disabled = false; }, 2000);
+                        return;
+                    }
+                }
+
+                const locals = getLocals();
+                if (locals.some(p => p.name === plugin.name)) {
+                    toLocalBtn.textContent = 'In Local';
+                    return;
+                }
+                locals.push({
+                    id: "local_" + Date.now() + "_" + Math.random().toString(36).slice(2),
+                    name: plugin.name,
+                    code,
+                    enabled: plugin.enabled
+                });
+                localStorage.setItem(LOCAL_KEY, JSON.stringify(locals));
+                window.dispatchEvent(new Event("avia-local-plugin-list-changed"));
+                stopPlugin(plugin);
+                plugins.splice(realIndex, 1);
+                setPlugins(plugins);
+                renderPanel(filter);
+            };
+
+            const viewBtn = document.createElement('button');
+            viewBtn.textContent = 'View';
+            styleBtn(viewBtn, 'rgba(100,160,255,0.15)');
+            viewBtn.style.flex = '1';
+            viewBtn.onclick = () => openViewerPanel(plugin);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '✕';
+            styleBtn(removeBtn, 'rgba(255,80,80,0.15)');
+            removeBtn.onclick = () => {
+                stopPlugin(plugin);
+                plugins.splice(realIndex, 1);
+                setPlugins(plugins);
+                renderPanel(filter);
+            };
+
+            footer.appendChild(toLocalBtn);
+            footer.appendChild(viewBtn);
+            footer.appendChild(removeBtn);
+
+            card.appendChild(topRow);
+            card.appendChild(footer);
+            grid.appendChild(card);
+        });
+
+        content.appendChild(grid);
+    }
+
+    function styleInput(input) {
+        Object.assign(input.style, {
+            padding: '6px 8px',
+            borderRadius: '8px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.05)',
+            color: '#fff',
+            fontSize: '13px'
+        });
+    }
+
+    function styleBtn(btn, bg) {
+        Object.assign(btn.style, {
+            padding: '5px 12px',
+            borderRadius: '8px',
+            border: 'none',
+            background: bg || 'rgba(255,255,255,0.08)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '12px',
+            whiteSpace: 'nowrap'
+        });
+        btn.onmouseenter = () => btn.style.opacity = '0.75';
+        btn.onmouseleave = () => btn.style.opacity = '1';
+    }
+
+    function enableDragOn(panel, header) {
+        let isDragging = false, offsetX, offsetY;
+        header.addEventListener('mousedown', e => {
+            isDragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            document.body.style.userSelect = '';
+        });
+        document.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panel.style.left = (e.clientX - offsetX) + 'px';
+            panel.style.top = (e.clientY - offsetY) + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+        });
+    }
+
+    function injectButtons() {
+        if (document.getElementById('stoat-fake-plugins')) return;
+        const appearanceBtn = [...document.querySelectorAll('a')]
+            .find(a => a.textContent.trim() === 'Appearance');
+        if (!appearanceBtn) return;
+        const referenceNode = document.getElementById('stoat-fake-quickcss');
+        if (!referenceNode) return;
+        const pluginsBtn = appearanceBtn.cloneNode(true);
+        pluginsBtn.id = 'stoat-fake-plugins';
+        const textNode = [...pluginsBtn.querySelectorAll('div')]
+            .find(d => d.children.length === 0 && d.textContent.trim() === 'Appearance');
+        if (textNode) textNode.textContent = "(Avia) Plugins";
+        const svgNS = "http://www.w3.org/2000/svg";
+        const oldSvg = pluginsBtn.querySelector('svg');
+        if (oldSvg) oldSvg.remove();
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "currentColor");
+        svg.style.marginRight = "8px";
+        const path = document.createElementNS(svgNS, "path");
+        path.setAttribute("d", "M20.5 11H19V7a2 2 0 00-2-2h-4V3.5a2.5 2.5 0 00-5 0V5H4a2 2 0 00-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 002 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7V22H17a2 2 0 002-2v-4h1.5a2.5 2.5 0 000-5z");
+        svg.appendChild(path);
+        pluginsBtn.insertBefore(svg, pluginsBtn.firstChild);
+        pluginsBtn.addEventListener('click', togglePluginsPanel);
+        referenceNode.parentElement.insertBefore(pluginsBtn, referenceNode.nextSibling);
+    }
+
+    function waitForBody(callback) {
+        if (document.body) callback();
+        else new MutationObserver((obs) => {
+            if (document.body) { obs.disconnect(); callback(); }
+        }).observe(document.documentElement, { childList: true });
+    }
+
+    function registerWithAviaMenu() {
+        if (window.AviaMenu) {
+            window.AviaMenu.register({ id: "avia_plugins_online", name: "Plugins", icon: "extension", onClick: togglePluginsPanel });
+        } else {
+            const interval = setInterval(() => {
+                if (window.AviaMenu) {
+                    clearInterval(interval);
+                    window.AviaMenu.register({ id: "avia_plugins_online", name: "Plugins", icon: "extension", onClick: togglePluginsPanel });
+                }
+            }, 100);
+        }
+    }
+
+    waitForBody(() => {
+        const observer = new MutationObserver(() => injectButtons());
+        observer.observe(document.body, { childList: true, subtree: true });
+        injectButtons();
+        preloadMonaco();
+    });
+
+    getPlugins().forEach(plugin => {
+        if (plugin.enabled) queuePlugin(plugin);
+    });
+
+    registerWithAviaMenu();
+
+})();
+
+
+
+/* --- LocalPlugins.js --- */
+if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGINS_JS__=true;
+
+(function () {
+
+    if (window.__LOCAL_PLUGINS__) return;
+    window.__LOCAL_PLUGINS__ = true;
+
+    const STORAGE_KEY = "avia_local_plugins";
+
+    const runningLocalPlugins = {};
+    const localPluginErrors = {};
+
+    const getLocalPlugins = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const setLocalPlugins = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    function preloadMonaco() {
+        return new Promise(resolve => {
+            if (window.monaco) return resolve();
+            const loader = document.createElement("script");
+            loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js";
+            loader.onload = function () {
+                require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
+                require(["vs/editor/editor.main"], () => resolve());
+            };
+            document.head.appendChild(loader);
+        });
+    }
+
+    function exportPlugin(plugin) {
+        const filename = plugin.name.endsWith(".js") ? plugin.name : plugin.name + ".js";
+        const blob = new Blob([plugin.code || ""], { type: "text/javascript" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function runLocalPlugin(plugin) {
+        stopLocalPlugin(plugin);
+        try {
+            const script = document.createElement("script");
+            script.textContent = plugin.code || "";
+            script.dataset.localPluginId = plugin.id;
+            document.body.appendChild(script);
+            runningLocalPlugins[plugin.id] = script;
+            delete localPluginErrors[plugin.id];
+        } catch (e) {
+            localPluginErrors[plugin.id] = true;
+        }
+        renderLocalPanel();
+    }
+
+    function stopLocalPlugin(plugin) {
+        const script = runningLocalPlugins[plugin.id];
+        if (!script) return;
+        script.remove();
+        delete runningLocalPlugins[plugin.id];
+        delete localPluginErrors[plugin.id];
+        renderLocalPanel();
+    }
+
+    async function openEditorPanel(plugin, onSave) {
+        await preloadMonaco();
+
+        const existing = document.getElementById("avia-local-editor-panel");
+        if (existing) existing.remove();
+
+        const panel = document.createElement("div");
+        panel.id = "avia-local-editor-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "24px",
+            left: "24px",
+            width: "680px",
+            height: "460px",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+            zIndex: "9999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)"
+        });
+
+        const header = document.createElement("div");
+        header.textContent = `Editing: ${plugin.name}`;
+        Object.assign(header.style, {
+            padding: "14px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move",
+            color: "#fff",
+            flex: "0 0 auto"
+        });
+
+        const closeBtn = document.createElement("div");
+        closeBtn.textContent = "✕";
+        Object.assign(closeBtn.style, {
+            position: "absolute",
+            top: "12px",
+            right: "16px",
+            cursor: "pointer",
+            opacity: "0.7",
+            color: "#fff",
+            zIndex: "1"
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.7";
+        closeBtn.onclick = () => panel.remove();
+
+        const toolbar = document.createElement("div");
+        Object.assign(toolbar.style, {
+            padding: "8px 16px",
+            display: "flex",
+            gap: "8px",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            flex: "0 0 auto"
+        });
+
+        const saveBtn = document.createElement("button");
+        saveBtn.textContent = "💾 Save";
+        styleEditorBtn(saveBtn, "#2d6a4f");
+
+        const saveRunBtn = document.createElement("button");
+        saveRunBtn.textContent = "▶ Save & Run";
+        styleEditorBtn(saveRunBtn, "#1b4332");
+
+        toolbar.appendChild(saveBtn);
+        toolbar.appendChild(saveRunBtn);
+
+        const editorContainer = document.createElement("div");
+        editorContainer.style.flex = "1";
+
+        panel.appendChild(header);
+        panel.appendChild(closeBtn);
+        panel.appendChild(toolbar);
+        panel.appendChild(editorContainer);
+        document.body.appendChild(panel);
+
+        const editor = monaco.editor.create(editorContainer, {
+            value: plugin.code || "",
+            language: "javascript",
+            theme: "vs-dark",
+            automaticLayout: true,
+            minimap: { enabled: false },
+            fontSize: 13,
+            scrollBeyondLastLine: false,
+            wordWrap: "on"
+        });
+
+        saveBtn.onclick = () => {
+            onSave(editor.getValue(), false);
+            saveBtn.textContent = "✓ Saved";
+            setTimeout(() => saveBtn.textContent = "💾 Save", 1200);
+        };
+
+        saveRunBtn.onclick = () => {
+            onSave(editor.getValue(), true);
+            saveRunBtn.textContent = "✓ Ran!";
+            setTimeout(() => saveRunBtn.textContent = "▶ Save & Run", 1200);
+        };
+
+        enableEditorDrag(panel, header);
+    }
+
+    function styleEditorBtn(btn, bg) {
+        Object.assign(btn.style, {
+            padding: "5px 14px",
+            borderRadius: "8px",
+            border: "none",
+            background: bg || "rgba(255,255,255,0.1)",
+            color: "#fff",
+            cursor: "pointer",
+            fontSize: "12px",
+            fontWeight: "500"
+        });
+        btn.onmouseenter = () => btn.style.opacity = "0.8";
+        btn.onmouseleave = () => btn.style.opacity = "1";
+    }
+
+    function enableEditorDrag(panel, handle) {
+        let isDragging = false, offsetX, offsetY;
+        handle.addEventListener("mousedown", e => {
+            isDragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+            document.body.style.userSelect = "none";
+        });
+        document.addEventListener("mouseup", () => {
+            isDragging = false;
+            document.body.style.userSelect = "";
+        });
+        document.addEventListener("mousemove", e => {
+            if (!isDragging) return;
+            panel.style.left = (e.clientX - offsetX) + "px";
+            panel.style.top = (e.clientY - offsetY) + "px";
+            panel.style.right = "auto";
+            panel.style.bottom = "auto";
+        });
+    }
+
+    function toggleLocalPanel() {
+        let panel = document.getElementById("avia-local-plugins-panel");
+        if (panel) {
+            if (panel.style.display === "none") {
+                panel.style.display = "flex";
+                renderLocalPanel();
+            } else {
+                panel.style.display = "none";
+            }
+            return;
+        }
+
+        panel = document.createElement("div");
+        panel.id = "avia-local-plugins-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "24px",
+            right: "560px",
+            width: "560px",
+            height: "520px",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            color: "var(--md-sys-color-on-surface, #fff)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+            zIndex: "999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)"
+        });
+
+        const header = document.createElement("div");
+        Object.assign(header.style, {
+            padding: "14px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flex: "0 0 auto"
+        });
+
+        const headerTitle = document.createElement("span");
+        headerTitle.textContent = "Local Plugins";
+
+        const closeBtn = document.createElement("div");
+        closeBtn.textContent = "✕";
+        Object.assign(closeBtn.style, {
+            cursor: "pointer",
+            opacity: "0.7",
+            fontSize: "15px",
+            lineHeight: "1",
+            padding: "2px 4px"
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.7";
+        closeBtn.onclick = () => panel.style.display = "none";
+
+        header.appendChild(headerTitle);
+        header.appendChild(closeBtn);
+
+        const controlsBar = document.createElement("div");
+        Object.assign(controlsBar.style, {
+            padding: "12px 16px",
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            flex: "0 0 auto"
+        });
+
+        const nameInput = document.createElement("input");
+        nameInput.placeholder = "Plugin name";
+        styleLocalInput(nameInput);
+        nameInput.style.flex = "1";
+
+        const addBtn = document.createElement("button");
+        addBtn.textContent = "+ New";
+        styleLocalBtn(addBtn);
+        addBtn.onclick = () => {
+            const name = nameInput.value.trim();
+            if (!name) return;
+            const plugins = getLocalPlugins();
+            const newPlugin = {
+                id: "local_" + Date.now(),
+                name,
+                code: "",
+                enabled: false
+            };
+            plugins.push(newPlugin);
+            setLocalPlugins(plugins);
+            nameInput.value = "";
+            renderLocalPanel(searchInput.value.toLowerCase());
+        };
+
+        const importBtn = document.createElement("button");
+        importBtn.textContent = "Import";
+        styleLocalBtn(importBtn, "#2d6a4f");
+        importBtn.onmouseenter = () => importBtn.style.opacity = "0.75";
+        importBtn.onmouseleave = () => importBtn.style.opacity = "1";
+
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = ".js";
+        fileInput.multiple = true;
+        fileInput.style.display = "none";
+
+        importBtn.onclick = () => fileInput.click();
+
+        fileInput.onchange = async () => {
+            const files = [...fileInput.files];
+            if (!files.length) return;
+            const plugins = getLocalPlugins();
+            for (const file of files) {
+                const text = await file.text();
+                const name = file.name.replace(/\.js$/i, "");
+                plugins.push({
+                    id: "local_" + Date.now() + "_" + Math.random(),
+                    name,
+                    code: text,
+                    enabled: false
+                });
+            }
+            setLocalPlugins(plugins);
+            fileInput.value = "";
+            renderLocalPanel(searchInput.value.toLowerCase());
+        };
+
+        controlsBar.appendChild(nameInput);
+        controlsBar.appendChild(addBtn);
+        controlsBar.appendChild(importBtn);
+        controlsBar.appendChild(fileInput);
+
+        const searchBar = document.createElement("div");
+        Object.assign(searchBar.style, {
+            padding: "10px 16px",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            flex: "0 0 auto"
+        });
+
+        const searchInput = document.createElement("input");
+        searchInput.placeholder = "Search plugins…";
+        styleLocalInput(searchInput);
+        searchInput.style.width = "100%";
+        searchInput.oninput = () => renderLocalPanel(searchInput.value.toLowerCase());
+        searchBar.appendChild(searchInput);
+
+        const content = document.createElement("div");
+        content.id = "avia-local-plugins-content";
+        Object.assign(content.style, {
+            flex: "1",
+            overflowY: "auto",
+            padding: "12px 16px 16px",
+            scrollbarWidth: "none",
+            msOverflowStyle: "none"
+        });
+
+        if (!document.getElementById("avia-local-scrollbar-hide")) {
+            const s = document.createElement("style");
+            s.id = "avia-local-scrollbar-hide";
+            s.textContent = "#avia-local-plugins-content::-webkit-scrollbar{display:none}";
+            document.head.appendChild(s);
+        }
+
+        panel.appendChild(header);
+        panel.appendChild(controlsBar);
+        panel.appendChild(searchBar);
+        panel.appendChild(content);
+
+        const dropOverlay = document.createElement("div");
+        dropOverlay.textContent = "Import JS files";
+        Object.assign(dropOverlay.style, {
+            position: "absolute",
+            inset: "0",
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "18px",
+            fontWeight: "600",
+            color: "#fff",
+            opacity: "0",
+            pointerEvents: "none",
+            transition: "opacity 0.15s ease",
+            borderRadius: "16px"
+        });
+        panel.appendChild(dropOverlay);
+
+        document.body.appendChild(panel);
+
+        let dragDepth = 0;
+
+        panel.addEventListener("dragenter", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragDepth++;
+            dropOverlay.style.opacity = "1";
+            panel.style.border = "1px dashed rgba(255,255,255,0.4)";
+        });
+
+        panel.addEventListener("dragover", e => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        panel.addEventListener("dragleave", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragDepth--;
+            if (dragDepth <= 0) {
+                dropOverlay.style.opacity = "0";
+                panel.style.border = "1px solid rgba(255,255,255,0.08)";
+                dragDepth = 0;
+            }
+        });
+
+        panel.addEventListener("drop", async e => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropOverlay.style.opacity = "0";
+            panel.style.border = "1px solid rgba(255,255,255,0.08)";
+            dragDepth = 0;
+            const files = [...e.dataTransfer.files].filter(f => f.name.endsWith(".js"));
+            if (!files.length) return;
+            const plugins = getLocalPlugins();
+            for (const file of files) {
+                const text = await file.text();
+                const name = file.name.replace(/\.js$/i, "");
+                plugins.push({
+                    id: "local_" + Date.now() + "_" + Math.random(),
+                    name,
+                    code: text,
+                    enabled: false
+                });
+            }
+            setLocalPlugins(plugins);
+            renderLocalPanel(searchInput.value.toLowerCase());
+        });
+
+        let isDragging = false, offsetX, offsetY;
+        header.addEventListener("mousedown", e => {
+            isDragging = true;
+            offsetX = e.clientX - panel.offsetLeft;
+            offsetY = e.clientY - panel.offsetTop;
+            document.body.style.userSelect = "none";
+        });
+        document.addEventListener("mouseup", () => {
+            isDragging = false;
+            document.body.style.userSelect = "";
+        });
+        document.addEventListener("mousemove", e => {
+            if (!isDragging) return;
+            panel.style.left = (e.clientX - offsetX) + "px";
+            panel.style.top = (e.clientY - offsetY) + "px";
+            panel.style.right = "auto";
+            panel.style.bottom = "auto";
+        });
+
+        renderLocalPanel();
+    }
+
+    function renderLocalPanel(filter = "") {
+        const content = document.getElementById("avia-local-plugins-content");
+        if (!content) return;
+        content.innerHTML = "";
+
+        const plugins = getLocalPlugins();
+        const runSnap = { ...runningLocalPlugins };
+        const errSnap = { ...localPluginErrors };
+
+        const filtered = filter
+            ? plugins.filter(p => p.name.toLowerCase().includes(filter))
+            : plugins;
+
+        const visible = [...filtered].reverse();
+
+        if (visible.length === 0) {
+            const empty = document.createElement("div");
+            empty.textContent = plugins.length === 0
+                ? "No local plugins yet. Add one above."
+                : "No plugins match your search.";
+            Object.assign(empty.style, { opacity: "0.4", fontSize: "13px", textAlign: "center", padding: "24px 0" });
+            content.appendChild(empty);
+            return;
+        }
+
+        const sectionLabel = document.createElement("div");
+        sectionLabel.textContent = `Local Plugins: ${visible.length}`;
+        Object.assign(sectionLabel.style, {
+            fontSize: "11px",
+            fontWeight: "700",
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "rgba(255,255,255,0.35)",
+            marginBottom: "10px"
+        });
+        content.appendChild(sectionLabel);
+
+        const grid = document.createElement("div");
+        Object.assign(grid.style, {
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gap: "10px"
+        });
+
+        visible.forEach((plugin) => {
+            const isRunning = !!runSnap[plugin.id];
+            const hasError = !!errSnap[plugin.id];
+
+            const card = document.createElement("div");
+            Object.assign(card.style, {
+                background: "rgba(255,255,255,0.04)",
+                border: `1px solid ${hasError ? "rgba(255,77,77,0.3)" : isRunning ? "rgba(77,255,136,0.25)" : "rgba(255,255,255,0.06)"}`,
+                borderRadius: "10px",
+                padding: "12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px"
+            });
+            card.onmouseenter = () => {
+                if (!hasError && !isRunning) card.style.borderColor = "rgba(255,255,255,0.13)";
+            };
+            card.onmouseleave = () => {
+                card.style.borderColor = hasError ? "rgba(255,77,77,0.3)" : isRunning ? "rgba(77,255,136,0.25)" : "rgba(255,255,255,0.06)";
+            };
+
+            const topRow = document.createElement("div");
+            Object.assign(topRow.style, {
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px"
+            });
+
+            const nameWrap = document.createElement("div");
+            Object.assign(nameWrap.style, { display: "flex", alignItems: "center", gap: "7px", minWidth: "0", flex: "1" });
+
+            const dot = document.createElement("div");
+            Object.assign(dot.style, {
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                flexShrink: "0",
+                background: hasError ? "#ff4d4d" : isRunning ? "#4dff88" : "#555",
+                boxShadow: hasError ? "0 0 5px #ff4d4d" : isRunning ? "0 0 5px #4dff88" : "none"
+            });
+
+            const nameEl = document.createElement("div");
+            nameEl.textContent = plugin.name;
+            Object.assign(nameEl.style, {
+                fontSize: "13px",
+                fontWeight: "600",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap"
+            });
+
+            nameWrap.appendChild(dot);
+            nameWrap.appendChild(nameEl);
+
+            const switchWrap = document.createElement("div");
+            Object.assign(switchWrap.style, {
+                position: "relative",
+                width: "36px",
+                height: "20px",
+                flexShrink: "0",
+                cursor: "pointer"
+            });
+
+            const track = document.createElement("div");
+            Object.assign(track.style, {
+                position: "absolute",
+                inset: "0",
+                borderRadius: "10px",
+                background: plugin.enabled ? "rgba(100,160,255,0.6)" : "rgba(255,255,255,0.15)",
+                transition: "background 0.2s"
+            });
+
+            const thumb = document.createElement("div");
+            Object.assign(thumb.style, {
+                position: "absolute",
+                top: "3px",
+                left: plugin.enabled ? "19px" : "3px",
+                width: "14px",
+                height: "14px",
+                borderRadius: "50%",
+                background: "#fff",
+                transition: "left 0.2s",
+                pointerEvents: "none"
+            });
+
+            switchWrap.appendChild(track);
+            switchWrap.appendChild(thumb);
+
+            switchWrap.onclick = () => {
+                const all = getLocalPlugins();
+                const target = all.find(p => p.id === plugin.id);
+                if (!target) return;
+                target.enabled = !target.enabled;
+                plugin.enabled = target.enabled;
+                setLocalPlugins(all);
+                if (target.enabled) runLocalPlugin(plugin);
+                else stopLocalPlugin(plugin);
+                renderLocalPanel(filter);
+            };
+
+            topRow.appendChild(nameWrap);
+            topRow.appendChild(switchWrap);
+
+            const footer = document.createElement("div");
+            Object.assign(footer.style, { display: "flex", gap: "6px", marginTop: "auto", paddingTop: "2px" });
+
+            const editBtn = document.createElement("button");
+            editBtn.textContent = "✏ Edit";
+            styleLocalBtn(editBtn, "rgba(100,140,255,0.2)");
+            editBtn.style.flex = "1";
+            editBtn.onclick = () => {
+                openEditorPanel(plugin, (newCode, andRun) => {
+                    const all = getLocalPlugins();
+                    const target = all.find(p => p.id === plugin.id);
+                    if (target) {
+                        target.code = newCode;
+                        plugin.code = newCode;
+                        setLocalPlugins(all);
+                    }
+                    if (andRun) {
+                        plugin.enabled = true;
+                        if (target) target.enabled = true;
+                        setLocalPlugins(getLocalPlugins().map(p => p.id === plugin.id ? { ...p, code: newCode, enabled: true } : p));
+                        runLocalPlugin(plugin);
+                    }
+                    renderLocalPanel(filter);
+                });
+            };
+
+            const exportBtn = document.createElement("button");
+            exportBtn.textContent = "Export";
+            styleLocalBtn(exportBtn, "rgba(80,200,120,0.15)");
+            exportBtn.title = "Download as .js file";
+            exportBtn.onclick = () => exportPlugin(plugin);
+
+            const removeBtn = document.createElement("button");
+            removeBtn.textContent = "✕";
+            styleLocalBtn(removeBtn, "rgba(255,80,80,0.15)");
+            removeBtn.onclick = () => {
+                stopLocalPlugin(plugin);
+                const editorPanel = document.getElementById("avia-local-editor-panel");
+                if (editorPanel) editorPanel.remove();
+                const all = getLocalPlugins();
+                all.splice(all.findIndex(p => p.id === plugin.id), 1);
+                setLocalPlugins(all);
+                renderLocalPanel(filter);
+            };
+
+            footer.appendChild(exportBtn);
+            footer.appendChild(editBtn);
+            footer.appendChild(removeBtn);
+
+            card.appendChild(topRow);
+            card.appendChild(footer);
+            grid.appendChild(card);
+        });
+
+        content.appendChild(grid);
+    }
+
+    function styleLocalInput(input) {
+        Object.assign(input.style, {
+            padding: "6px 8px",
+            borderRadius: "8px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.05)",
+            color: "#fff",
+            fontSize: "13px"
+        });
+    }
+
+    function styleLocalBtn(btn, bg) {
+        Object.assign(btn.style, {
+            padding: "5px 12px",
+            borderRadius: "8px",
+            border: "none",
+            background: bg || "rgba(255,255,255,0.08)",
+            color: "#fff",
+            cursor: "pointer",
+            fontSize: "12px",
+            whiteSpace: "nowrap"
+        });
+        btn.onmouseenter = () => btn.style.opacity = "0.75";
+        btn.onmouseleave = () => btn.style.opacity = "1";
+    }
+
+    function injectLocalButton() {
+        if (document.getElementById("avia-local-plugins-btn")) return;
+        const appearanceBtn = [...document.querySelectorAll("a")]
+            .find(a => a.textContent.trim() === "Appearance");
+        if (!appearanceBtn) return;
+
+        const aviaPluginsBtn = document.getElementById("stoat-fake-plugins");
+        if (!aviaPluginsBtn) return;
+
+        const localBtn = appearanceBtn.cloneNode(true);
+        localBtn.id = "avia-local-plugins-btn";
+
+        const textNode = [...localBtn.querySelectorAll("div")]
+            .find(d => d.children.length === 0 && d.textContent.trim() === "Appearance");
+        if (textNode) textNode.textContent = "(Avia) Local Plugins";
+
+        const oldSvg = localBtn.querySelector("svg");
+        if (oldSvg) oldSvg.remove();
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "20");
+        svg.setAttribute("height", "20");
+        svg.setAttribute("fill", "currentColor");
+        svg.style.marginRight = "8px";
+        const path = document.createElementNS(svgNS, "path");
+        path.setAttribute("d", "M20.5 11H19V7a2 2 0 00-2-2h-4V3.5a2.5 2.5 0 00-5 0V5H4a2 2 0 00-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 002 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7V22H17a2 2 0 002-2v-4h1.5a2.5 2.5 0 000-5z");
+        svg.appendChild(path);
+        localBtn.insertBefore(svg, localBtn.firstChild);
+
+        localBtn.addEventListener("click", toggleLocalPanel);
+        aviaPluginsBtn.parentElement.insertBefore(localBtn, aviaPluginsBtn.nextSibling);
+    }
+
+    function registerWithAviaMenu() {
+        if (window.AviaMenu) {
+            window.AviaMenu.register({ id: "avia_plugins_local", name: "Local Plugins", icon: "extension", onClick: toggleLocalPanel });
+        } else {
+            const interval = setInterval(() => {
+                if (window.AviaMenu) {
+                    clearInterval(interval);
+                    window.AviaMenu.register({ id: "avia_plugins_local", name: "Local Plugins", icon: "extension", onClick: toggleLocalPanel });
+                }
+            }, 100);
+        }
+    }
+
+    function waitForBody(callback) {
+        if (document.body) callback();
+        else new MutationObserver((obs) => {
+            if (document.body) { obs.disconnect(); callback(); }
+        }).observe(document.documentElement, { childList: true });
+    }
+
+    waitForBody(() => {
+        const observer = new MutationObserver(() => injectLocalButton());
+        observer.observe(document.body, { childList: true, subtree: true });
+        injectLocalButton();
+    });
+
+    getLocalPlugins().forEach(plugin => {
+        if (plugin.enabled) runLocalPlugin(plugin);
+    });
+
+    preloadMonaco();
+
+    registerWithAviaMenu();
+
+})();
+
+
+
+/* --- ButtonFix.js --- */
+if(window.__US_BUILDER_BUTTONFIX_JS__){return;}window.__US_BUILDER_BUTTONFIX_JS__=true;
+
+(function () {
+    if (window.__BUTTON_FIX__) return;
+    window.__BUTTON_FIX__ = true;
+
+    function uninjectButton(button){
+        if(button){
+            button.parentElement.removeChild(button)
+        }
+    }
+
+    const observer = new MutationObserver(()=>{
+        let balls = [];
+        document.querySelectorAll('div[class=\'flex-sh_0 d_flex ai_end jc_center w_42px\']').forEach(element=>{
+        if(element.id?.includes('avia')){
+            balls.push(element)
+        }
+        })
+
+        const gifSpan = [...document.querySelectorAll("span.material-symbols-outlined")]
+        .find(s => s.textContent.trim() === "gif");
+
+        if(!gifSpan){
+            balls.forEach(element=>{
+                uninjectButton(element)
+            })
+        }
+    });
+    observer.observe(document.documentElement, {childList: true, subtree: true })
+})();
+
+
+/* --- clientBackup.js --- */
+if(window.__US_BUILDER_CLIENTBACKUP_JS__){return;}window.__US_BUILDER_CLIENTBACKUP_JS__=true;
+
+(function () {
+  if (window.__clientBackup) return;
+  window.__clientBackup = true;
+
+  const TARGET_TEXT = "Plugins v2 Placeholder";
+  const CLONE_KEY   = "data-lsbackup-cloned";
+
+  function exportLS() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      data[key] = localStorage.getItem(key);
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = "localstorage-backup.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importLS(file, onDone) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = JSON.parse(e.target.result);
+        let count = 0;
+        for (const [key, value] of Object.entries(data)) {
+          localStorage.setItem(key, value);
+          count++;
+        }
+        onDone(null, count);
+      } catch (err) {
+        onDone(err);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function buildPanel() {
+    const panel = document.createElement("div");
+    panel.style.cssText = `
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--md-sys-color-surface-container-highest);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface);
+    `;
+
+    const btnStyle = `
+      padding: 5px 12px;
+      border-radius: 4px;
+      border: none;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    `;
+
+    const status = document.createElement("span");
+    status.style.cssText = "font-size: 11px; opacity: 0.7; min-height: 14px;";
+
+    const exportBtn = document.createElement("button");
+    exportBtn.textContent = "⬇ Export localStorage";
+    exportBtn.style.cssText = btnStyle + `
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    `;
+    exportBtn.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      exportLS();
+      status.textContent = `✓ Exported ${localStorage.length} keys`;
+    });
+
+    const fileInput = document.createElement("input");
+    fileInput.type   = "file";
+    fileInput.accept = ".json";
+    fileInput.style.cssText = "display: none;";
+    fileInput.addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      importLS(file, (err, count) => {
+        if (err) {
+          status.textContent = "✗ Invalid JSON file";
+        } else {
+          status.textContent = `✓ Imported ${count} keys`;
+        }
+        fileInput.value = "";
+      });
+    });
+
+    const importBtn = document.createElement("button");
+    importBtn.textContent = "⬆ Import localStorage";
+    importBtn.style.cssText = btnStyle + `
+      background: var(--md-sys-color-surface-container);
+      color: var(--md-sys-color-on-surface);
+      border: 1px solid var(--md-sys-color-outline-variant);
+    `;
+    importBtn.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      fileInput.click();
+    });
+
+    panel.appendChild(exportBtn);
+    panel.appendChild(importBtn);
+    panel.appendChild(fileInput);
+    panel.appendChild(status);
+    return panel;
+  }
+
+  function tryInject() {
+    document.querySelectorAll("a.pos_relative").forEach(btn => {
+      if (
+        btn.hasAttribute(CLONE_KEY) ||
+        btn.hasAttribute("data-lsbackup-entry") ||
+        !btn.innerText.includes(TARGET_TEXT)
+      ) return;
+
+      btn.setAttribute(CLONE_KEY, "true");
+
+      const clone = btn.cloneNode(true);
+      clone.removeAttribute(CLONE_KEY);
+      clone.setAttribute("data-lsbackup-entry", "true");
+
+      const title = clone.querySelector("div.d_flex.flex-g_1.flex-d_column > div");
+      if (title) title.textContent = "AviaClient Backup";
+
+      const desc = clone.querySelector("div.d_flex.flex-g_1.flex-d_column > span");
+      if (desc) desc.textContent = "Backup or Restore all client data";
+
+      const iconBtn = document.createElement("div");
+      iconBtn.title = "LocalStorage Backup";
+      iconBtn.style.cssText = "cursor: pointer; z-index: 10; flex-shrink: 0;";
+      iconBtn.innerHTML = `
+        <div class="fill_var(--md-sys-color-on-surface) bg_var(--md-sys-color-surface-dim) w_36px h_36px d_flex flex-sh_0 ai_center jc_center bdr_var(--borderRadius-full)">
+          <span aria-hidden="true" class="material-symbols-outlined fs_inherit fw_undefined!" style="display: block; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0;">database</span>
+        </div>
+      `;
+
+      const existingIcon = clone.querySelector("div.fill_var\\(--md-sys-color-on-surface\\)");
+      if (existingIcon) {
+        existingIcon.replaceWith(iconBtn);
+      } else {
+        clone.prepend(iconBtn);
+      }
+
+      clone.addEventListener("click", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        panel.style.display = panel.style.display === "flex" ? "none" : "flex";
+      });
+
+      const wrapper = document.createElement("div");
+      wrapper.style.cssText = "display: flex; flex-direction: column;";
+
+      const panel = buildPanel();
+
+      wrapper.appendChild(clone);
+      wrapper.appendChild(panel);
+
+      btn.parentNode.insertBefore(wrapper, btn.nextSibling);
+    });
+  }
+
+  tryInject();
+
+  const observer = new MutationObserver(() => tryInject());
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+
+
+
+/* --- AccountSwitcher.js --- */
+if(window.__US_BUILDER_ACCOUNTSWITCHER_JS__){return;}window.__US_BUILDER_ACCOUNTSWITCHER_JS__=true;
+
+(function () {
+    if (window.__ACCOUNT_SWITCHER__) return;
+    window.__ACCOUNT_SWITCHER__ = true;
+
+    const LS_KEY = "accountswitcher";
+    const CDN = "https://cdn.stoatusercontent.com";
+    const API = "https://api.stoat.chat";
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const r = indexedDB.open("localforage");
+            r.onsuccess = () => resolve(r.result);
+            r.onerror = () => reject(r.error);
+        });
+    }
+
+    async function getTokens() {
+        try {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const r = db.transaction("keyvaluepairs", "readonly")
+                            .objectStore("keyvaluepairs").get(LS_KEY);
+                r.onsuccess = () => resolve(Array.isArray(r.result) ? r.result : []);
+                r.onerror = () => reject(r.error);
+            });
+        } catch { return []; }
+    }
+
+    async function saveTokens(arr) {
+        try {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const r = db.transaction("keyvaluepairs", "readwrite")
+                            .objectStore("keyvaluepairs").put(arr, LS_KEY);
+                r.onsuccess = () => resolve();
+                r.onerror = () => reject(r.error);
+            });
+        } catch {}
+    }
+
+    async function addToken(token) {
+        const tokens = (await getTokens()).filter(t => t !== token);
+        tokens.push(token);
+        await saveTokens(tokens);
+    }
+
+    async function removeToken(token) {
+        await saveTokens((await getTokens()).filter(t => t !== token));
+    }
+
+    async function getCurrentToken() {
+        try {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const r = db.transaction("keyvaluepairs", "readonly")
+                            .objectStore("keyvaluepairs").get("auth");
+                r.onsuccess = () => resolve(r.result?.session?.token || null);
+                r.onerror = () => reject(r.error);
+            });
+        } catch { return null; }
+    }
+
+    async function loginWithToken(token) {
+        const db = await openDB();
+        const res = await fetch(`${API}/users/@me`, {
+            headers: { "x-session-token": token }
+        });
+        if (!res.ok) throw new Error("Token is invalid or expired");
+        const user = await res.json();
+        await new Promise((resolve, reject) => {
+            const r = db.transaction("keyvaluepairs", "readwrite")
+                        .objectStore("keyvaluepairs")
+                        .put({ session: { _id: user._id, token, userId: user._id, valid: true } }, "auth");
+            r.onsuccess = () => resolve();
+            r.onerror = () => reject(r.error);
+        });
+        location.href = "https://stoat.chat/app";
+    }
+
+    async function fetchProfile(token) {
+        try {
+            const res = await fetch(`${API}/users/@me`, {
+                headers: { "x-session-token": token }
+            });
+            if (!res.ok) return null;
+            const u = await res.json();
+            return {
+                displayName: u.display_name || u.username || "Unknown",
+                username: u.username || "",
+                avatarUrl: u.avatar ? `${CDN}/avatars/${u.avatar._id}` : null
+            };
+        } catch { return null; }
+    }
+
+    async function loginWithCredentials(email, password) {
+        const res = await fetch("https://api.stoat.chat/auth/session/login", {
+            method: "POST",
+            headers: { "accept": "application/json", "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password, friendly_name: "AviaAccountSwitcher" })
+        });
+        const data = await res.json();
+        if (!res.ok || data.result !== "Success") {
+            throw new Error(data.type || data.result || "Login failed");
+        }
+        await addToken(data.token);
+        return data.token;
+    }
+
+    function ensureStyles() {
+        if (document.getElementById("avia-accsw-styles")) return;
+        const s = document.createElement("style");
+        s.id = "avia-accsw-styles";
+        s.textContent = `
+            @keyframes accsw-scrim-in { from{opacity:0}to{opacity:1} }
+            @keyframes accsw-modal-in { from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)} }
+            #accsw-modal { animation: accsw-modal-in 0.15s forwards; }
+            .accsw-btn {
+                height:40px; border-radius:999px; border:none; padding:0 16px;
+                font-size:0.875rem; font-weight:500; cursor:pointer;
+                display:flex; align-items:center; justify-content:center;
+                transition:opacity 0.15s; font-family:inherit;
+            }
+            .accsw-btn:hover{opacity:0.8}
+            .accsw-btn:disabled{cursor:not-allowed;opacity:0.38}
+            .accsw-field {
+                width:100%; box-sizing:border-box; padding:13px 14px;
+                border-radius:12px; border:1px solid rgba(255,255,255,0.12);
+                background:rgba(255,255,255,0.06); color:var(--md-sys-color-on-surface,#fff);
+                font-size:0.875rem; outline:none; font-family:inherit;
+                transition:border-color 0.15s;
+            }
+            .accsw-field:focus{border-color:var(--md-sys-color-primary,rgba(103,80,164,0.9))}
+            .accsw-field::placeholder{color:rgba(255,255,255,0.35)}
+            .accsw-list{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;scrollbar-width:thin;}
+            .accsw-list::-webkit-scrollbar{width:3px}
+            .accsw-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
+            .accsw-item {
+                display:flex; align-items:center; gap:12px; padding:10px 14px;
+                border-radius:12px; background:rgba(255,255,255,0.04);
+                border:1px solid rgba(255,255,255,0.07);
+                cursor:pointer; transition:background 0.12s; user-select:none;
+            }
+            .accsw-item:hover{background:rgba(255,255,255,0.09)}
+            .accsw-item.loading{opacity:0.5;pointer-events:none}
+            .accsw-avatar {
+                width:40px; height:40px; border-radius:50%; flex-shrink:0;
+                background:var(--md-sys-color-primary,rgba(103,80,164,0.9));
+                display:flex; align-items:center; justify-content:center;
+                font-size:16px; font-weight:700; color:#fff; overflow:hidden;
+                text-transform:uppercase;
+            }
+            .accsw-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+            .accsw-info{flex:1;min-width:0}
+            .accsw-name{font-size:14px;font-weight:600;color:var(--md-sys-color-on-surface,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .accsw-sub{font-size:11px;color:rgba(255,255,255,0.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .accsw-del{background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.2);font-size:13px;padding:4px 6px;border-radius:6px;flex-shrink:0;transition:color 0.12s;line-height:1}
+            .accsw-del:hover{color:rgba(255,80,80,0.8)}
+            .accsw-empty{text-align:center;color:rgba(255,255,255,0.3);font-size:13px;padding:24px 0;font-style:italic}
+            .accsw-warning{background:rgba(255,180,0,0.1);border:1px solid rgba(255,180,0,0.25);border-radius:10px;padding:10px 14px;font-size:12px;color:rgba(255,200,80,0.9);line-height:1.5}
+            .accsw-hr{border:none;border-top:1px solid rgba(255,255,255,0.07);margin:18px 0}
+            .accsw-feedback{font-size:12px;min-height:16px;margin-top:4px;transition:color 0.15s}
+            .accsw-icon-btn {
+                width:36px;height:36px;border-radius:50%;border:none;
+                background:rgba(255,255,255,0.08); cursor:pointer;
+                display:flex;align-items:center;justify-content:center;
+                color:var(--md-sys-color-on-surface,#fff);
+                transition:background 0.15s; flex-shrink:0;
+            }
+            .accsw-icon-btn:hover{background:rgba(255,255,255,0.15)}
+            .accsw-icon-btn .material-symbols-outlined{font-size:20px;display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0}
+        `;
+        document.head.appendChild(s);
+    }
+
+    function buildLoginForm(onSuccess) {
+        const wrap = document.createElement("div");
+        Object.assign(wrap.style, { display:"flex", flexDirection:"column", gap:"10px" });
+
+        const emailInput = document.createElement("input");
+        emailInput.className = "accsw-field";
+        emailInput.type = "email";
+        emailInput.placeholder = "Email";
+
+        const passInput = document.createElement("input");
+        passInput.className = "accsw-field";
+        passInput.type = "password";
+        passInput.placeholder = "Password";
+
+        const feedback = document.createElement("div");
+        feedback.className = "accsw-feedback";
+
+        const row = document.createElement("div");
+        Object.assign(row.style, { display:"flex", justifyContent:"flex-end", gap:"8px" });
+
+        const cancelBtn = document.createElement("button");
+        cancelBtn.textContent = "Cancel";
+        cancelBtn.className = "accsw-btn";
+        Object.assign(cancelBtn.style, { color:"var(--md-sys-color-primary,#cfbcff)", background:"transparent" });
+
+        const submitBtn = document.createElement("button");
+        submitBtn.textContent = "Add Account";
+        submitBtn.className = "accsw-btn";
+        Object.assign(submitBtn.style, { background:"var(--md-sys-color-primary,rgba(103,80,164,0.9))", color:"#fff" });
+
+        submitBtn.onclick = async () => {
+            const email = emailInput.value.trim();
+            const pass = passInput.value;
+            if (!email || !pass) {
+                feedback.textContent = "Please enter both email and password.";
+                feedback.style.color = "rgba(255,100,100,0.9)";
+                return;
+            }
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Adding...";
+            feedback.textContent = "";
+            try {
+                await loginWithCredentials(email, pass);
+                feedback.textContent = "Account added!";
+                feedback.style.color = "rgba(100,220,100,0.9)";
+                emailInput.value = "";
+                passInput.value = "";
+                onSuccess();
+            } catch (err) {
+                feedback.textContent = "Error: " + (err.message || "Unknown error");
+                feedback.style.color = "rgba(255,100,100,0.9)";
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Add Account";
+            }
+        };
+
+        row.appendChild(cancelBtn);
+        row.appendChild(submitBtn);
+        wrap.appendChild(emailInput);
+        wrap.appendChild(passInput);
+        wrap.appendChild(feedback);
+        wrap.appendChild(row);
+
+        return { wrap, cancelBtn };
+    }
+
+    async function renderList(listEl, statusEl) {
+        listEl.innerHTML = "";
+        statusEl.textContent = "Loading accounts...";
+        statusEl.style.color = "rgba(255,255,255,0.35)";
+
+        const tokens = await getTokens();
+        if (!tokens.length) {
+            listEl.innerHTML = `<div class="accsw-empty">No accounts saved. Click + to add one.</div>`;
+            statusEl.textContent = "";
+            return;
+        }
+
+        statusEl.textContent = `Fetching ${tokens.length} account(s)...`;
+        const profiles = await Promise.all(tokens.map(t => fetchProfile(t).then(p => ({ token: t, profile: p }))));
+        statusEl.textContent = "";
+        listEl.innerHTML = "";
+
+        [...profiles].reverse().forEach(({ token, profile }) => {
+            const item = document.createElement("div");
+            item.className = "accsw-item";
+            item.title = "Click to switch to this account";
+
+            const avatar = document.createElement("div");
+            avatar.className = "accsw-avatar";
+            if (profile && profile.avatarUrl) {
+                const img = document.createElement("img");
+                img.src = profile.avatarUrl;
+                img.onerror = () => { img.remove(); avatar.textContent = (profile.displayName || "?")[0]; };
+                avatar.appendChild(img);
+            } else {
+                avatar.textContent = profile ? (profile.displayName || "?")[0] : "?";
+            }
+
+            const info = document.createElement("div");
+            info.className = "accsw-info";
+            const nameEl = document.createElement("div");
+            nameEl.className = "accsw-name";
+            nameEl.textContent = profile ? profile.displayName : "Unable to fetch";
+            const subEl = document.createElement("div");
+            subEl.className = "accsw-sub";
+            subEl.textContent = profile ? (profile.username ? `@${profile.username}` : "") : "Token may be expired";
+            info.appendChild(nameEl);
+            info.appendChild(subEl);
+
+            const delBtn = document.createElement("button");
+            delBtn.className = "accsw-del";
+            delBtn.textContent = "✕";
+            delBtn.title = "Remove account";
+            delBtn.onclick = async (e) => {
+                e.stopPropagation();
+                await removeToken(token);
+                await renderList(listEl, statusEl);
+            };
+
+            item.onclick = async () => {
+                item.classList.add("loading");
+                try {
+                    await loginWithToken(token);
+                } catch (err) {
+                    item.classList.remove("loading");
+                    subEl.textContent = "Switch failed: " + (err.message || "error");
+                    subEl.style.color = "rgba(255,100,100,0.8)";
+                    nameEl.textContent = "Unable to switch";
+                }
+            };
+
+            item.appendChild(avatar);
+            item.appendChild(info);
+            item.appendChild(delBtn);
+            listEl.appendChild(item);
+        });
+    }
+
+    async function openModal() {
+        if (document.getElementById("accsw-scrim")) return;
+        ensureStyles();
+
+        const scrim = document.createElement("div");
+        scrim.id = "accsw-scrim";
+        Object.assign(scrim.style, {
+            position:"fixed", top:"0", left:"0", right:"0", bottom:"0",
+            zIndex:"9999999", display:"grid", placeItems:"center",
+            background:"rgba(0,0,0,0.65)", padding:"60px",
+            overflowY:"auto", animation:"accsw-scrim-in 0.1s forwards",
+            boxSizing:"border-box"
+        });
+        scrim.addEventListener("click", e => { if (e.target === scrim) scrim.remove(); });
+
+        const modal = document.createElement("div");
+        modal.id = "accsw-modal";
+        Object.assign(modal.style, {
+            padding:"28px", minWidth:"340px", maxWidth:"420px", width:"100%",
+            borderRadius:"28px", display:"flex", flexDirection:"column",
+            color:"var(--md-sys-color-on-surface,#fff)",
+            background:"var(--md-sys-color-surface-container-high,#2b2b2f)",
+            boxSizing:"border-box", gap:"0"
+        });
+
+        const headerRow = document.createElement("div");
+        Object.assign(headerRow.style, {
+            display:"flex", alignItems:"center", justifyContent:"space-between",
+            marginBottom:"14px"
+        });
+
+        const title = document.createElement("span");
+        title.textContent = "Account Switcher";
+        Object.assign(title.style, { fontSize:"1.5rem", fontWeight:"400", lineHeight:"2rem" });
+
+        const headerBtns = document.createElement("div");
+        Object.assign(headerBtns.style, { display:"flex", gap:"8px", alignItems:"center" });
+
+        const addCurrentBtn = document.createElement("button");
+        addCurrentBtn.className = "accsw-icon-btn";
+        addCurrentBtn.title = "Save currently logged-in account";
+        const saveIcon = document.createElement("span");
+        saveIcon.className = "material-symbols-outlined";
+        saveIcon.textContent = "bookmark_add";
+        addCurrentBtn.appendChild(saveIcon);
+        addCurrentBtn.onclick = async () => {
+            addCurrentBtn.disabled = true;
+            try {
+                const tok = await getCurrentToken();
+                if (!tok) { alert("Could not find a session token. Are you logged in?"); return; }
+                const tokens = await getTokens();
+                if (tokens.includes(tok)) { alert("This account is already saved."); return; }
+                await addToken(tok);
+                await renderList(listEl, statusEl);
+            } finally { addCurrentBtn.disabled = false; }
+        };
+
+        const plusBtn = document.createElement("button");
+        plusBtn.className = "accsw-icon-btn";
+        plusBtn.title = "Add account with email and password";
+        const plusIcon = document.createElement("span");
+        plusIcon.className = "material-symbols-outlined";
+        plusIcon.textContent = "add";
+        plusBtn.appendChild(plusIcon);
+
+        headerBtns.appendChild(addCurrentBtn);
+        headerBtns.appendChild(plusBtn);
+        headerRow.appendChild(title);
+        headerRow.appendChild(headerBtns);
+        modal.appendChild(headerRow);
+
+        const warning = document.createElement("div");
+        warning.className = "accsw-warning";
+        warning.textContent = "Accounts with two-factor authentication are not supported.";
+        Object.assign(warning.style, { marginBottom:"16px" });
+        modal.appendChild(warning);
+
+        const statusEl = document.createElement("div");
+        Object.assign(statusEl.style, { fontSize:"12px", color:"rgba(255,255,255,0.35)", marginBottom:"8px", minHeight:"16px" });
+        modal.appendChild(statusEl);
+
+        const listEl = document.createElement("div");
+        listEl.className = "accsw-list";
+        Object.assign(listEl.style, { marginBottom:"8px" });
+        modal.appendChild(listEl);
+
+        const formHr = document.createElement("hr");
+        formHr.className = "accsw-hr";
+        formHr.style.display = "none";
+        modal.appendChild(formHr);
+
+        const formContainer = document.createElement("div");
+        formContainer.style.display = "none";
+        modal.appendChild(formContainer);
+
+        const bottomRow = document.createElement("div");
+        Object.assign(bottomRow.style, { display:"flex", justifyContent:"flex-end", marginTop:"16px" });
+        const closeBtn = document.createElement("button");
+        closeBtn.textContent = "Close";
+        closeBtn.className = "accsw-btn";
+        Object.assign(closeBtn.style, { color:"var(--md-sys-color-primary,#cfbcff)", background:"transparent" });
+        closeBtn.onclick = () => scrim.remove();
+        bottomRow.appendChild(closeBtn);
+        modal.appendChild(bottomRow);
+
+        let formVisible = false;
+        plusBtn.onclick = () => {
+            formVisible = !formVisible;
+            if (formVisible) {
+                formHr.style.display = "block";
+                formContainer.style.display = "block";
+                const { wrap, cancelBtn } = buildLoginForm(async () => {
+                    await renderList(listEl, statusEl);
+                });
+                formContainer.innerHTML = "";
+                formContainer.appendChild(wrap);
+                cancelBtn.onclick = () => {
+                    formVisible = false;
+                    formHr.style.display = "none";
+                    formContainer.style.display = "none";
+                };
+            } else {
+                formHr.style.display = "none";
+                formContainer.style.display = "none";
+            }
+        };
+
+        scrim.appendChild(modal);
+        document.body.appendChild(scrim);
+        await renderList(listEl, statusEl);
+    }
+
+    const CTX_BTN_ID = "avia-accsw-ctx-btn";
+
+    function findProfileAnchorInMenu() {
+
+        const anchors = document.querySelectorAll("a");
+        for (const a of anchors) {
+            const svg = a.querySelector('svg[viewBox="0 0 32 32"]');
+            if (!svg || !svg.querySelector("foreignObject")) continue;
+
+            const textDiv = a.querySelector("div > span, div span");
+            if (!textDiv) continue;
+            const spans = a.querySelectorAll("span");
+            if (spans.length < 2) continue;
+
+            const hasTag = Array.from(spans).some(s => s.textContent.includes("#"));
+            if (!hasTag) continue;
+            return a;
+        }
+        return null;
+    }
+
+    function injectContextMenuButton() {
+        const existing = document.getElementById(CTX_BTN_ID);
+        if (existing && !document.body.contains(existing)) existing.remove();
+        if (document.getElementById(CTX_BTN_ID)) return;
+
+        const profileAnchor = findProfileAnchorInMenu();
+        if (!profileAnchor) return;
+        const container = profileAnchor.parentElement;
+        if (!container) return;
+
+        const btn = document.createElement("a");
+        btn.id = CTX_BTN_ID;
+        btn.className = "d_flex gap_var(--gap-md) ai_center p_var(--gap-md)_var(--gap-lg) [&:hover]:bg_color-mix(in_srgb,_var(--md-sys-color-on-surface)_8%,_transparent) [&_span]:flex-g_1 [&_span]:mt_1px cursor_pointer";
+        btn.style.cssText = "cursor:pointer;user-select:none;";
+
+        const iconWrap = document.createElement("div");
+        iconWrap.style.cssText = "width:16px;display:flex;justify-content:center;align-items:center;flex-shrink:0;";
+        iconWrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M287-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47ZM80-160v-112q0-33 17-62t47-44q51-26 115-44t141-18h14q6 0 12 2-8 18-13.5 37.5T404-360h-4q-71 0-127.5 18T180-306q-9 5-14.5 14t-5.5 20v32h252q6 21 16 41.5t22 38.5H80Zm560 40-12-60q-12-5-22.5-10.5T584-204l-58 18-40-68 46-40q-2-14-2-26t2-26l-46-40 40-68 58 18q11-8 21.5-13.5T628-460l12-60h80l12 60q12 5 22.5 11t21.5 15l58-20 40 70-46 40q2 12 2 25t-2 25l46 40-40 68-58-18q-11 8-21.5 13.5T732-180l-12 60h-80Zm96.5-143.5Q760-287 760-320t-23.5-56.5Q713-400 680-400t-56.5 23.5Q600-353 600-320t23.5 56.5Q647-240 680-240t56.5-23.5Zm-280-320Q480-607 480-640t-23.5-56.5Q433-720 400-720t-56.5 23.5Q320-673 320-640t23.5 56.5Q367-560 400-560t56.5-23.5ZM400-640Zm12 400Z"/></svg>`;
+
+        const label = document.createElement("span");
+        label.className = "ov-wrap_anywhere lh_1.25rem fs_0.875rem ls_0.015625rem fw_400";
+        label.textContent = "Switch Accounts";
+
+        btn.appendChild(iconWrap);
+        btn.appendChild(label);
+        btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openModal();
+        });
+
+        profileAnchor.insertAdjacentElement("afterend", btn);
+    }
+
+    function registerWithAviaMenu() {
+        const reg = () => window.AviaMenu && window.AviaMenu.register({
+            id: "avia_account_switcher",
+            name: "Account Switcher",
+            icon: "manage_accounts",
+            onClick: openModal
+        });
+        if (window.AviaMenu) reg();
+        else {
+            const iv = setInterval(() => { if (window.AviaMenu) { clearInterval(iv); reg(); } }, 100);
+        }
+    }
+
+    let rafPending = false;
+    const observer = new MutationObserver(() => {
+        if (rafPending) return;
+        rafPending = true;
+        requestAnimationFrame(() => {
+            rafPending = false;
+            injectContextMenuButton();
+        });
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    registerWithAviaMenu();
+
+})();
+
+
+
+/* --- LoginWithToken.js --- */
+if(window.__US_BUILDER_LOGINWITHTOKEN_JS__){return;}window.__US_BUILDER_LOGINWITHTOKEN_JS__=true;
+
+(function () {
+  if (window.__LOGIN_WITH_TOKEN__) return;
+  window.__LOGIN_WITH_TOKEN__ = true;
+
+  async function loginWithToken(token) {
+    const res = await fetch('https://stoat.chat/api/users/@me', {
+      headers: { 'x-session-token': token }
+    });
+    if (!res.ok) throw new Error('Invalid token');
+    const user = await res.json();
+
+    const db = await new Promise((resolve, reject) => {
+      const r = indexedDB.open('localforage');
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+
+    const tx = db.transaction('keyvaluepairs', 'readwrite');
+    await new Promise((resolve, reject) => {
+      const r = tx.objectStore('keyvaluepairs').put({
+        session: {
+          _id: user._id,
+          token: token,
+          userId: user._id,
+          valid: true
+        }
+      }, 'auth');
+      r.onsuccess = () => resolve();
+      r.onerror = () => reject(r.error);
+    });
+
+    location.reload();
+  }
+
+  function openTokenDialog() {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'top_0 left_0 right_0 bottom_0 pos_fixed z_100 max-h_100% d_grid us_none place-items_center pointer-events_all anim-n_scrimFadeIn anim-dur_0.1s anim-fm_forwards trs_var(--transitions-medium)_all p_80px ov-y_auto';
+    backdrop.style.cssText = '--background: rgba(0, 0, 0, 0.6);';
+
+    backdrop.innerHTML = `
+      <div style="opacity: 1; --motion-translateY: 0px; transform: translateY(var(--motion-translateY));">
+        <div class="p_24px min-w_280px max-w_560px bdr_28px d_flex flex-d_column c_var(--md-sys-color-on-surface) bg_var(--md-sys-color-surface-container-high)">
+          <span class="lh_2rem fs_1.5rem ls_0 fw_400 mbe_16px">Login With Token</span>
+          <div class="c_var(--md-sys-color-on-surface-variant) lh_1.25rem fs_0.875rem ls_0.015625rem fw_400">
+            <div class="d_flex flex-d_column flex-g_initial m_0 ai_initial jc_initial gap_var(--gap-md)">
+              <mdui-text-field id="lwt-token-input" variant="filled" type="password" name="token" required label="Session Token"></mdui-text-field>
+            </div>
+          </div>
+          <div class="gap_8px d_flex jc_end mbs_24px">
+            <button id="lwt-close-btn" type="button" class="lh_1.25rem fs_0.875rem ls_0.015625rem fw_400 pos_relative px_16px flex-sh_0 d_flex ai_center jc_center ff_inherit cursor_pointer bd_none trs_var(--transitions-medium)_all c_var(--color) fill_var(--color) h_40px bdr_var(--borderRadius-full) --color_var(--md-sys-color-primary)">
+              <md-ripple aria-hidden="true"></md-ripple>Close
+            </button>
+            <button id="lwt-login-btn" type="button" class="lh_1.25rem fs_0.875rem ls_0.015625rem fw_400 pos_relative px_16px flex-sh_0 d_flex ai_center jc_center ff_inherit cursor_pointer bd_none trs_var(--transitions-medium)_all c_var(--color) fill_var(--color) h_40px bdr_var(--borderRadius-full) --color_var(--md-sys-color-on-primary) bg_var(--md-sys-color-primary)">
+              <md-ripple aria-hidden="true"></md-ripple>Login
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(backdrop);
+
+    const closeBtn = backdrop.querySelector('#lwt-close-btn');
+    const loginBtn = backdrop.querySelector('#lwt-login-btn');
+    const tokenInput = backdrop.querySelector('#lwt-token-input');
+
+    function close() { backdrop.remove(); }
+
+    function setLoading(loading) {
+      loginBtn.disabled = loading;
+      loginBtn.style.cursor = loading ? 'not-allowed' : 'pointer';
+      const ripple = loginBtn.querySelector('md-ripple');
+      loginBtn.textContent = loading ? 'Logging in…' : 'Login';
+      if (ripple) loginBtn.prepend(ripple);
+    }
+
+    function setError(msg) {
+      loginBtn.disabled = false;
+      loginBtn.style.cursor = 'pointer';
+      const ripple = loginBtn.querySelector('md-ripple');
+      loginBtn.textContent = msg;
+      if (ripple) loginBtn.prepend(ripple);
+      setTimeout(() => {
+        loginBtn.textContent = 'Login';
+        if (ripple) loginBtn.prepend(ripple);
+      }, 2000);
+    }
+
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+    closeBtn.addEventListener('click', close);
+
+    loginBtn.addEventListener('click', async () => {
+      const token = tokenInput.value?.trim();
+      if (!token) {
+        setError('Enter a token!');
+        return;
+      }
+      setLoading(true);
+      try {
+        await loginWithToken(token);
+      } catch (err) {
+        setError('Invalid token!');
+      }
+    });
+  }
+
+  function injectLoginButton() {
+    const signUpBtn = [...document.querySelectorAll('button')]
+      .find(b => b.textContent.trim() === 'Sign Up');
+    if (!signUpBtn) return;
+
+    const parent = signUpBtn.parentElement;
+    if (parent.querySelector('[data-lwt-btn]')) return;
+
+    const clone = signUpBtn.cloneNode(false);
+    clone.dataset.lwtBtn = 'true';
+    clone.textContent = 'Login With Token';
+
+    const ripple = document.createElement('md-ripple');
+    ripple.setAttribute('aria-hidden', 'true');
+    clone.prepend(ripple);
+
+    clone.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openTokenDialog();
+    });
+
+    signUpBtn.insertAdjacentElement('afterend', clone);
+  }
+
+  let debounceTimer = null;
+  new MutationObserver(() => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(injectLoginButton, 150);
+  }).observe(document.body, { childList: true, subtree: true });
+
+  injectLoginButton();
+})();
+
+
+
+/* --- UpdateChecker.js --- */
+if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHECKER_JS__=true;
+
+(function() {
+    if (window.__AVIA_USERSCRIPT_UPDATE_CHECKER__) return;
+    window.__AVIA_USERSCRIPT_UPDATE_CHECKER__ = true;
+
+    const SCRIPT_URL = "https://api.github.com/repos/AvaLilac/Ava-Client/contents/userscript/AviaClient.user.js";
+    const RELEASES_URL = "https://github.com/AvaLilac/Ava-Client/raw/refs/heads/main/userscript/AviaClient.user.js";
+    const STORAGE_KEY = "avia_userscript_update_checker_enabled";
+
+    function isEnabled() {
+        return localStorage.getItem(STORAGE_KEY) !== "false";
+    }
+
+    function setEnabled(val) {
+        localStorage.setItem(STORAGE_KEY, val ? "true" : "false");
+    }
+
+        function getInstalledVersion() {
+        try {
+            return window.__USERSCRIPT_VERSION__ || null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+        async function fetchLatestVersion() {
+        const res = await fetch(SCRIPT_URL, {
+            headers: { "Accept": "application/vnd.github.v3.raw" }
+        });
+        const text = await res.text();
+        const match = text.match(/@version\s+([^\s]+)/);
+        return match ? match[1].trim() : null;
+    }
+
+    function showUpdateModal(installedVersion, latestVersion) {
+        if (document.getElementById("avia-userscript-update-modal")) return;
+
+        const backdrop = document.createElement("div");
+        backdrop.id = "avia-userscript-update-modal";
+        backdrop.className = "top_0 left_0 right_0 bottom_0 pos_fixed z_100 max-h_100% d_grid us_none place-items_center pointer-events_all anim-n_scrimFadeIn anim-dur_0.1s anim-fm_forwards trs_var(--transitions-medium)_all p_80px ov-y_auto";
+        backdrop.style.cssText = "--background: rgba(0, 0, 0, 0.6); background: rgba(0, 0, 0, 0.6);";
+
+        const motionWrap = document.createElement("div");
+        motionWrap.style.cssText = "opacity: 1; --motion-translateY: 0px; transform: translateY(var(--motion-translateY));";
+
+        const card = document.createElement("div");
+        card.style.cssText = "min-width: 320px; max-width: 480px; padding: 24px; border-radius: 28px; display: flex; flex-direction: column; color: var(--md-sys-color-on-surface); background: var(--md-sys-color-surface-container-high);";
+
+        const title = document.createElement("span");
+        title.textContent = "Userscript Update Available";
+        title.style.cssText = "line-height: 2rem; font-size: 1.5rem; letter-spacing: 0; font-weight: 400; margin-bottom: 16px;";
+
+        const body = document.createElement("div");
+        body.style.cssText = "color: var(--md-sys-color-on-surface-variant); line-height: 1.25rem; font-size: 0.875rem; letter-spacing: 0.015625rem; font-weight: 400; display: flex; flex-direction: column; gap: 12px;";
+
+        const currentRow = document.createElement("div");
+        currentRow.style.cssText = "display: flex; flex-direction: column; gap: 2px;";
+        const currentLabel = document.createElement("span");
+        currentLabel.textContent = "Your installed version";
+        currentLabel.style.cssText = "font-size: 11px; opacity: 0.5; letter-spacing: 0.03em;";
+        const currentVersionEl = document.createElement("span");
+        currentVersionEl.textContent = installedVersion || "Unknown";
+        currentVersionEl.style.cssText = "font-size: 14px; font-weight: 500; color: var(--md-sys-color-on-surface);";
+        currentRow.appendChild(currentLabel);
+        currentRow.appendChild(currentVersionEl);
+
+        const latestRow = document.createElement("div");
+        latestRow.style.cssText = "display: flex; flex-direction: column; gap: 2px;";
+        const latestLabel = document.createElement("span");
+        latestLabel.textContent = "Latest version";
+        latestLabel.style.cssText = "font-size: 11px; opacity: 0.5; letter-spacing: 0.03em;";
+        const latestVersionEl = document.createElement("span");
+        latestVersionEl.textContent = latestVersion;
+        latestVersionEl.style.cssText = "font-size: 14px; font-weight: 600; color: var(--md-sys-color-primary);";
+        latestRow.appendChild(latestLabel);
+        latestRow.appendChild(latestVersionEl);
+
+        const message = document.createElement("span");
+        message.textContent = `You are currently on version ${installedVersion || "Unknown"}. The latest version of AviaClient userscript is ${latestVersion}.`;
+
+        body.appendChild(currentRow);
+        body.appendChild(latestRow);
+        body.appendChild(message);
+
+        const btnRow = document.createElement("div");
+        btnRow.style.cssText = "gap: 8px; display: flex; justify-content: flex-end; margin-top: 24px;";
+
+        const closeBtn = document.createElement("button");
+        closeBtn.type = "button";
+        closeBtn.style.cssText = "line-height: 1.25rem; font-size: 0.875rem; font-weight: 400; position: relative; padding: 0 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: inherit; cursor: pointer; border: none; transition: var(--transitions-medium) all; color: var(--md-sys-color-primary); height: 40px; border-radius: var(--borderRadius-full); background: none;";
+        closeBtn.innerHTML = "<md-ripple aria-hidden='true'></md-ripple>Close";
+        closeBtn.onclick = () => backdrop.remove();
+
+        const updateBtn = document.createElement("button");
+        updateBtn.type = "button";
+        updateBtn.style.cssText = "line-height: 1.25rem; font-size: 0.875rem; font-weight: 400; position: relative; padding: 0 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: inherit; cursor: pointer; border: none; transition: var(--transitions-medium) all; color: var(--md-sys-color-on-primary); height: 40px; border-radius: var(--borderRadius-full); background: var(--md-sys-color-primary);";
+        updateBtn.innerHTML = "<md-ripple aria-hidden='true'></md-ripple>Update Now";
+        updateBtn.onclick = () => window.open(RELEASES_URL, "_blank");
+
+        btnRow.appendChild(closeBtn);
+        btnRow.appendChild(updateBtn);
+
+        card.appendChild(title);
+        card.appendChild(body);
+        card.appendChild(btnRow);
+        motionWrap.appendChild(card);
+        backdrop.appendChild(motionWrap);
+        document.body.appendChild(backdrop);
+    }
+
+    async function check() {
+        if (!isEnabled()) return;
+        const installedVersion = getInstalledVersion();
+        const latestVersion = await fetchLatestVersion().catch(() => null);
+        if (!latestVersion) return;
+        if (installedVersion === latestVersion) return;
+        showUpdateModal(installedVersion, latestVersion);
+    }
+
+    function applyToggleStyle(entry) {
+        const desc = entry.querySelector("span.lh_1rem");
+        const checkbox = entry.querySelector("mdui-checkbox");
+        if (isEnabled()) {
+            if (desc) desc.textContent = "Get notified when a new AviaClient userscript version is available";
+            if (checkbox) checkbox.setAttribute("checked", "");
+        } else {
+            if (desc) desc.textContent = "Get notified when a new AviaClient userscript version is available";
+            if (checkbox) checkbox.removeAttribute("checked");
+        }
+    }
+
+    function tryInject() {
+        if (document.querySelector("[data-userscript-update-entry]")) return;
+
+        const target = [...document.querySelectorAll("a.pos_relative")]
+            .find(a => a.innerText.includes("Plugins v2 Placeholder"));
+        if (!target) return;
+
+        const entry = target.cloneNode(true);
+        entry.setAttribute("data-userscript-update-entry", "true");
+
+        const iconWrap = entry.querySelector("div.w_36px.h_36px");
+        if (iconWrap) {
+            iconWrap.innerHTML = "";
+            const icon = document.createElement("span");
+            icon.className = "material-symbols-outlined";
+            icon.style.cssText = "display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;font-size:20px;";
+            icon.textContent = "system_update_alt";
+            iconWrap.appendChild(icon);
+        }
+
+        const titleEl = entry.querySelector("div.d_flex.flex-g_1.flex-d_column > div");
+        if (titleEl) titleEl.textContent = "Userscript Update Checker";
+
+        const descEl = entry.querySelector("span.lh_1rem");
+        if (descEl) descEl.setAttribute("data-userscript-desc", "true");
+
+        applyToggleStyle(entry);
+
+        entry.addEventListener("click", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            setEnabled(!isEnabled());
+            applyToggleStyle(entry);
+        });
+
+        target.parentNode.insertBefore(entry, target.nextSibling);
+    }
+
+    check();
+
+    const observer = new MutationObserver(() => tryInject());
+    observer.observe(document.body, { childList: true, subtree: true });
+    tryInject();
 })();
 
 
@@ -4031,397 +6025,403 @@ if(window.__US_BUILDER_BADGES_JS__){return;}window.__US_BUILDER_BADGES_JS__=true
 })();
 
 
-/* --- UpdateChecker.js --- */
-if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHECKER_JS__=true;
 
-(function() {
-    if (window.__AVIA_USERSCRIPT_UPDATE_CHECKER__) return;
-    window.__AVIA_USERSCRIPT_UPDATE_CHECKER__ = true;
+/* --- pasted-1784175490263.js --- */
+if(window.__US_BUILDER_PASTED_1784175490263_JS__){return;}window.__US_BUILDER_PASTED_1784175490263_JS__=true;
 
-    const SCRIPT_URL = "https://api.github.com/repos/AvaLilac/Ava-Client/contents/userscript/AviaClient.user.js";
-    const RELEASES_URL = "https://github.com/AvaLilac/Ava-Client/raw/refs/heads/main/userscript/AviaClient.user.js";
-    const STORAGE_KEY = "avia_userscript_update_checker_enabled";
+(function () {
 
-    function isEnabled() {
-        return localStorage.getItem(STORAGE_KEY) !== "false";
-    }
+if (window.__WHATS_NEW___) return;
+window.__WHATS_NEW__ = true;
 
-    function setEnabled(val) {
-        localStorage.setItem(STORAGE_KEY, val ? "true" : "false");
-    }
+// I assume you are reading this 0simp. I created this const below this line just for you. if it is set to true. it will only work with desktop since it uses the json file that is compiled with avia_core. But if it is set to false. It will instead switch back to using a ONLINE url. I made this change for you. Instead of making it strictly offline. I added a config so you can still use this.
+const USE_LOCAL_JSON = false;
 
-        function getInstalledVersion() {
-        try {
-            return window.__USERSCRIPT_VERSION__ || null;
-        } catch (_) {
+const LOCAL_JSON_FILE = "whatsnewbackend.json";
+
+const version = window.__USERSCRIPT_VERSION__.replaceAll('.', '-');
+const BACKEND_URL = "https://raw.githubusercontent.com/AvaLilac/aviaclient-backend-whatsnew/refs/heads/main/backend" + version + ".json";
+
+function injectStyles() {
+    if (document.getElementById("avia-whatsnew-styles")) return;
+    const style = document.createElement("style");
+    style.id = "avia-whatsnew-styles";
+    style.textContent = `
+        #avia-whatsnew-scrim {
+            position: fixed;
+            inset: 0;
+            z-index: 999999;
+            background: rgba(0,0,0,0.6);
+            display: grid;
+            place-items: center;
+            padding: 80px;
+            overflow-y: auto;
+            animation: aviaScrimIn 0.1s forwards;
+        }
+        @keyframes aviaScrimIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        #avia-whatsnew-modal {
+            opacity: 1;
+            padding: 24px;
+            min-width: 280px;
+            max-width: 560px;
+            width: 100%;
+            border-radius: 28px;
+            display: flex;
+            flex-direction: column;
+            color: var(--md-sys-color-on-surface, #fff);
+            background: var(--md-sys-color-surface-container-high, #2a2a2a);
+            box-sizing: border-box;
+        }
+        #avia-whatsnew-modal * { box-sizing: border-box; }
+        .avia-wn-title {
+            line-height: 2rem;
+            font-size: 1.5rem;
+            letter-spacing: 0;
+            font-weight: 400;
+            margin-bottom: 16px;
+        }
+        .avia-wn-body {
+            color: var(--md-sys-color-on-surface-variant, rgba(255,255,255,0.7));
+            line-height: 1.25rem;
+            font-size: 0.875rem;
+            letter-spacing: 0.015625rem;
+            font-weight: 400;
+        }
+        .avia-wn-body > * + * { margin-top: 0; }
+        .avia-wn-date {
+            display: block;
+            margin-bottom: 12px;
+            font-size: 0.875rem;
+            color: var(--md-sys-color-on-surface-variant, rgba(255,255,255,0.5));
+        }
+        .avia-wn-h1 {
+            font-size: 2em;
+            font-weight: 600;
+            margin: 0 0 4px 0;
+            color: var(--md-sys-color-on-surface, #fff);
+        }
+        .avia-wn-h2 {
+            font-size: 1.6em;
+            font-weight: 600;
+            margin: 0 0 4px 0;
+            color: var(--md-sys-color-on-surface, #fff);
+        }
+        .avia-wn-h3 {
+            font-size: 1.4em;
+            font-weight: 600;
+            margin: 0 0 4px 0;
+            color: var(--md-sys-color-on-surface, #fff);
+        }
+        .avia-wn-p {
+            margin: 0;
+            line-height: 1.6;
+        }
+        .avia-wn-spacer { display: block; height: 0.75em; }
+        .avia-wn-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            display: block;
+        }
+        .avia-wn-ul {
+            padding-left: 1.5em;
+            margin: 0;
+            list-style-position: outside;
+        }
+        .avia-wn-ul li {
+            list-style-type: disc;
+            margin-bottom: 4px;
+            line-height: 1.5;
+        }
+        .avia-wn-ol {
+            padding-left: 1.5em;
+            margin: 0;
+            list-style-position: outside;
+        }
+        .avia-wn-ol li {
+            list-style-type: decimal;
+            margin-bottom: 4px;
+            line-height: 1.5;
+        }
+        .avia-wn-hr {
+            border: none;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            margin: 4px 0;
+        }
+        .avia-wn-code {
+            font-family: var(--fonts-monospace, monospace);
+            font-size: 0.85em;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 1px 4px;
+            border-radius: 4px;
+        }
+        .avia-wn-blockquote {
+            border-left: 3px solid rgba(255,255,255,0.2);
+            margin: 0;
+            padding: 4px 12px;
+            color: rgba(255,255,255,0.5);
+            font-style: italic;
+        }
+        .avia-wn-bold { font-weight: bold; }
+        .avia-wn-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 24px;
+        }
+        .avia-wn-close-btn {
+            line-height: 1.25rem;
+            font-size: 0.875rem;
+            letter-spacing: 0.015625rem;
+            font-weight: 400;
+            position: relative;
+            padding: 0 16px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.15s;
+            color: var(--md-sys-color-primary, #90caf9);
+            background: transparent;
+            height: 40px;
+            border-radius: 9999px;
+        }
+        .avia-wn-close-btn:hover { opacity: 0.75; }
+    `;
+    document.head.appendChild(style);
+}
+
+function renderBlock(block) {
+    switch (block.type) {
+        case "image": {
+            const img = document.createElement("img");
+            img.src = block.src;
+            img.alt = block.alt || "";
+            img.className = "avia-wn-img";
+            img.loading = "lazy";
+            return img;
+        }
+        case "spacer": {
+            const s = document.createElement("span");
+            s.className = "avia-wn-spacer";
+            return s;
+        }
+        case "h1": {
+            const el = document.createElement("h1");
+            el.className = "avia-wn-h1";
+            el.textContent = block.text || "";
+            return el;
+        }
+        case "h2": {
+            const el = document.createElement("h2");
+            el.className = "avia-wn-h2";
+            el.textContent = block.text || "";
+            return el;
+        }
+        case "h3": {
+            const el = document.createElement("h3");
+            el.className = "avia-wn-h3";
+            el.textContent = block.text || "";
+            return el;
+        }
+        case "paragraph": {
+            const el = document.createElement("p");
+            el.className = "avia-wn-p";
+            el.innerHTML = renderInline(block.text || "");
+            return el;
+        }
+        case "ul": {
+            const ul = document.createElement("ul");
+            ul.className = "avia-wn-ul";
+            (block.items || []).forEach(item => {
+                const li = document.createElement("li");
+                li.innerHTML = renderInline(item);
+                ul.appendChild(li);
+            });
+            return ul;
+        }
+        case "ol": {
+            const ol = document.createElement("ol");
+            ol.className = "avia-wn-ol";
+            (block.items || []).forEach(item => {
+                const li = document.createElement("li");
+                li.innerHTML = renderInline(item);
+                ol.appendChild(li);
+            });
+            return ol;
+        }
+        case "hr": {
+            const hr = document.createElement("hr");
+            hr.className = "avia-wn-hr";
+            return hr;
+        }
+        case "blockquote": {
+            const bq = document.createElement("blockquote");
+            bq.className = "avia-wn-blockquote";
+            bq.innerHTML = renderInline(block.text || "");
+            return bq;
+        }
+        default:
             return null;
-        }
+    }
+}
+
+function renderInline(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\*\*(.+?)\*\*/g, '<strong class="avia-wn-bold">$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`(.+?)`/g, '<code class="avia-wn-code">$1</code>')
+        .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" style="color:inherit;text-decoration:underline;opacity:0.8;">$1</a>');
+}
+
+function openModal(entry) {
+    if (document.getElementById("avia-whatsnew-scrim")) return;
+    injectStyles();
+
+    const scrim = document.createElement("div");
+    scrim.id = "avia-whatsnew-scrim";
+    scrim.onclick = (e) => { if (e.target === scrim) scrim.remove(); };
+
+    const modal = document.createElement("div");
+    modal.id = "avia-whatsnew-modal";
+
+    const titleEl = document.createElement("span");
+    titleEl.className = "avia-wn-title";
+    titleEl.textContent = "What's new";
+    modal.appendChild(titleEl);
+
+    const body = document.createElement("div");
+    body.className = "avia-wn-body";
+
+    const inner = document.createElement("div");
+    inner.style.cssText = "display:flex;flex-direction:column;gap:0;";
+
+    if (entry.date) {
+        const dateEl = document.createElement("span");
+        dateEl.className = "avia-wn-date";
+        dateEl.textContent = entry.date;
+        inner.appendChild(dateEl);
     }
 
-        async function fetchLatestVersion() {
-        const res = await fetch(SCRIPT_URL, {
-            headers: { "Accept": "application/vnd.github.v3.raw" }
-        });
-        const text = await res.text();
-        const match = text.match(/@version\s+([^\s]+)/);
-        return match ? match[1].trim() : null;
-    }
+    (entry.content || []).forEach(block => {
+        const el = renderBlock(block);
+        if (el) inner.appendChild(el);
+    });
 
-    function showUpdateModal(installedVersion, latestVersion) {
-        if (document.getElementById("avia-userscript-update-modal")) return;
+    body.appendChild(inner);
+    modal.appendChild(body);
 
-        const backdrop = document.createElement("div");
-        backdrop.id = "avia-userscript-update-modal";
-        backdrop.className = "top_0 left_0 right_0 bottom_0 pos_fixed z_100 max-h_100% d_grid us_none place-items_center pointer-events_all anim-n_scrimFadeIn anim-dur_0.1s anim-fm_forwards trs_var(--transitions-medium)_all p_80px ov-y_auto";
-        backdrop.style.cssText = "--background: rgba(0, 0, 0, 0.6); background: rgba(0, 0, 0, 0.6);";
+    const footer = document.createElement("div");
+    footer.className = "avia-wn-footer";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "avia-wn-close-btn";
+    closeBtn.textContent = "Close";
+    closeBtn.onclick = () => scrim.remove();
+    footer.appendChild(closeBtn);
+    modal.appendChild(footer);
 
-        const motionWrap = document.createElement("div");
-        motionWrap.style.cssText = "opacity: 1; --motion-translateY: 0px; transform: translateY(var(--motion-translateY));";
+    scrim.appendChild(modal);
+    document.body.appendChild(scrim);
+}
 
-        const card = document.createElement("div");
-        card.style.cssText = "min-width: 320px; max-width: 480px; padding: 24px; border-radius: 28px; display: flex; flex-direction: column; color: var(--md-sys-color-on-surface); background: var(--md-sys-color-surface-container-high);";
+function showError() {
+    injectStyles();
+    const scrim = document.createElement("div");
+    scrim.id = "avia-whatsnew-scrim";
+    scrim.onclick = (e) => { if (e.target === scrim) scrim.remove(); };
+    const modal = document.createElement("div");
+    modal.id = "avia-whatsnew-modal";
+    modal.innerHTML = `<div style="opacity:0.5;text-align:center;padding:24px 0;font-size:13px;">Failed to load What's New.</div>`;
+    const footer = document.createElement("div");
+    footer.className = "avia-wn-footer";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "avia-wn-close-btn";
+    closeBtn.textContent = "Close";
+    closeBtn.onclick = () => scrim.remove();
+    footer.appendChild(closeBtn);
+    modal.appendChild(footer);
+    scrim.appendChild(modal);
+    document.body.appendChild(scrim);
+}
 
-        const title = document.createElement("span");
-        title.textContent = "Userscript Update Available";
-        title.style.cssText = "line-height: 2rem; font-size: 1.5rem; letter-spacing: 0; font-weight: 400; margin-bottom: 16px;";
+async function fetchAndOpen() {
+    try {
+        let data;
 
-        const body = document.createElement("div");
-        body.style.cssText = "color: var(--md-sys-color-on-surface-variant); line-height: 1.25rem; font-size: 0.875rem; letter-spacing: 0.015625rem; font-weight: 400; display: flex; flex-direction: column; gap: 12px;";
-
-        const currentRow = document.createElement("div");
-        currentRow.style.cssText = "display: flex; flex-direction: column; gap: 2px;";
-        const currentLabel = document.createElement("span");
-        currentLabel.textContent = "Your installed version";
-        currentLabel.style.cssText = "font-size: 11px; opacity: 0.5; letter-spacing: 0.03em;";
-        const currentVersionEl = document.createElement("span");
-        currentVersionEl.textContent = installedVersion || "Unknown";
-        currentVersionEl.style.cssText = "font-size: 14px; font-weight: 500; color: var(--md-sys-color-on-surface);";
-        currentRow.appendChild(currentLabel);
-        currentRow.appendChild(currentVersionEl);
-
-        const latestRow = document.createElement("div");
-        latestRow.style.cssText = "display: flex; flex-direction: column; gap: 2px;";
-        const latestLabel = document.createElement("span");
-        latestLabel.textContent = "Latest version";
-        latestLabel.style.cssText = "font-size: 11px; opacity: 0.5; letter-spacing: 0.03em;";
-        const latestVersionEl = document.createElement("span");
-        latestVersionEl.textContent = latestVersion;
-        latestVersionEl.style.cssText = "font-size: 14px; font-weight: 600; color: var(--md-sys-color-primary);";
-        latestRow.appendChild(latestLabel);
-        latestRow.appendChild(latestVersionEl);
-
-        const message = document.createElement("span");
-        message.textContent = `You are currently on version ${installedVersion || "Unknown"}. The latest version of AviaClient userscript is ${latestVersion}.`;
-
-        body.appendChild(currentRow);
-        body.appendChild(latestRow);
-        body.appendChild(message);
-
-        const btnRow = document.createElement("div");
-        btnRow.style.cssText = "gap: 8px; display: flex; justify-content: flex-end; margin-top: 24px;";
-
-        const closeBtn = document.createElement("button");
-        closeBtn.type = "button";
-        closeBtn.style.cssText = "line-height: 1.25rem; font-size: 0.875rem; font-weight: 400; position: relative; padding: 0 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: inherit; cursor: pointer; border: none; transition: var(--transitions-medium) all; color: var(--md-sys-color-primary); height: 40px; border-radius: var(--borderRadius-full); background: none;";
-        closeBtn.innerHTML = "<md-ripple aria-hidden='true'></md-ripple>Close";
-        closeBtn.onclick = () => backdrop.remove();
-
-        const updateBtn = document.createElement("button");
-        updateBtn.type = "button";
-        updateBtn.style.cssText = "line-height: 1.25rem; font-size: 0.875rem; font-weight: 400; position: relative; padding: 0 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: inherit; cursor: pointer; border: none; transition: var(--transitions-medium) all; color: var(--md-sys-color-on-primary); height: 40px; border-radius: var(--borderRadius-full); background: var(--md-sys-color-primary);";
-        updateBtn.innerHTML = "<md-ripple aria-hidden='true'></md-ripple>Update Now";
-        updateBtn.onclick = () => window.open(RELEASES_URL, "_blank");
-
-        btnRow.appendChild(closeBtn);
-        btnRow.appendChild(updateBtn);
-
-        card.appendChild(title);
-        card.appendChild(body);
-        card.appendChild(btnRow);
-        motionWrap.appendChild(card);
-        backdrop.appendChild(motionWrap);
-        document.body.appendChild(backdrop);
-    }
-
-    async function check() {
-        if (!isEnabled()) return;
-        const installedVersion = getInstalledVersion();
-        const latestVersion = await fetchLatestVersion().catch(() => null);
-        if (!latestVersion) return;
-        if (installedVersion === latestVersion) return;
-        showUpdateModal(installedVersion, latestVersion);
-    }
-
-    function applyToggleStyle(entry) {
-        const desc = entry.querySelector("span.lh_1rem");
-        const checkbox = entry.querySelector("mdui-checkbox");
-        if (isEnabled()) {
-            if (desc) desc.textContent = "Get notified when a new AviaClient userscript version is available";
-            if (checkbox) checkbox.setAttribute("checked", "");
+        if (USE_LOCAL_JSON) {
+            data = await window.aviaJSON.readJSON(LOCAL_JSON_FILE);
         } else {
-            if (desc) desc.textContent = "Get notified when a new AviaClient userscript version is available";
-            if (checkbox) checkbox.removeAttribute("checked");
+            const res = await fetch(BACKEND_URL);
+            data = await res.json();
         }
+
+        const entries = data.entries || [];
+        const latest = entries[0];
+        if (latest) openModal(latest);
+    } catch (e) {
+        showError();
     }
+}
 
-    function tryInject() {
-        if (document.querySelector("[data-userscript-update-entry]")) return;
+function injectButton() {
+    if (document.getElementById("avia-whatsnew-btn")) return;
 
-        const target = [...document.querySelectorAll("a.pos_relative")]
-            .find(a => a.innerText.includes("Plugins v2 Placeholder"));
-        if (!target) return;
+    const appearanceBtn = [...document.querySelectorAll("a")]
+        .find(a => a.textContent.trim() === "Appearance");
+    const referenceNode = document.getElementById("stoat-fake-quickcss");
+    if (!appearanceBtn || !referenceNode) return;
 
-        const entry = target.cloneNode(true);
-        entry.setAttribute("data-userscript-update-entry", "true");
+    const btn = appearanceBtn.cloneNode(true);
+    btn.id = "avia-whatsnew-btn";
 
-        const iconWrap = entry.querySelector("div.w_36px.h_36px");
-        if (iconWrap) {
-            iconWrap.innerHTML = "";
-            const icon = document.createElement("span");
-            icon.className = "material-symbols-outlined";
-            icon.style.cssText = "display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;font-size:20px;";
-            icon.textContent = "system_update_alt";
-            iconWrap.appendChild(icon);
-        }
+    const label = [...btn.querySelectorAll("div")].find(d => d.children.length === 0);
+    if (label) label.textContent = "(Avia) What's New";
 
-        const titleEl = entry.querySelector("div.d_flex.flex-g_1.flex-d_column > div");
-        if (titleEl) titleEl.textContent = "Userscript Update Checker";
+    const iconSpan = btn.querySelector("span.material-symbols-outlined");
+    if (iconSpan) iconSpan.remove();
 
-        const descEl = entry.querySelector("span.lh_1rem");
-        if (descEl) descEl.setAttribute("data-userscript-desc", "true");
+    const oldSvg = btn.querySelector("svg");
+    if (oldSvg) oldSvg.remove();
 
-        applyToggleStyle(entry);
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "20");
+    svg.setAttribute("height", "20");
+    svg.setAttribute("fill", "currentColor");
+    svg.style.cssText = "margin-right:8px;flex-shrink:0;";
+    const path = document.createElementNS(svgNS, "path");
+    path.setAttribute("d", "M18 11v2h4v-2zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61M20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4M4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9zm5.03 1.71L11 9.53v4.94l-1.97-1.18-.48-.29H4v-2h4.55zM15.5 12c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34");
+    svg.appendChild(path);
 
-        entry.addEventListener("click", e => {
-            e.preventDefault();
-            e.stopPropagation();
-            setEnabled(!isEnabled());
-            applyToggleStyle(entry);
-        });
+    const firstChild = btn.firstChild;
+    btn.insertBefore(svg, firstChild);
 
-        target.parentNode.insertBefore(entry, target.nextSibling);
-    }
-
-    check();
-
-    const observer = new MutationObserver(() => tryInject());
-    observer.observe(document.body, { childList: true, subtree: true });
-    tryInject();
-})();
-
-
-/* --- backup.js --- */
-if(window.__US_BUILDER_BACKUP_JS__){return;}window.__US_BUILDER_BACKUP_JS__=true;
-
-(function () {
-  if (window.__clientBackup) return;
-  window.__clientBackup = true;
-
-  const TARGET_TEXT = "Plugins v2 Placeholder";
-  const CLONE_KEY   = "data-lsbackup-cloned";
-
-  function exportLS() {
-    const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      data[key] = localStorage.getItem(key);
-    }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = "localstorage-backup.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function importLS(file, onDone) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        const data = JSON.parse(e.target.result);
-        let count = 0;
-        for (const [key, value] of Object.entries(data)) {
-          localStorage.setItem(key, value);
-          count++;
-        }
-        onDone(null, count);
-      } catch (err) {
-        onDone(err);
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  function buildPanel() {
-    const panel = document.createElement("div");
-    panel.style.cssText = `
-      display: none;
-      flex-direction: column;
-      gap: 8px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: var(--md-sys-color-surface-container-highest);
-      border: 1px solid var(--md-sys-color-outline-variant);
-      font-size: 12px;
-      color: var(--md-sys-color-on-surface);
-    `;
-
-    const btnStyle = `
-      padding: 5px 12px;
-      border-radius: 4px;
-      border: none;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-    `;
-
-    const status = document.createElement("span");
-    status.style.cssText = "font-size: 11px; opacity: 0.7; min-height: 14px;";
-
-    const exportBtn = document.createElement("button");
-    exportBtn.textContent = "⬇ Export localStorage";
-    exportBtn.style.cssText = btnStyle + `
-      background: var(--md-sys-color-primary);
-      color: var(--md-sys-color-on-primary);
-    `;
-    exportBtn.addEventListener("click", e => {
-      e.preventDefault();
-      e.stopPropagation();
-      exportLS();
-      status.textContent = `✓ Exported ${localStorage.length} keys`;
-    });
-
-    const fileInput = document.createElement("input");
-    fileInput.type   = "file";
-    fileInput.accept = ".json";
-    fileInput.style.cssText = "display: none;";
-    fileInput.addEventListener("change", e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      importLS(file, (err, count) => {
-        if (err) {
-          status.textContent = "✗ Invalid JSON file";
-        } else {
-          status.textContent = `✓ Imported ${count} keys`;
-        }
-        fileInput.value = "";
-      });
-    });
-
-    const importBtn = document.createElement("button");
-    importBtn.textContent = "⬆ Import localStorage";
-    importBtn.style.cssText = btnStyle + `
-      background: var(--md-sys-color-surface-container);
-      color: var(--md-sys-color-on-surface);
-      border: 1px solid var(--md-sys-color-outline-variant);
-    `;
-    importBtn.addEventListener("click", e => {
-      e.preventDefault();
-      e.stopPropagation();
-      fileInput.click();
-    });
-
-    panel.appendChild(exportBtn);
-    panel.appendChild(importBtn);
-    panel.appendChild(fileInput);
-    panel.appendChild(status);
-    return panel;
-  }
-
-  function tryInject() {
-    document.querySelectorAll("a.pos_relative").forEach(btn => {
-      if (
-        btn.hasAttribute(CLONE_KEY) ||
-        btn.hasAttribute("data-lsbackup-entry") ||
-        !btn.innerText.includes(TARGET_TEXT)
-      ) return;
-
-      btn.setAttribute(CLONE_KEY, "true");
-
-      const clone = btn.cloneNode(true);
-      clone.removeAttribute(CLONE_KEY);
-      clone.setAttribute("data-lsbackup-entry", "true");
-
-      const title = clone.querySelector("div.d_flex.flex-g_1.flex-d_column > div");
-      if (title) title.textContent = "AviaClient Backup";
-
-      const desc = clone.querySelector("div.d_flex.flex-g_1.flex-d_column > span");
-      if (desc) desc.textContent = "Backup or Restore all client data";
-
-      const iconBtn = document.createElement("div");
-      iconBtn.title = "LocalStorage Backup";
-      iconBtn.style.cssText = "cursor: pointer; z-index: 10; flex-shrink: 0;";
-      iconBtn.innerHTML = `
-        <div class="fill_var(--md-sys-color-on-surface) bg_var(--md-sys-color-surface-dim) w_36px h_36px d_flex flex-sh_0 ai_center jc_center bdr_var(--borderRadius-full)">
-          <span aria-hidden="true" class="material-symbols-outlined fs_inherit fw_undefined!" style="display: block; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0;">database</span>
-        </div>
-      `;
-
-      const existingIcon = clone.querySelector("div.fill_var\\(--md-sys-color-on-surface\\)");
-      if (existingIcon) {
-        existingIcon.replaceWith(iconBtn);
-      } else {
-        clone.prepend(iconBtn);
-      }
-
-      clone.addEventListener("click", e => {
+    btn.onclick = (e) => {
         e.preventDefault();
-        e.stopPropagation();
-        panel.style.display = panel.style.display === "flex" ? "none" : "flex";
-      });
+        fetchAndOpen();
+    };
 
-      const wrapper = document.createElement("div");
-      wrapper.style.cssText = "display: flex; flex-direction: column;";
+    referenceNode.parentElement.insertBefore(btn, referenceNode.nextSibling);
+}
 
-      const panel = buildPanel();
+injectStyles();
+new MutationObserver(() => injectButton())
+    .observe(document.body, { childList: true, subtree: true });
+injectButton();
 
-      wrapper.appendChild(clone);
-      wrapper.appendChild(panel);
-
-      btn.parentNode.insertBefore(wrapper, btn.nextSibling);
-    });
-  }
-
-  tryInject();
-
-  const observer = new MutationObserver(() => tryInject());
-  observer.observe(document.body, { childList: true, subtree: true });
 })();
 
-
-/* --- ButtonFix.js --- */
-if(window.__US_BUILDER_BUTTONFIX_JS__){return;}window.__US_BUILDER_BUTTONFIX_JS__=true;
-
-(function () {
-    if (window.__BUTTON_FIX__) return;
-    window.__BUTTON_FIX__ = true;
-
-    function uninjectButton(button){
-        if(button){
-            button.parentElement.removeChild(button)
-        }
-    }
-    
-    const observer = new MutationObserver(()=>{
-        let balls = [];
-        document.querySelectorAll('div[class=\'flex-sh_0 d_flex ai_end jc_center w_42px\']').forEach(element=>{
-        if(element.id?.includes('avia')){
-            balls.push(element)
-        }
-        })
-        
-        const gifSpan = [...document.querySelectorAll("span.material-symbols-outlined")]
-        .find(s => s.textContent.trim() === "gif");
-
-        if(!gifSpan){
-            balls.forEach(element=>{
-                uninjectButton(element)
-            })
-        }
-    });
-    observer.observe(document.documentElement, {childList: true, subtree: true })
-})();
 
 
 })();
