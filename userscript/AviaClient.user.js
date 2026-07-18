@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AviaClient
 // @namespace   userscript.builder
-// @version     1.7.1
+// @version     1.8.0
 // @description AviaClient is a client mod for stoat that adds extra features like plugins, themes, online fonts, Local fonts, local fonts. and more
 // @match       https://stoat.chat/*
 // @grant       none
@@ -9,8 +9,46 @@
 // ==/UserScript==
 
 (function(){
-'@preserve - Built on 2026-06-28T20:01:10.879Z';
-window.__USERSCRIPT_VERSION__ = "1.7.0";
+'@preserve - Built on 2026-07-18T16:09:42.168Z';
+window.__USERSCRIPT_VERSION__ = "1.8.0";
+
+/* --- aviaclientbrowsertab.js --- */
+if(window.__US_BUILDER_AVIACLIENTBROWSERTAB_JS__){return;}window.__US_BUILDER_AVIACLIENTBROWSERTAB_JS__=true;
+(function(){
+
+const TITLE = "Avia Client";
+const ICON_URL = "https://raw.githubusercontent.com/AvaLilac/Ava-Client/refs/heads/main/userscript/icon.png"; // <-- change this
+
+document.title = TITLE;
+
+function setFavicon(url) {
+  let link = document.querySelector("link[rel*='icon']");
+
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head.appendChild(link);
+  }
+
+  link.href = url;
+}
+
+setFavicon(ICON_URL);
+
+const titleObserver = new MutationObserver(() => {
+  if (document.title !== TITLE) {
+    document.title = TITLE;
+  }
+});
+
+const faviconObserver = new MutationObserver(() => {
+  setFavicon(ICON_URL);
+});
+
+titleObserver.observe(document.querySelector("title"), { childList: true });
+faviconObserver.observe(document.head, { childList: true, subtree: true });
+
+})();
 
 /* --- menu.js --- */
 if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
@@ -21,11 +59,26 @@ if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
 
     const ITEM_HEIGHT = 32;
     const MAX_VISIBLE = 12;
+    const SUBMENU_MAX_VISIBLE = 8;
     const PIN_STORAGE_KEY = "avia_menu_pins";
 
     const registeredItems = [];
+    const submenuParents = [];
+    const submenuItems = [];
+
     let menuEl = null;
     let menuOpen = false;
+    let activeSubmenuEl = null;
+    let activeSubmenuParentBtn = null;
+    let submenuHoverTimeout = null;
+
+    function allIds() {
+        return [
+            ...registeredItems.map(i => i.id),
+            ...submenuParents.map(i => i.id),
+            ...submenuItems.map(i => i.id)
+        ];
+    }
 
     function getPins() {
         try { return JSON.parse(localStorage.getItem(PIN_STORAGE_KEY) || "[]"); }
@@ -50,38 +103,34 @@ if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
         return getPins().includes(id);
     }
 
-    function getSortedItems() {
+    function getSortedMainItems() {
         const pins = getPins();
+        const all = [...registeredItems, ...submenuParents];
         const pinned = [];
         for (const id of pins) {
-            const found = registeredItems.find(i => i.id === id);
+            const found = all.find(i => i.id === id);
             if (found) pinned.push(found);
         }
-        const unpinned = registeredItems.filter(i => !isPinned(i.id));
+        const unpinned = all.filter(i => !isPinned(i.id));
         return [...pinned, ...unpinned];
     }
 
     window.AviaMenu = {
         register: function (item) {
             if (!item || typeof item !== "object") {
-                console.error("[AviaMenu] Registration failed: item must be an object, got", typeof item);
-                return;
+                console.error("[AviaMenu] register: item must be an object, got", typeof item); return;
             }
             if (typeof item.id !== "string" || !item.id.trim()) {
-                console.error("[AviaMenu] Registration failed: item.id must be a non-empty string, got", item.id);
-                return;
+                console.error("[AviaMenu] register: item.id must be a non-empty string, got", item.id); return;
             }
             if (!item.name || typeof item.name !== "string") {
-                console.error("[AviaMenu] Registration failed for id '%s': item.name must be a non-empty string, got", item.id, item.name);
-                return;
+                console.error("[AviaMenu] register failed for id '%s': item.name must be a non-empty string, got", item.id, item.name); return;
             }
             if (typeof item.onClick !== "function") {
-                console.error("[AviaMenu] Registration failed for id '%s': item.onClick must be a function, got", item.id, typeof item.onClick);
-                return;
+                console.error("[AviaMenu] register failed for id '%s': item.onClick must be a function, got", item.id, typeof item.onClick); return;
             }
-            if (registeredItems.find(i => i.id === item.id.trim())) {
-                console.error("[AviaMenu] Registration failed: an item with id '%s' is already registered", item.id.trim());
-                return;
+            if (allIds().includes(item.id.trim())) {
+                console.error("[AviaMenu] register: id '%s' is already registered", item.id.trim()); return;
             }
             registeredItems.push({
                 id: item.id.trim(),
@@ -90,15 +139,288 @@ if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
                 icon: typeof item.icon === "string" && item.icon.trim() ? item.icon.trim() : null
             });
             if (menuEl) rebuildMenu();
+        },
+
+        submenuregister: function (item) {
+            if (!item || typeof item !== "object") {
+                console.error("[AviaMenu] submenuregister: item must be an object, got", typeof item); return;
+            }
+            if (typeof item.id !== "string" || !item.id.trim()) {
+                console.error("[AviaMenu] submenuregister: item.id must be a non-empty string, got", item.id); return;
+            }
+            if (!item.name || typeof item.name !== "string") {
+                console.error("[AviaMenu] submenuregister failed for id '%s': item.name must be a non-empty string, got", item.id, item.name); return;
+            }
+            if (allIds().includes(item.id.trim())) {
+                console.error("[AviaMenu] submenuregister: id '%s' is already registered", item.id.trim()); return;
+            }
+            submenuParents.push({
+                id: item.id.trim(),
+                name: item.name,
+                icon: typeof item.icon === "string" && item.icon.trim() ? item.icon.trim() : null
+            });
+            if (menuEl) rebuildMenu();
+        },
+
+        submenu: function (item) {
+            if (!item || typeof item !== "object") {
+                console.error("[AviaMenu] submenu: item must be an object, got", typeof item); return;
+            }
+            if (typeof item.parent !== "string" || !item.parent.trim()) {
+                console.error("[AviaMenu] submenu: item.parent must be a non-empty string, got", item.parent); return;
+            }
+            if (typeof item.id !== "string" || !item.id.trim()) {
+                console.error("[AviaMenu] submenu: item.id must be a non-empty string, got", item.id); return;
+            }
+            if (!item.name || typeof item.name !== "string") {
+                console.error("[AviaMenu] submenu failed for id '%s': item.name must be a non-empty string, got", item.id, item.name); return;
+            }
+            if (typeof item.onClick !== "function") {
+                console.error("[AviaMenu] submenu failed for id '%s': item.onClick must be a function, got", item.id, typeof item.onClick); return;
+            }
+            if (!submenuParents.find(p => p.id === item.parent.trim())) {
+                console.error("[AviaMenu] submenu: no submenuregister found with id '%s'", item.parent.trim()); return;
+            }
+            if (allIds().includes(item.id.trim())) {
+                console.error("[AviaMenu] submenu: id '%s' is already registered", item.id.trim()); return;
+            }
+            submenuItems.push({
+                parent: item.parent.trim(),
+                id: item.id.trim(),
+                name: item.name,
+                onClick: item.onClick,
+                icon: typeof item.icon === "string" && item.icon.trim() ? item.icon.trim() : null
+            });
+            if (menuEl) rebuildMenu();
+        },
+
+        updatesubmenu: function (item) {
+            if (!item || typeof item !== "object") {
+                console.error("[AviaMenu] updatesubmenu: item must be an object, got", typeof item); return;
+            }
+            if (typeof item.parent !== "string" || !item.parent.trim()) {
+                console.error("[AviaMenu] updatesubmenu: item.parent must be a non-empty string, got", item.parent); return;
+            }
+            if (typeof item.id !== "string" || !item.id.trim()) {
+                console.error("[AviaMenu] updatesubmenu: item.id must be a non-empty string, got", item.id); return;
+            }
+            const entry = submenuItems.find(i => i.parent === item.parent.trim() && i.id === item.id.trim());
+            if (!entry) {
+                console.error("[AviaMenu] updatesubmenu: no submenu item found with parent '%s' and id '%s'", item.parent.trim(), item.id.trim()); return;
+            }
+            if (typeof item.text === "string" && item.text.trim()) {
+                entry.name = item.text.trim();
+            }
+            if (typeof item.icon === "string") {
+                entry.icon = item.icon.trim() || null;
+            }
+            if (activeSubmenuEl && activeSubmenuParentBtn) {
+                const parentEntry = submenuParents.find(p => p.id === item.parent.trim());
+                if (parentEntry) openSubmenu(parentEntry, activeSubmenuParentBtn);
+            }
+        },
+
+        unregister: function (item) {
+            if (!item || typeof item.id !== "string" || !item.id.trim()) {
+                console.error("[AviaMenu] unregister: item.id must be a non-empty string, got", item?.id); return;
+            }
+            const id = item.id.trim();
+
+            const rIdx = registeredItems.findIndex(i => i.id === id);
+            if (rIdx !== -1) {
+                registeredItems.splice(rIdx, 1);
+                if (menuEl) rebuildMenu();
+                return;
+            }
+
+            const pIdx = submenuParents.findIndex(i => i.id === id);
+            if (pIdx !== -1) {
+                submenuParents.splice(pIdx, 1);
+                const children = submenuItems.filter(i => i.parent === id);
+                children.forEach(c => {
+                    const cIdx = submenuItems.findIndex(s => s.id === c.id);
+                    if (cIdx !== -1) submenuItems.splice(cIdx, 1);
+                });
+                closeSubmenu();
+                if (menuEl) rebuildMenu();
+                return;
+            }
+
+            const sIdx = submenuItems.findIndex(i => i.id === id);
+            if (sIdx !== -1) {
+                const parentId = submenuItems[sIdx].parent;
+                submenuItems.splice(sIdx, 1);
+                const remaining = submenuItems.filter(i => i.parent === parentId);
+                if (remaining.length === 0) {
+                    const pIdx2 = submenuParents.findIndex(i => i.id === parentId);
+                    if (pIdx2 !== -1) submenuParents.splice(pIdx2, 1);
+                    closeSubmenu();
+                }
+                if (menuEl) rebuildMenu();
+                return;
+            }
+
+            console.error("[AviaMenu] unregister: no item with id '%s' found", id);
         }
     };
 
+    function closeSubmenu() {
+        if (activeSubmenuEl) {
+            activeSubmenuEl.remove();
+            activeSubmenuEl = null;
+        }
+        activeSubmenuParentBtn = null;
+        clearTimeout(submenuHoverTimeout);
+    }
+
     function closeMenu() {
+        closeSubmenu();
         if (menuEl) {
             menuEl.remove();
             menuEl = null;
         }
         menuOpen = false;
+    }
+
+    function openSubmenu(parentItem, anchorBtn) {
+        if (activeSubmenuParentBtn === anchorBtn) return;
+        closeSubmenu();
+        activeSubmenuParentBtn = anchorBtn;
+
+        const items = submenuItems.filter(i => i.parent === parentItem.id);
+        if (items.length === 0) return;
+
+        const sub = document.createElement("div");
+        activeSubmenuEl = sub;
+        Object.assign(sub.style, {
+            position: "fixed",
+            zIndex: "9999999",
+            background: "var(--md-sys-color-surface, #1e1e1e)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.4)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)",
+            overflow: "hidden",
+            minWidth: "180px",
+            display: "flex",
+            flexDirection: "column"
+        });
+
+        const subList = document.createElement("div");
+        Object.assign(subList.style, {
+            display: "flex",
+            flexDirection: "column",
+            padding: "8px",
+            boxSizing: "border-box",
+            maxHeight: (SUBMENU_MAX_VISIBLE * ITEM_HEIGHT + 16) + "px",
+            overflowY: items.length > SUBMENU_MAX_VISIBLE ? "auto" : "hidden",
+            scrollbarWidth: "none"
+        });
+
+        for (const subItem of items) {
+            const btn = document.createElement("div");
+            Object.assign(btn.style, {
+                padding: "0 12px",
+                height: ITEM_HEIGHT + "px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                fontSize: "13px",
+                fontWeight: "500",
+                color: "var(--md-sys-color-on-surface, #fff)",
+                cursor: "pointer",
+                borderRadius: "10px",
+                transition: "background 0.12s",
+                userSelect: "none",
+                flexShrink: "0"
+            });
+
+            if (subItem.icon) {
+                const iconEl = document.createElement("span");
+                iconEl.className = "material-symbols-outlined";
+                iconEl.textContent = subItem.icon;
+                iconEl.style.cssText = "font-size:20px;display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;flex-shrink:0;opacity:0.85;";
+                btn.appendChild(iconEl);
+            }
+
+            const label = document.createElement("span");
+            label.textContent = subItem.name;
+            label.style.flex = "1";
+            btn.appendChild(label);
+
+            btn.addEventListener("mouseenter", () => { btn.style.background = "rgba(255,255,255,0.07)"; });
+            btn.addEventListener("mouseleave", () => { btn.style.background = "transparent"; });
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                closeMenu();
+                try { subItem.onClick(); } catch (err) { console.error("[AviaMenu]", err); }
+            });
+
+            subList.appendChild(btn);
+        }
+
+        sub.appendChild(subList);
+        document.body.appendChild(sub);
+
+        if (items.length > SUBMENU_MAX_VISIBLE) {
+            function makeSubArrow(id, rotation) {
+                const el = document.createElement("div");
+                el.id = id;
+                Object.assign(el.style, {
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    height: "20px",
+                    pointerEvents: "none",
+                    flexShrink: "0",
+                    visibility: "hidden"
+                });
+                const icon = document.createElement("span");
+                icon.className = "material-symbols-outlined";
+                icon.textContent = "arrow_back_2";
+                icon.style.cssText = `font-size:16px;display:block;transform:rotate(${rotation}deg);color:var(--md-sys-color-on-surface,#fff);opacity:0.5;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;`;
+                el.appendChild(icon);
+                return el;
+            }
+
+            const subArrowTop = makeSubArrow("avia-submenu-scroll-top", 90);
+            const subArrowBot = makeSubArrow("avia-submenu-scroll-bot", 270);
+            subArrowBot.style.display = "none";
+            subArrowBot.style.visibility = "visible";
+
+            sub.insertBefore(subArrowTop, subList);
+            sub.insertBefore(subArrowBot, subList.nextSibling);
+
+            function updateSubArrows() {
+                const canUp = subList.scrollTop > 0;
+                const canDown = subList.scrollTop + subList.clientHeight < subList.scrollHeight - 1;
+                subArrowTop.style.visibility = canUp ? "visible" : "hidden";
+                subArrowBot.style.display = canDown ? "flex" : "none";
+            }
+
+            subList.addEventListener("scroll", updateSubArrows);
+            updateSubArrows();
+        }
+
+        const anchorRect = anchorBtn.getBoundingClientRect();
+        const subRect = sub.getBoundingClientRect();
+        let top = anchorRect.top;
+        let left = anchorRect.left - subRect.width - 6;
+
+        if (left < 8) left = anchorRect.right + 6;
+        if (top + subRect.height > window.innerHeight - 8) {
+            top = window.innerHeight - subRect.height - 8;
+        }
+
+        sub.style.top = top + "px";
+        sub.style.left = left + "px";
+
+        sub.addEventListener("mouseleave", () => {
+            submenuHoverTimeout = setTimeout(closeSubmenu, 120);
+        });
+        sub.addEventListener("mouseenter", () => {
+            clearTimeout(submenuHoverTimeout);
+        });
     }
 
     function rebuildMenu() {
@@ -107,7 +429,9 @@ if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
         if (!list) return;
         list.innerHTML = "";
 
-        if (registeredItems.length === 0) {
+        const sorted = getSortedMainItems();
+
+        if (sorted.length === 0) {
             const empty = document.createElement("div");
             empty.textContent = "No buttons registered";
             Object.assign(empty.style, {
@@ -124,9 +448,8 @@ if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
             return;
         }
 
-        const sorted = getSortedItems();
-
         for (const item of sorted) {
+            const isParent = submenuParents.some(p => p.id === item.id);
             const pinned = isPinned(item.id);
 
             const btn = document.createElement("div");
@@ -183,35 +506,99 @@ if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
             });
             pinBtn.addEventListener("click", (e) => {
                 e.stopPropagation();
-                if (isPinned(item.id)) {
-                    unpinItem(item.id);
-                } else {
-                    pinItem(item.id);
-                }
+                if (isPinned(item.id)) unpinItem(item.id);
+                else pinItem(item.id);
                 rebuildMenu();
             });
 
             btn.appendChild(pinBtn);
 
-            btn.addEventListener("mouseenter", () => {
-                btn.style.background = "rgba(255,255,255,0.07)";
-            });
-            btn.addEventListener("mouseleave", () => {
-                btn.style.background = "transparent";
-            });
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                closeMenu();
-                try { item.onClick(); } catch (err) { console.error("[AviaMenu]", err); }
-            });
+            if (isParent) {
+                const chevron = document.createElement("span");
+                chevron.className = "material-symbols-outlined";
+                chevron.textContent = "arrow_back_2";
+                chevron.style.cssText = "font-size:14px;display:block;transform:rotate(180deg);flex-shrink:0;opacity:0.5;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;";
+                btn.insertBefore(chevron, pinBtn);
+
+                btn.addEventListener("mouseenter", () => {
+                    btn.style.background = "rgba(255,255,255,0.07)";
+                    clearTimeout(submenuHoverTimeout);
+                    openSubmenu(item, btn);
+                });
+                btn.addEventListener("mouseleave", () => {
+                    btn.style.background = "transparent";
+                    submenuHoverTimeout = setTimeout(() => {
+                        if (activeSubmenuParentBtn === btn) closeSubmenu();
+                    }, 120);
+                });
+            } else {
+                btn.addEventListener("mouseenter", () => {
+                    btn.style.background = "rgba(255,255,255,0.07)";
+                    clearTimeout(submenuHoverTimeout);
+                    if (activeSubmenuEl) closeSubmenu();
+                });
+                btn.addEventListener("mouseleave", () => {
+                    btn.style.background = "transparent";
+                });
+                btn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    closeMenu();
+                    try { item.onClick(); } catch (err) { console.error("[AviaMenu]", err); }
+                });
+            }
 
             list.appendChild(btn);
         }
 
-        const total = getSortedItems().length;
-        list.style.maxHeight = (MAX_VISIBLE * ITEM_HEIGHT) + "px";
+        const total = sorted.length;
+        list.style.maxHeight = (MAX_VISIBLE * ITEM_HEIGHT + 16) + "px";
         list.style.overflowY = total > MAX_VISIBLE ? "auto" : "hidden";
         list.style.scrollbarWidth = "none";
+
+        const existingTop = menuEl.querySelector("#avia-scroll-top");
+        const existingBot = menuEl.querySelector("#avia-scroll-bot");
+        if (existingTop) existingTop.remove();
+        if (existingBot) existingBot.remove();
+
+        if (total > MAX_VISIBLE) {
+            function makeArrow(id, rotation) {
+                const el = document.createElement("div");
+                el.id = id;
+                Object.assign(el.style, {
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    height: "20px",
+                    pointerEvents: "none",
+                    flexShrink: "0",
+                    visibility: "hidden"
+                });
+                const icon = document.createElement("span");
+                icon.className = "material-symbols-outlined";
+                icon.textContent = "arrow_back_2";
+                icon.style.cssText = `font-size:16px;display:block;transform:rotate(${rotation}deg);color:var(--md-sys-color-on-surface,#fff);opacity:0.5;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;`;
+                el.appendChild(icon);
+                return el;
+            }
+
+            const arrowTop = makeArrow("avia-scroll-top", 90);
+            const arrowBot = makeArrow("avia-scroll-bot", 270);
+            arrowBot.style.display = "none";
+            arrowBot.style.visibility = "visible";
+
+            menuEl.insertBefore(arrowTop, list);
+            menuEl.insertBefore(arrowBot, list.nextSibling);
+
+            function updateArrows() {
+                const canUp = list.scrollTop > 0;
+                const canDown = list.scrollTop + list.clientHeight < list.scrollHeight - 1;
+                arrowTop.style.visibility = canUp ? "visible" : "hidden";
+                arrowBot.style.display = canDown ? "flex" : "none";
+            }
+
+            list.addEventListener("scroll", updateArrows);
+            updateArrows();
+        }
     }
 
     function openMenu(anchorEl) {
@@ -269,7 +656,7 @@ if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
     }
 
     function onOutsideClick(e) {
-        if (menuEl && !menuEl.contains(e.target)) {
+        if (menuEl && !menuEl.contains(e.target) && (!activeSubmenuEl || !activeSubmenuEl.contains(e.target))) {
             closeMenu();
         }
     }
@@ -312,6 +699,105 @@ if(window.__US_BUILDER_MENU_JS__){return;}window.__US_BUILDER_MENU_JS__=true;
 })();
 
 
+
+/* --- forceapperance.js --- */
+
+(function () {
+  "@preserve - Built on 2026-03-18T15:07:32.044Z";
+
+  if (window.__US_BUILDER_FORCEUSERSETTINGS_JS__) {
+    return;
+  }
+  window.__US_BUILDER_FORCEUSERSETTINGS_JS__ = true;
+
+  (function () {
+    "use strict";
+
+    if (window.__AVIA_FORCE_USER_SETTINGS__) return;
+    window.__AVIA_FORCE_USER_SETTINGS__ = true;
+
+    let userSettingsSpan = null;
+
+    function findUserSettingsSpan() {
+      if (userSettingsSpan && document.body.contains(userSettingsSpan))
+        return userSettingsSpan;
+      const spans = document.querySelectorAll("span.ov_hidden");
+      for (const s of spans) {
+        const parent = s.parentElement;
+        if (!parent) continue;
+        if (parent.id === "avia-cloned-settings") continue;
+        if (parent.querySelector("#avia-cloned-settings")) continue;
+        const svgPath = parent.querySelector("a svg path");
+        if (!svgPath) continue;
+        const d = svgPath.getAttribute("d") || "";
+        if (d.startsWith("M12 2C6.48 2")) {
+          userSettingsSpan = s;
+          return s;
+        }
+      }
+      userSettingsSpan = null;
+      return null;
+    }
+
+    function enforceUserSettingsLabel() {
+      const span = findUserSettingsSpan();
+      if (span && span.textContent !== "User Settings")
+        span.textContent = "User Settings";
+    }
+
+    const observer = new MutationObserver(() => enforceUserSettingsLabel());
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    enforceUserSettingsLabel();
+  })();
+
+  if (window.__US_BUILDER_FORCEAPPARENCE_JS__) {
+    return;
+  }
+  window.__US_BUILDER_FORCEAPPARENCE_JS__ = true;
+
+  (function () {
+    if (window.__AVIA_FORCE_APPEARANCE__) return;
+    window.__AVIA_FORCE_APPEARANCE__ = true;
+
+    function setAppearanceLabel(root = document) {
+      const links = root.querySelectorAll(
+        ".settings_sidebar .content a.button:not([id^='avia-']):not([id^='stoat-fake-'])",
+      );
+
+      links.forEach((a) => {
+        const svg = a.querySelector("svg");
+        if (!svg) return;
+
+        const path = svg.querySelector("path");
+        if (!path) return;
+
+        if (path.getAttribute("d")?.startsWith("M12 22C6.49 22")) {
+          const label = a.querySelector("div.ov_hidden");
+          if (label && label.textContent !== "Appearance") {
+            label.textContent = "Appearance";
+          }
+        }
+      });
+    }
+
+    const observer = new MutationObserver((muts) => {
+      for (const m of muts) {
+        for (const n of m.addedNodes) {
+          if (!(n instanceof HTMLElement)) continue;
+          setAppearanceLabel(n);
+        }
+      }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    setAppearanceLabel();
+  })();
+})();
+
+
+
 /* --- aviaclientcategory.js --- */
 if(window.__US_BUILDER_AVIACLIENTCATEGORY_JS__){return;}window.__US_BUILDER_AVIACLIENTCATEGORY_JS__=true;
 
@@ -350,78 +836,6 @@ if(window.__US_BUILDER_AVIACLIENTCATEGORY_JS__){return;}window.__US_BUILDER_AVIA
 
 })();
 
-
-
-/* --- aviaclientbrowsertab.js --- */
-if(window.__US_BUILDER_AVIACLIENTBROWSERTAB_JS__){return;}window.__US_BUILDER_AVIACLIENTBROWSERTAB_JS__=true;
-(function(){
-
-const TITLE = "Avia Client";
-const ICON_URL = "https://raw.githubusercontent.com/AvaLilac/Ava-Client/refs/heads/main/userscript/icon.png"; // <-- change this
-
-document.title = TITLE;
-
-function setFavicon(url) {
-  let link = document.querySelector("link[rel*='icon']");
-  
-  if (!link) {
-    link = document.createElement("link");
-    link.rel = "icon";
-    document.head.appendChild(link);
-  }
-  
-  link.href = url;
-}
-
-setFavicon(ICON_URL);
-
-const titleObserver = new MutationObserver(() => {
-  if (document.title !== TITLE) {
-    document.title = TITLE;
-  }
-});
-
-const faviconObserver = new MutationObserver(() => {
-  setFavicon(ICON_URL);
-});
-
-titleObserver.observe(document.querySelector("title"), { childList: true });
-faviconObserver.observe(document.head, { childList: true, subtree: true });
-
-})();
-
-/* --- ButtonFix.js --- */
-if(window.__US_BUILDER_BUTTONFIX_JS__){return;}window.__US_BUILDER_BUTTONFIX_JS__=true;
-
-(function () {
-    if (window.__BUTTON_FIX__) return;
-    window.__BUTTON_FIX__ = true;
-
-    function uninjectButton(button){
-        if(button){
-            button.parentElement.removeChild(button)
-        }
-    }
-    
-    const observer = new MutationObserver(()=>{
-        let balls = [];
-        document.querySelectorAll('div[class=\'flex-sh_0 d_flex ai_end jc_center w_42px\']').forEach(element=>{
-        if(element.id?.includes('avia')){
-            balls.push(element)
-        }
-        })
-        
-        const gifSpan = [...document.querySelectorAll("span.material-symbols-outlined")]
-        .find(s => s.textContent.trim() === "gif");
-
-        if(!gifSpan){
-            balls.forEach(element=>{
-                uninjectButton(element)
-            })
-        }
-    });
-    observer.observe(document.documentElement, {childList: true, subtree: true })
-})();
 
 
 /* --- inject.js --- */
@@ -2382,6 +2796,474 @@ if(window.__US_BUILDER_THEMES_JS__){return;}window.__US_BUILDER_THEMES_JS__=true
 
 
 
+/* --- aviafavsystem.js --- */
+if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSYSTEM_JS__=true;
+
+(function () {
+    if (window.__AVIA_FAVORITES_LOADED__) return;
+    window.__AVIA_FAVORITES_LOADED__ = true;
+
+    const STORAGE_KEY = "avia_favorites";
+
+    const getFavorites = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const setFavorites = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    function extractYouTubeID(url) {
+        const reg = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([^&?/]+)/;
+        const match = url.match(reg);
+        return match ? match[1] : null;
+    }
+
+    function fallbackCopy(text) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.cssText = "position:fixed;opacity:0;";
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        try { document.execCommand("copy"); } catch {}
+        document.body.removeChild(ta);
+    }
+
+    function updateBadge() {
+        const badge = document.getElementById("avia-favorites-badge");
+        if (!badge) return;
+        const count = getFavorites().length;
+        badge.textContent = count;
+        badge.style.display = count > 0 ? "flex" : "none";
+    }
+
+    function showToast(card, msg) {
+        const old = card.querySelector(".fav-toast");
+        if (old) old.remove();
+        const toast = document.createElement("div");
+        toast.className = "fav-toast";
+        toast.textContent = msg || "Copied!";
+        Object.assign(toast.style, {
+            position: "absolute",
+            bottom: "6px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(0,0,0,0.85)",
+            padding: "3px 8px",
+            borderRadius: "6px",
+            fontSize: "10px",
+            color: "#fff",
+            opacity: "0",
+            transition: "opacity 0.15s",
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            zIndex: "3"
+        });
+        card.appendChild(toast);
+        requestAnimationFrame(() => toast.style.opacity = "1");
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            setTimeout(() => toast.remove(), 150);
+        }, 1500);
+    }
+
+    function flashDupe(url) {
+        const card = document.querySelector(`[data-fav-url="${CSS.escape(url)}"]`);
+        if (!card) return;
+        card.style.outline = "2px solid rgba(255,80,80,0.9)";
+        setTimeout(() => { card.style.outline = ""; }, 700);
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    function buildCard(item, onRemove) {
+        const card = document.createElement("div");
+        card.dataset.favUrl = item.url;
+        Object.assign(card.style, {
+            position: "relative",
+            width: "90px",
+            height: "90px",
+            borderRadius: "12px",
+            overflow: "hidden",
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            cursor: "pointer",
+            flexShrink: "0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "border-color 0.2s, transform 0.15s"
+        });
+
+        const removeBtn = document.createElement("div");
+        removeBtn.textContent = "✕";
+        Object.assign(removeBtn.style, {
+            position: "absolute",
+            top: "4px",
+            right: "5px",
+            fontSize: "10px",
+            cursor: "pointer",
+            background: "rgba(0,0,0,0.7)",
+            color: "#fff",
+            padding: "1px 4px",
+            borderRadius: "4px",
+            zIndex: "2",
+            opacity: "0",
+            transition: "opacity 0.15s"
+        });
+        removeBtn.onclick = e => {
+            e.stopPropagation();
+            onRemove(item.url);
+        };
+        card.appendChild(removeBtn);
+
+        card.addEventListener("mouseenter", () => {
+            card.style.borderColor = "rgba(255,255,255,0.25)";
+            card.style.transform = "scale(1.04)";
+            removeBtn.style.opacity = "1";
+        });
+        card.addEventListener("mouseleave", () => {
+            card.style.borderColor = "rgba(255,255,255,0.08)";
+            card.style.transform = "scale(1)";
+            removeBtn.style.opacity = "0";
+        });
+
+        const ytID = extractYouTubeID(item.url);
+        if (ytID) {
+            const img = new Image();
+            img.draggable = false;
+            img.src = `https://img.youtube.com/vi/${ytID}/hqdefault.jpg`;
+            Object.assign(img.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
+            img.onerror = () => fallback();
+            card.appendChild(img);
+        } else {
+            const ext = item.url.split(".").pop().split("?")[0].toLowerCase();
+            const isVideo = ["mp4", "webm", "mov", "gifv"].includes(ext);
+
+            if (isVideo) {
+                const video = document.createElement("video");
+                video.src = item.url.replace(".gifv", ".mp4");
+                video.autoplay = true; video.loop = true;
+                video.muted = true; video.playsInline = true;
+                video.draggable = false;
+                Object.assign(video.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
+                video.onerror = () => fallback();
+                card.appendChild(video);
+            } else {
+                const img = new Image();
+                img.draggable = false;
+                img.src = item.url;
+                Object.assign(img.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
+                img.onerror = () => fallback();
+                card.appendChild(img);
+            }
+        }
+
+        function fallback() {
+            [...card.children].forEach(c => { if (c !== removeBtn) c.remove(); });
+            const inner = document.createElement("div");
+            Object.assign(inner.style, {
+                display: "flex", flexDirection: "column", alignItems: "center",
+                justifyContent: "center", gap: "4px", padding: "6px",
+                width: "100%", height: "100%", boxSizing: "border-box", pointerEvents: "none"
+            });
+            const icon = document.createElement("span");
+            icon.className = "material-symbols-outlined";
+            icon.textContent = "link";
+            icon.style.cssText = "font-size:20px;opacity:0.35;color:#fff;display:block;";
+            inner.appendChild(icon);
+            const label = document.createElement("div");
+            if (item.title) {
+                label.textContent = item.title;
+            } else {
+                try { label.textContent = new URL(item.url).hostname.replace("www.", ""); } catch { label.textContent = "link"; }
+            }
+            Object.assign(label.style, {
+                fontSize: "9px", color: "#fff", opacity: "0.55",
+                textAlign: "center", wordBreak: "break-word", overflow: "hidden",
+                maxHeight: "36px", lineHeight: "1.3", padding: "0 4px"
+            });
+            inner.appendChild(label);
+            card.appendChild(inner);
+        }
+
+        if (item.title) {
+            const titleOverlay = document.createElement("div");
+            titleOverlay.textContent = item.title;
+            Object.assign(titleOverlay.style, {
+                position: "absolute",
+                bottom: "0",
+                width: "100%",
+                background: "rgba(0,0,0,0.6)",
+                fontSize: "11px",
+                padding: "4px",
+                textAlign: "center",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                zIndex: "1",
+                pointerEvents: "none"
+            });
+            card.appendChild(titleOverlay);
+        }
+
+        card.addEventListener("click", () => {
+            const done = () => showToast(card, "Copied!");
+            if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(item.url).then(done).catch(() => { fallbackCopy(item.url); done(); });
+            } else {
+                fallbackCopy(item.url); done();
+            }
+        });
+
+        return card;
+    }
+
+    function toggleFavoritesPanel() {
+        let panel = document.getElementById("avia-favorites-panel");
+        if (panel) {
+            const isHidden = panel.style.display === "none";
+            panel.style.display = isHidden ? "flex" : "none";
+            if (isHidden) renderGrid();
+            return;
+        }
+
+        panel = document.createElement("div");
+        panel.id = "avia-favorites-panel";
+        Object.assign(panel.style, {
+            position: "fixed",
+            bottom: "24px",
+            right: "40px",
+            width: "460px",
+            height: "400px",
+            background: "var(--md-sys-color-surface, #141418)",
+            color: "var(--md-sys-color-on-surface, #fff)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            zIndex: "999999",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(16px)"
+        });
+
+        const header = document.createElement("div");
+        Object.assign(header.style, {
+            padding: "13px 16px",
+            fontWeight: "600",
+            fontSize: "14px",
+            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            cursor: "move",
+            userSelect: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexShrink: "0"
+        });
+
+        const headerIcon = document.createElement("span");
+        headerIcon.className = "material-symbols-outlined";
+        headerIcon.textContent = "star";
+        headerIcon.style.cssText = "font-size:18px;opacity:0.7;display:block;font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0;";
+        header.appendChild(headerIcon);
+
+        const headerTitle = document.createElement("span");
+        headerTitle.textContent = "Favorites";
+        header.appendChild(headerTitle);
+
+        const closeBtn = document.createElement("div");
+        closeBtn.textContent = "✕";
+        Object.assign(closeBtn.style, {
+            marginLeft: "auto", cursor: "pointer", opacity: "0.5",
+            fontSize: "13px", lineHeight: "1"
+        });
+        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
+        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.5";
+        closeBtn.onclick = () => panel.style.display = "none";
+        header.appendChild(closeBtn);
+
+        const inputRow = document.createElement("div");
+        Object.assign(inputRow.style, {
+            padding: "10px 14px", display: "flex", gap: "6px",
+            alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: "0"
+        });
+
+        const urlInput = document.createElement("input");
+        urlInput.placeholder = "Paste a link...";
+        Object.assign(urlInput.style, {
+            flex: "1", padding: "7px 10px", borderRadius: "8px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.05)",
+            color: "var(--md-sys-color-on-surface, #fff)",
+            fontSize: "12px", outline: "none", minWidth: "0"
+        });
+
+        const titleInput = document.createElement("input");
+        titleInput.placeholder = "Title (optional)";
+        Object.assign(titleInput.style, {
+            width: "110px", flexShrink: "0", padding: "7px 10px",
+            borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.05)",
+            color: "var(--md-sys-color-on-surface, #fff)",
+            fontSize: "12px", outline: "none"
+        });
+
+        const addBtn = document.createElement("button");
+        addBtn.textContent = "Add";
+        Object.assign(addBtn.style, {
+            padding: "7px 14px", borderRadius: "8px", border: "none",
+            background: "var(--md-sys-color-primary, rgba(255,255,255,0.15))",
+            color: "var(--md-sys-color-on-primary, #fff)",
+            fontSize: "12px", fontWeight: "600", cursor: "pointer",
+            flexShrink: "0", transition: "opacity 0.15s"
+        });
+        addBtn.onmouseenter = () => addBtn.style.opacity = "0.8";
+        addBtn.onmouseleave = () => addBtn.style.opacity = "1";
+
+        inputRow.appendChild(urlInput);
+        inputRow.appendChild(titleInput);
+        inputRow.appendChild(addBtn);
+
+        const gridWrapper = document.createElement("div");
+        Object.assign(gridWrapper.style, {
+            flex: "1", minHeight: "0", overflowY: "auto",
+            padding: "14px", boxSizing: "border-box"
+        });
+
+        const grid = document.createElement("div");
+        grid.id = "avia-favorites-grid";
+        Object.assign(grid.style, {
+            display: "flex", flexWrap: "wrap", gap: "10px", alignContent: "start"
+        });
+
+        gridWrapper.appendChild(grid);
+        panel.appendChild(header);
+        panel.appendChild(inputRow);
+        panel.appendChild(gridWrapper);
+        document.body.appendChild(panel);
+
+        let isPanelDragging = false, pOffsetX, pOffsetY;
+        header.addEventListener("mousedown", e => {
+            isPanelDragging = true;
+            const rect = panel.getBoundingClientRect();
+            pOffsetX = e.clientX - rect.left;
+            pOffsetY = e.clientY - rect.top;
+            panel.style.bottom = "auto"; panel.style.right = "auto";
+            panel.style.left = rect.left + "px"; panel.style.top = rect.top + "px";
+            document.body.style.userSelect = "none";
+        });
+        document.addEventListener("mouseup", () => {
+            isPanelDragging = false;
+            document.body.style.userSelect = "";
+        });
+        document.addEventListener("mousemove", e => {
+            if (!isPanelDragging) return;
+            panel.style.left = (e.clientX - pOffsetX) + "px";
+            panel.style.top = (e.clientY - pOffsetY) + "px";
+        });
+
+        function tryAdd() {
+            const url = urlInput.value.trim();
+            const title = titleInput.value.trim();
+            if (!url) return;
+            const favs = getFavorites();
+            if (favs.some(f => f.url === url)) { flashDupe(url); return; }
+            favs.push({ url, title, addedAt: Date.now() });
+            setFavorites(favs);
+            urlInput.value = ""; titleInput.value = "";
+            updateBadge(); renderGrid();
+        }
+
+        addBtn.onclick = tryAdd;
+        urlInput.addEventListener("keydown", e => { if (e.key === "Enter") tryAdd(); });
+        titleInput.addEventListener("keydown", e => { if (e.key === "Enter") tryAdd(); });
+
+        renderGrid();
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById("avia-favorites-grid");
+        if (!grid) return;
+        grid.innerHTML = "";
+
+        const favs = getFavorites();
+
+        if (favs.length === 0) {
+            const empty = document.createElement("div");
+            Object.assign(empty.style, {
+                width: "100%", padding: "24px 0", textAlign: "center",
+                opacity: "0.35", fontSize: "13px",
+                color: "var(--md-sys-color-on-surface, #fff)"
+            });
+            const emptyIcon = document.createElement("span");
+            emptyIcon.className = "material-symbols-outlined";
+            emptyIcon.textContent = "star_border";
+            emptyIcon.style.cssText = "display:block;font-size:32px;margin-bottom:6px;";
+            empty.appendChild(emptyIcon);
+            const emptyText = document.createElement("div");
+            emptyText.textContent = "No favorites yet";
+            empty.appendChild(emptyText);
+            grid.appendChild(empty);
+            return;
+        }
+
+        const onRemove = (url) => {
+            setFavorites(getFavorites().filter(f => f.url !== url));
+            updateBadge();
+            renderGrid();
+        };
+
+        favs.forEach(item => grid.insertBefore(buildCard(item, onRemove), grid.firstChild));
+    }
+
+    function injectButton() {
+        if (document.getElementById("avia-favorites-btn")) return;
+        const gifSpan = [...document.querySelectorAll("span.material-symbols-outlined")]
+            .find(s => s.textContent.trim() === "gif");
+        if (!gifSpan) return;
+        const wrapper = gifSpan.closest("div.flex-sh_0");
+        if (!wrapper) return;
+        const clone = wrapper.cloneNode(true);
+        clone.id = "avia-favorites-btn";
+        clone.style.position = "relative";
+
+        const btn = clone.querySelector("button");
+        btn.onclick = toggleFavoritesPanel;
+
+        btn.style.position = "relative";
+
+        clone.querySelector("span.material-symbols-outlined").textContent = "star";
+
+        const badge = document.createElement("div");
+        badge.id = "avia-favorites-badge";
+        Object.assign(badge.style, {
+            position: "absolute",
+            top: "2px",
+            right: "2px",
+            background: "var(--md-sys-color-primary, #6750a4)",
+            color: "var(--md-sys-color-on-primary, #fff)",
+            borderRadius: "99px",
+            fontSize: "9px",
+            fontWeight: "700",
+            minWidth: "14px",
+            height: "14px",
+            display: "none",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0 3px",
+            pointerEvents: "none",
+            zIndex: "1"
+        });
+
+        btn.appendChild(badge);
+
+        wrapper.parentElement.insertBefore(clone, wrapper.nextSibling);
+        updateBadge();
+    }
+
+    new MutationObserver(injectButton).observe(document.body, { childList: true, subtree: true });
+    injectButton();
+})();
+
+
+
 /* --- pluginsupport.js --- */
 if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUPPORT_JS__=true;
 
@@ -2952,6 +3834,63 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
             const footer = document.createElement('div');
             Object.assign(footer.style, { display: 'flex', gap: '6px', marginTop: 'auto', paddingTop: '2px' });
 
+            const LOCAL_KEY = "avia_local_plugins";
+            const getLocals = () => JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]");
+
+            const toLocalBtn = document.createElement('button');
+            styleBtn(toLocalBtn, 'rgba(80,200,120,0.15)');
+            toLocalBtn.style.flex = '1';
+            const alreadyLocal = getLocals().some(p => p.name === plugin.name);
+            if (alreadyLocal) {
+                toLocalBtn.textContent = 'In Local';
+                toLocalBtn.disabled = true;
+                toLocalBtn.style.opacity = '0.45';
+                toLocalBtn.onmouseenter = null;
+                toLocalBtn.onmouseleave = null;
+            } else {
+                toLocalBtn.textContent = 'To Local';
+            }
+
+            toLocalBtn.onclick = async () => {
+                if (toLocalBtn.disabled) return;
+                toLocalBtn.textContent = '…';
+                toLocalBtn.disabled = true;
+
+                let code = null;
+                const scriptEl = runningPlugins[plugin.url];
+                if (scriptEl && scriptEl.textContent) code = scriptEl.textContent;
+
+                if (!code) {
+                    try {
+                        const res = await fetch(normalizePluginUrl(plugin.url));
+                        if (!res.ok) throw new Error("HTTP " + res.status);
+                        code = await res.text();
+                    } catch {
+                        toLocalBtn.textContent = 'Failed';
+                        setTimeout(() => { toLocalBtn.textContent = 'Local'; toLocalBtn.disabled = false; }, 2000);
+                        return;
+                    }
+                }
+
+                const locals = getLocals();
+                if (locals.some(p => p.name === plugin.name)) {
+                    toLocalBtn.textContent = 'In Local';
+                    return;
+                }
+                locals.push({
+                    id: "local_" + Date.now() + "_" + Math.random().toString(36).slice(2),
+                    name: plugin.name,
+                    code,
+                    enabled: plugin.enabled
+                });
+                localStorage.setItem(LOCAL_KEY, JSON.stringify(locals));
+                window.dispatchEvent(new Event("avia-local-plugin-list-changed"));
+                stopPlugin(plugin);
+                plugins.splice(realIndex, 1);
+                setPlugins(plugins);
+                renderPanel(filter);
+            };
+
             const viewBtn = document.createElement('button');
             viewBtn.textContent = 'View';
             styleBtn(viewBtn, 'rgba(100,160,255,0.15)');
@@ -2968,6 +3907,7 @@ if(window.__US_BUILDER_PLUGINSUPPORT_JS__){return;}window.__US_BUILDER_PLUGINSUP
                 renderPanel(filter);
             };
 
+            footer.appendChild(toLocalBtn);
             footer.appendChild(viewBtn);
             footer.appendChild(removeBtn);
 
@@ -3119,6 +4059,17 @@ if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGI
             };
             document.head.appendChild(loader);
         });
+    }
+
+    function exportPlugin(plugin) {
+        const filename = plugin.name.endsWith(".js") ? plugin.name : plugin.name + ".js";
+        const blob = new Blob([plugin.code || ""], { type: "text/javascript" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     function runLocalPlugin(plugin) {
@@ -3599,7 +4550,6 @@ if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGI
         });
 
         visible.forEach((plugin) => {
-            const realIndex = plugins.indexOf(plugin);
             const isRunning = !!runSnap[plugin.id];
             const hasError = !!errSnap[plugin.id];
 
@@ -3729,6 +4679,12 @@ if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGI
                 });
             };
 
+            const exportBtn = document.createElement("button");
+            exportBtn.textContent = "Export";
+            styleLocalBtn(exportBtn, "rgba(80,200,120,0.15)");
+            exportBtn.title = "Download as .js file";
+            exportBtn.onclick = () => exportPlugin(plugin);
+
             const removeBtn = document.createElement("button");
             removeBtn.textContent = "✕";
             styleLocalBtn(removeBtn, "rgba(255,80,80,0.15)");
@@ -3742,6 +4698,7 @@ if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGI
                 renderLocalPanel(filter);
             };
 
+            footer.appendChild(exportBtn);
             footer.appendChild(editBtn);
             footer.appendChild(removeBtn);
 
@@ -3813,7 +4770,6 @@ if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGI
         aviaPluginsBtn.parentElement.insertBefore(localBtn, aviaPluginsBtn.nextSibling);
     }
 
-
     function registerWithAviaMenu() {
         if (window.AviaMenu) {
             window.AviaMenu.register({ id: "avia_plugins_local", name: "Local Plugins", icon: "extension", onClick: toggleLocalPanel });
@@ -3826,6 +4782,7 @@ if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGI
             }, 100);
         }
     }
+
     function waitForBody(callback) {
         if (document.body) callback();
         else new MutationObserver((obs) => {
@@ -3849,6 +4806,40 @@ if(window.__US_BUILDER_LOCALPLUGINS_JS__){return;}window.__US_BUILDER_LOCALPLUGI
 
 })();
 
+
+
+/* --- ButtonFix.js --- */
+if(window.__US_BUILDER_BUTTONFIX_JS__){return;}window.__US_BUILDER_BUTTONFIX_JS__=true;
+
+(function () {
+    if (window.__BUTTON_FIX__) return;
+    window.__BUTTON_FIX__ = true;
+
+    function uninjectButton(button){
+        if(button){
+            button.parentElement.removeChild(button)
+        }
+    }
+
+    const observer = new MutationObserver(()=>{
+        let balls = [];
+        document.querySelectorAll('div[class=\'flex-sh_0 d_flex ai_end jc_center w_42px\']').forEach(element=>{
+        if(element.id?.includes('avia')){
+            balls.push(element)
+        }
+        })
+
+        const gifSpan = [...document.querySelectorAll("span.material-symbols-outlined")]
+        .find(s => s.textContent.trim() === "gif");
+
+        if(!gifSpan){
+            balls.forEach(element=>{
+                uninjectButton(element)
+            })
+        }
+    });
+    observer.observe(document.documentElement, {childList: true, subtree: true })
+})();
 
 
 /* --- clientBackup.js --- */
@@ -4032,17 +5023,550 @@ if(window.__US_BUILDER_CLIENTBACKUP_JS__){return;}window.__US_BUILDER_CLIENTBACK
 
 
 
+/* --- AccountSwitcher.js --- */
+if(window.__US_BUILDER_ACCOUNTSWITCHER_JS__){return;}window.__US_BUILDER_ACCOUNTSWITCHER_JS__=true;
+
+(function () {
+    if (window.__ACCOUNT_SWITCHER__) return;
+    window.__ACCOUNT_SWITCHER__ = true;
+
+    const LS_KEY = "accountswitcher";
+    const CDN = "https://cdn.stoatusercontent.com";
+    const API = "https://api.stoat.chat";
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const r = indexedDB.open("localforage");
+            r.onsuccess = () => resolve(r.result);
+            r.onerror = () => reject(r.error);
+        });
+    }
+
+    async function getTokens() {
+        try {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const r = db.transaction("keyvaluepairs", "readonly")
+                            .objectStore("keyvaluepairs").get(LS_KEY);
+                r.onsuccess = () => resolve(Array.isArray(r.result) ? r.result : []);
+                r.onerror = () => reject(r.error);
+            });
+        } catch { return []; }
+    }
+
+    async function saveTokens(arr) {
+        try {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const r = db.transaction("keyvaluepairs", "readwrite")
+                            .objectStore("keyvaluepairs").put(arr, LS_KEY);
+                r.onsuccess = () => resolve();
+                r.onerror = () => reject(r.error);
+            });
+        } catch {}
+    }
+
+    async function addToken(token) {
+        const tokens = (await getTokens()).filter(t => t !== token);
+        tokens.push(token);
+        await saveTokens(tokens);
+    }
+
+    async function removeToken(token) {
+        await saveTokens((await getTokens()).filter(t => t !== token));
+    }
+
+    async function getCurrentToken() {
+        try {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const r = db.transaction("keyvaluepairs", "readonly")
+                            .objectStore("keyvaluepairs").get("auth");
+                r.onsuccess = () => resolve(r.result?.session?.token || null);
+                r.onerror = () => reject(r.error);
+            });
+        } catch { return null; }
+    }
+
+    async function loginWithToken(token) {
+        const db = await openDB();
+        const res = await fetch(`${API}/users/@me`, {
+            headers: { "x-session-token": token }
+        });
+        if (!res.ok) throw new Error("Token is invalid or expired");
+        const user = await res.json();
+        await new Promise((resolve, reject) => {
+            const r = db.transaction("keyvaluepairs", "readwrite")
+                        .objectStore("keyvaluepairs")
+                        .put({ session: { _id: user._id, token, userId: user._id, valid: true } }, "auth");
+            r.onsuccess = () => resolve();
+            r.onerror = () => reject(r.error);
+        });
+        location.href = "https://stoat.chat/app";
+    }
+
+    async function fetchProfile(token) {
+        try {
+            const res = await fetch(`${API}/users/@me`, {
+                headers: { "x-session-token": token }
+            });
+            if (!res.ok) return null;
+            const u = await res.json();
+            return {
+                displayName: u.display_name || u.username || "Unknown",
+                username: u.username || "",
+                avatarUrl: u.avatar ? `${CDN}/avatars/${u.avatar._id}` : null
+            };
+        } catch { return null; }
+    }
+
+    async function loginWithCredentials(email, password) {
+        const res = await fetch("https://api.stoat.chat/auth/session/login", {
+            method: "POST",
+            headers: { "accept": "application/json", "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password, friendly_name: "AviaAccountSwitcher" })
+        });
+        const data = await res.json();
+        if (!res.ok || data.result !== "Success") {
+            throw new Error(data.type || data.result || "Login failed");
+        }
+        await addToken(data.token);
+        return data.token;
+    }
+
+    function ensureStyles() {
+        if (document.getElementById("avia-accsw-styles")) return;
+        const s = document.createElement("style");
+        s.id = "avia-accsw-styles";
+        s.textContent = `
+            @keyframes accsw-scrim-in { from{opacity:0}to{opacity:1} }
+            @keyframes accsw-modal-in { from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)} }
+            #accsw-modal { animation: accsw-modal-in 0.15s forwards; }
+            .accsw-btn {
+                height:40px; border-radius:999px; border:none; padding:0 16px;
+                font-size:0.875rem; font-weight:500; cursor:pointer;
+                display:flex; align-items:center; justify-content:center;
+                transition:opacity 0.15s; font-family:inherit;
+            }
+            .accsw-btn:hover{opacity:0.8}
+            .accsw-btn:disabled{cursor:not-allowed;opacity:0.38}
+            .accsw-field {
+                width:100%; box-sizing:border-box; padding:13px 14px;
+                border-radius:12px; border:1px solid rgba(255,255,255,0.12);
+                background:rgba(255,255,255,0.06); color:var(--md-sys-color-on-surface,#fff);
+                font-size:0.875rem; outline:none; font-family:inherit;
+                transition:border-color 0.15s;
+            }
+            .accsw-field:focus{border-color:var(--md-sys-color-primary,rgba(103,80,164,0.9))}
+            .accsw-field::placeholder{color:rgba(255,255,255,0.35)}
+            .accsw-list{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;scrollbar-width:thin;}
+            .accsw-list::-webkit-scrollbar{width:3px}
+            .accsw-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
+            .accsw-item {
+                display:flex; align-items:center; gap:12px; padding:10px 14px;
+                border-radius:12px; background:rgba(255,255,255,0.04);
+                border:1px solid rgba(255,255,255,0.07);
+                cursor:pointer; transition:background 0.12s; user-select:none;
+            }
+            .accsw-item:hover{background:rgba(255,255,255,0.09)}
+            .accsw-item.loading{opacity:0.5;pointer-events:none}
+            .accsw-avatar {
+                width:40px; height:40px; border-radius:50%; flex-shrink:0;
+                background:var(--md-sys-color-primary,rgba(103,80,164,0.9));
+                display:flex; align-items:center; justify-content:center;
+                font-size:16px; font-weight:700; color:#fff; overflow:hidden;
+                text-transform:uppercase;
+            }
+            .accsw-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+            .accsw-info{flex:1;min-width:0}
+            .accsw-name{font-size:14px;font-weight:600;color:var(--md-sys-color-on-surface,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .accsw-sub{font-size:11px;color:rgba(255,255,255,0.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .accsw-del{background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.2);font-size:13px;padding:4px 6px;border-radius:6px;flex-shrink:0;transition:color 0.12s;line-height:1}
+            .accsw-del:hover{color:rgba(255,80,80,0.8)}
+            .accsw-empty{text-align:center;color:rgba(255,255,255,0.3);font-size:13px;padding:24px 0;font-style:italic}
+            .accsw-warning{background:rgba(255,180,0,0.1);border:1px solid rgba(255,180,0,0.25);border-radius:10px;padding:10px 14px;font-size:12px;color:rgba(255,200,80,0.9);line-height:1.5}
+            .accsw-hr{border:none;border-top:1px solid rgba(255,255,255,0.07);margin:18px 0}
+            .accsw-feedback{font-size:12px;min-height:16px;margin-top:4px;transition:color 0.15s}
+            .accsw-icon-btn {
+                width:36px;height:36px;border-radius:50%;border:none;
+                background:rgba(255,255,255,0.08); cursor:pointer;
+                display:flex;align-items:center;justify-content:center;
+                color:var(--md-sys-color-on-surface,#fff);
+                transition:background 0.15s; flex-shrink:0;
+            }
+            .accsw-icon-btn:hover{background:rgba(255,255,255,0.15)}
+            .accsw-icon-btn .material-symbols-outlined{font-size:20px;display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0}
+        `;
+        document.head.appendChild(s);
+    }
+
+    function buildLoginForm(onSuccess) {
+        const wrap = document.createElement("div");
+        Object.assign(wrap.style, { display:"flex", flexDirection:"column", gap:"10px" });
+
+        const emailInput = document.createElement("input");
+        emailInput.className = "accsw-field";
+        emailInput.type = "email";
+        emailInput.placeholder = "Email";
+
+        const passInput = document.createElement("input");
+        passInput.className = "accsw-field";
+        passInput.type = "password";
+        passInput.placeholder = "Password";
+
+        const feedback = document.createElement("div");
+        feedback.className = "accsw-feedback";
+
+        const row = document.createElement("div");
+        Object.assign(row.style, { display:"flex", justifyContent:"flex-end", gap:"8px" });
+
+        const cancelBtn = document.createElement("button");
+        cancelBtn.textContent = "Cancel";
+        cancelBtn.className = "accsw-btn";
+        Object.assign(cancelBtn.style, { color:"var(--md-sys-color-primary,#cfbcff)", background:"transparent" });
+
+        const submitBtn = document.createElement("button");
+        submitBtn.textContent = "Add Account";
+        submitBtn.className = "accsw-btn";
+        Object.assign(submitBtn.style, { background:"var(--md-sys-color-primary,rgba(103,80,164,0.9))", color:"#fff" });
+
+        submitBtn.onclick = async () => {
+            const email = emailInput.value.trim();
+            const pass = passInput.value;
+            if (!email || !pass) {
+                feedback.textContent = "Please enter both email and password.";
+                feedback.style.color = "rgba(255,100,100,0.9)";
+                return;
+            }
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Adding...";
+            feedback.textContent = "";
+            try {
+                await loginWithCredentials(email, pass);
+                feedback.textContent = "Account added!";
+                feedback.style.color = "rgba(100,220,100,0.9)";
+                emailInput.value = "";
+                passInput.value = "";
+                onSuccess();
+            } catch (err) {
+                feedback.textContent = "Error: " + (err.message || "Unknown error");
+                feedback.style.color = "rgba(255,100,100,0.9)";
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Add Account";
+            }
+        };
+
+        row.appendChild(cancelBtn);
+        row.appendChild(submitBtn);
+        wrap.appendChild(emailInput);
+        wrap.appendChild(passInput);
+        wrap.appendChild(feedback);
+        wrap.appendChild(row);
+
+        return { wrap, cancelBtn };
+    }
+
+    async function renderList(listEl, statusEl) {
+        listEl.innerHTML = "";
+        statusEl.textContent = "Loading accounts...";
+        statusEl.style.color = "rgba(255,255,255,0.35)";
+
+        const tokens = await getTokens();
+        if (!tokens.length) {
+            listEl.innerHTML = `<div class="accsw-empty">No accounts saved. Click + to add one.</div>`;
+            statusEl.textContent = "";
+            return;
+        }
+
+        statusEl.textContent = `Fetching ${tokens.length} account(s)...`;
+        const profiles = await Promise.all(tokens.map(t => fetchProfile(t).then(p => ({ token: t, profile: p }))));
+        statusEl.textContent = "";
+        listEl.innerHTML = "";
+
+        [...profiles].reverse().forEach(({ token, profile }) => {
+            const item = document.createElement("div");
+            item.className = "accsw-item";
+            item.title = "Click to switch to this account";
+
+            const avatar = document.createElement("div");
+            avatar.className = "accsw-avatar";
+            if (profile && profile.avatarUrl) {
+                const img = document.createElement("img");
+                img.src = profile.avatarUrl;
+                img.onerror = () => { img.remove(); avatar.textContent = (profile.displayName || "?")[0]; };
+                avatar.appendChild(img);
+            } else {
+                avatar.textContent = profile ? (profile.displayName || "?")[0] : "?";
+            }
+
+            const info = document.createElement("div");
+            info.className = "accsw-info";
+            const nameEl = document.createElement("div");
+            nameEl.className = "accsw-name";
+            nameEl.textContent = profile ? profile.displayName : "Unable to fetch";
+            const subEl = document.createElement("div");
+            subEl.className = "accsw-sub";
+            subEl.textContent = profile ? (profile.username ? `@${profile.username}` : "") : "Token may be expired";
+            info.appendChild(nameEl);
+            info.appendChild(subEl);
+
+            const delBtn = document.createElement("button");
+            delBtn.className = "accsw-del";
+            delBtn.textContent = "✕";
+            delBtn.title = "Remove account";
+            delBtn.onclick = async (e) => {
+                e.stopPropagation();
+                await removeToken(token);
+                await renderList(listEl, statusEl);
+            };
+
+            item.onclick = async () => {
+                item.classList.add("loading");
+                try {
+                    await loginWithToken(token);
+                } catch (err) {
+                    item.classList.remove("loading");
+                    subEl.textContent = "Switch failed: " + (err.message || "error");
+                    subEl.style.color = "rgba(255,100,100,0.8)";
+                    nameEl.textContent = "Unable to switch";
+                }
+            };
+
+            item.appendChild(avatar);
+            item.appendChild(info);
+            item.appendChild(delBtn);
+            listEl.appendChild(item);
+        });
+    }
+
+    async function openModal() {
+        if (document.getElementById("accsw-scrim")) return;
+        ensureStyles();
+
+        const scrim = document.createElement("div");
+        scrim.id = "accsw-scrim";
+        Object.assign(scrim.style, {
+            position:"fixed", top:"0", left:"0", right:"0", bottom:"0",
+            zIndex:"9999999", display:"grid", placeItems:"center",
+            background:"rgba(0,0,0,0.65)", padding:"60px",
+            overflowY:"auto", animation:"accsw-scrim-in 0.1s forwards",
+            boxSizing:"border-box"
+        });
+        scrim.addEventListener("click", e => { if (e.target === scrim) scrim.remove(); });
+
+        const modal = document.createElement("div");
+        modal.id = "accsw-modal";
+        Object.assign(modal.style, {
+            padding:"28px", minWidth:"340px", maxWidth:"420px", width:"100%",
+            borderRadius:"28px", display:"flex", flexDirection:"column",
+            color:"var(--md-sys-color-on-surface,#fff)",
+            background:"var(--md-sys-color-surface-container-high,#2b2b2f)",
+            boxSizing:"border-box", gap:"0"
+        });
+
+        const headerRow = document.createElement("div");
+        Object.assign(headerRow.style, {
+            display:"flex", alignItems:"center", justifyContent:"space-between",
+            marginBottom:"14px"
+        });
+
+        const title = document.createElement("span");
+        title.textContent = "Account Switcher";
+        Object.assign(title.style, { fontSize:"1.5rem", fontWeight:"400", lineHeight:"2rem" });
+
+        const headerBtns = document.createElement("div");
+        Object.assign(headerBtns.style, { display:"flex", gap:"8px", alignItems:"center" });
+
+        const addCurrentBtn = document.createElement("button");
+        addCurrentBtn.className = "accsw-icon-btn";
+        addCurrentBtn.title = "Save currently logged-in account";
+        const saveIcon = document.createElement("span");
+        saveIcon.className = "material-symbols-outlined";
+        saveIcon.textContent = "bookmark_add";
+        addCurrentBtn.appendChild(saveIcon);
+        addCurrentBtn.onclick = async () => {
+            addCurrentBtn.disabled = true;
+            try {
+                const tok = await getCurrentToken();
+                if (!tok) { alert("Could not find a session token. Are you logged in?"); return; }
+                const tokens = await getTokens();
+                if (tokens.includes(tok)) { alert("This account is already saved."); return; }
+                await addToken(tok);
+                await renderList(listEl, statusEl);
+            } finally { addCurrentBtn.disabled = false; }
+        };
+
+        const plusBtn = document.createElement("button");
+        plusBtn.className = "accsw-icon-btn";
+        plusBtn.title = "Add account with email and password";
+        const plusIcon = document.createElement("span");
+        plusIcon.className = "material-symbols-outlined";
+        plusIcon.textContent = "add";
+        plusBtn.appendChild(plusIcon);
+
+        headerBtns.appendChild(addCurrentBtn);
+        headerBtns.appendChild(plusBtn);
+        headerRow.appendChild(title);
+        headerRow.appendChild(headerBtns);
+        modal.appendChild(headerRow);
+
+        const warning = document.createElement("div");
+        warning.className = "accsw-warning";
+        warning.textContent = "Accounts with two-factor authentication are not supported.";
+        Object.assign(warning.style, { marginBottom:"16px" });
+        modal.appendChild(warning);
+
+        const statusEl = document.createElement("div");
+        Object.assign(statusEl.style, { fontSize:"12px", color:"rgba(255,255,255,0.35)", marginBottom:"8px", minHeight:"16px" });
+        modal.appendChild(statusEl);
+
+        const listEl = document.createElement("div");
+        listEl.className = "accsw-list";
+        Object.assign(listEl.style, { marginBottom:"8px" });
+        modal.appendChild(listEl);
+
+        const formHr = document.createElement("hr");
+        formHr.className = "accsw-hr";
+        formHr.style.display = "none";
+        modal.appendChild(formHr);
+
+        const formContainer = document.createElement("div");
+        formContainer.style.display = "none";
+        modal.appendChild(formContainer);
+
+        const bottomRow = document.createElement("div");
+        Object.assign(bottomRow.style, { display:"flex", justifyContent:"flex-end", marginTop:"16px" });
+        const closeBtn = document.createElement("button");
+        closeBtn.textContent = "Close";
+        closeBtn.className = "accsw-btn";
+        Object.assign(closeBtn.style, { color:"var(--md-sys-color-primary,#cfbcff)", background:"transparent" });
+        closeBtn.onclick = () => scrim.remove();
+        bottomRow.appendChild(closeBtn);
+        modal.appendChild(bottomRow);
+
+        let formVisible = false;
+        plusBtn.onclick = () => {
+            formVisible = !formVisible;
+            if (formVisible) {
+                formHr.style.display = "block";
+                formContainer.style.display = "block";
+                const { wrap, cancelBtn } = buildLoginForm(async () => {
+                    await renderList(listEl, statusEl);
+                });
+                formContainer.innerHTML = "";
+                formContainer.appendChild(wrap);
+                cancelBtn.onclick = () => {
+                    formVisible = false;
+                    formHr.style.display = "none";
+                    formContainer.style.display = "none";
+                };
+            } else {
+                formHr.style.display = "none";
+                formContainer.style.display = "none";
+            }
+        };
+
+        scrim.appendChild(modal);
+        document.body.appendChild(scrim);
+        await renderList(listEl, statusEl);
+    }
+
+    const CTX_BTN_ID = "avia-accsw-ctx-btn";
+
+    function findProfileAnchorInMenu() {
+
+        const anchors = document.querySelectorAll("a");
+        for (const a of anchors) {
+            const svg = a.querySelector('svg[viewBox="0 0 32 32"]');
+            if (!svg || !svg.querySelector("foreignObject")) continue;
+
+            const textDiv = a.querySelector("div > span, div span");
+            if (!textDiv) continue;
+            const spans = a.querySelectorAll("span");
+            if (spans.length < 2) continue;
+
+            const hasTag = Array.from(spans).some(s => s.textContent.includes("#"));
+            if (!hasTag) continue;
+            return a;
+        }
+        return null;
+    }
+
+    function injectContextMenuButton() {
+        const existing = document.getElementById(CTX_BTN_ID);
+        if (existing && !document.body.contains(existing)) existing.remove();
+        if (document.getElementById(CTX_BTN_ID)) return;
+
+        const profileAnchor = findProfileAnchorInMenu();
+        if (!profileAnchor) return;
+        const container = profileAnchor.parentElement;
+        if (!container) return;
+
+        const btn = document.createElement("a");
+        btn.id = CTX_BTN_ID;
+        btn.className = "d_flex gap_var(--gap-md) ai_center p_var(--gap-md)_var(--gap-lg) [&:hover]:bg_color-mix(in_srgb,_var(--md-sys-color-on-surface)_8%,_transparent) [&_span]:flex-g_1 [&_span]:mt_1px cursor_pointer";
+        btn.style.cssText = "cursor:pointer;user-select:none;";
+
+        const iconWrap = document.createElement("div");
+        iconWrap.style.cssText = "width:16px;display:flex;justify-content:center;align-items:center;flex-shrink:0;";
+        iconWrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M287-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47ZM80-160v-112q0-33 17-62t47-44q51-26 115-44t141-18h14q6 0 12 2-8 18-13.5 37.5T404-360h-4q-71 0-127.5 18T180-306q-9 5-14.5 14t-5.5 20v32h252q6 21 16 41.5t22 38.5H80Zm560 40-12-60q-12-5-22.5-10.5T584-204l-58 18-40-68 46-40q-2-14-2-26t2-26l-46-40 40-68 58 18q11-8 21.5-13.5T628-460l12-60h80l12 60q12 5 22.5 11t21.5 15l58-20 40 70-46 40q2 12 2 25t-2 25l46 40-40 68-58-18q-11 8-21.5 13.5T732-180l-12 60h-80Zm96.5-143.5Q760-287 760-320t-23.5-56.5Q713-400 680-400t-56.5 23.5Q600-353 600-320t23.5 56.5Q647-240 680-240t56.5-23.5Zm-280-320Q480-607 480-640t-23.5-56.5Q433-720 400-720t-56.5 23.5Q320-673 320-640t23.5 56.5Q367-560 400-560t56.5-23.5ZM400-640Zm12 400Z"/></svg>`;
+
+        const label = document.createElement("span");
+        label.className = "ov-wrap_anywhere lh_1.25rem fs_0.875rem ls_0.015625rem fw_400";
+        label.textContent = "Switch Accounts";
+
+        btn.appendChild(iconWrap);
+        btn.appendChild(label);
+        btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openModal();
+        });
+
+        profileAnchor.insertAdjacentElement("afterend", btn);
+    }
+
+    function registerWithAviaMenu() {
+        const reg = () => window.AviaMenu && window.AviaMenu.register({
+            id: "avia_account_switcher",
+            name: "Account Switcher",
+            icon: "manage_accounts",
+            onClick: openModal
+        });
+        if (window.AviaMenu) reg();
+        else {
+            const iv = setInterval(() => { if (window.AviaMenu) { clearInterval(iv); reg(); } }, 100);
+        }
+    }
+
+    let rafPending = false;
+    const observer = new MutationObserver(() => {
+        if (rafPending) return;
+        rafPending = true;
+        requestAnimationFrame(() => {
+            rafPending = false;
+            injectContextMenuButton();
+        });
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    registerWithAviaMenu();
+
+})();
+
+
+
 /* --- UpdateChecker.js --- */
 if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHECKER_JS__=true;
 
 (function() {
-    if (window.__AVIA_UPDATE_CHECKER__) return;
-    window.__AVIA_UPDATE_CHECKER__ = true;
+    if (window.__AVIA_USERSCRIPT_UPDATE_CHECKER__) return;
+    window.__AVIA_USERSCRIPT_UPDATE_CHECKER__ = true;
 
-    const PACKAGE_URL = "https://raw.githubusercontent.com/AvaLilac/for-desktop/refs/heads/main/package.json";
-    const RELEASES_URL = "https://github.com/AvaLilac/for-desktop/releases";
-    const STORAGE_KEY = "avia_update_checker_enabled";
-    const TARGET_TEXT = "Spellchecker";
+    const SCRIPT_URL = "https://api.github.com/repos/AvaLilac/Ava-Client/contents/userscript/AviaClient.user.js";
+    const RELEASES_URL = "https://github.com/AvaLilac/Ava-Client/raw/refs/heads/main/userscript/AviaClient.user.js";
+    const STORAGE_KEY = "avia_userscript_update_checker_enabled";
 
     function isEnabled() {
         return localStorage.getItem(STORAGE_KEY) !== "false";
@@ -4052,25 +5576,28 @@ if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHE
         localStorage.setItem(STORAGE_KEY, val ? "true" : "false");
     }
 
-    function getClientVersion() {
+        function getInstalledVersion() {
         try {
-            return window.native?.versions?.aviaClient?.() || null;
+            return window.__USERSCRIPT_VERSION__ || null;
         } catch (_) {
             return null;
         }
     }
 
-    async function fetchLatestVersion() {
-        const res = await fetch(PACKAGE_URL);
-        const json = await res.json();
-        return json.aviaVersion?.trim() || null;
+        async function fetchLatestVersion() {
+        const res = await fetch(SCRIPT_URL, {
+            headers: { "Accept": "application/vnd.github.v3.raw" }
+        });
+        const text = await res.text();
+        const match = text.match(/@version\s+([^\s]+)/);
+        return match ? match[1].trim() : null;
     }
 
-    function showUpdateModal(clientVersion, latestVersion) {
-        if (document.getElementById("avia-update-modal")) return;
+    function showUpdateModal(installedVersion, latestVersion) {
+        if (document.getElementById("avia-userscript-update-modal")) return;
 
         const backdrop = document.createElement("div");
-        backdrop.id = "avia-update-modal";
+        backdrop.id = "avia-userscript-update-modal";
         backdrop.className = "top_0 left_0 right_0 bottom_0 pos_fixed z_100 max-h_100% d_grid us_none place-items_center pointer-events_all anim-n_scrimFadeIn anim-dur_0.1s anim-fm_forwards trs_var(--transitions-medium)_all p_80px ov-y_auto";
         backdrop.style.cssText = "--background: rgba(0, 0, 0, 0.6); background: rgba(0, 0, 0, 0.6);";
 
@@ -4081,7 +5608,7 @@ if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHE
         card.style.cssText = "min-width: 320px; max-width: 480px; padding: 24px; border-radius: 28px; display: flex; flex-direction: column; color: var(--md-sys-color-on-surface); background: var(--md-sys-color-surface-container-high);";
 
         const title = document.createElement("span");
-        title.textContent = "Update Available";
+        title.textContent = "Userscript Update Available";
         title.style.cssText = "line-height: 2rem; font-size: 1.5rem; letter-spacing: 0; font-weight: 400; margin-bottom: 16px;";
 
         const body = document.createElement("div");
@@ -4090,10 +5617,10 @@ if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHE
         const currentRow = document.createElement("div");
         currentRow.style.cssText = "display: flex; flex-direction: column; gap: 2px;";
         const currentLabel = document.createElement("span");
-        currentLabel.textContent = "Your current version";
+        currentLabel.textContent = "Your installed version";
         currentLabel.style.cssText = "font-size: 11px; opacity: 0.5; letter-spacing: 0.03em;";
         const currentVersionEl = document.createElement("span");
-        currentVersionEl.textContent = clientVersion || "Unknown";
+        currentVersionEl.textContent = installedVersion || "Unknown";
         currentVersionEl.style.cssText = "font-size: 14px; font-weight: 500; color: var(--md-sys-color-on-surface);";
         currentRow.appendChild(currentLabel);
         currentRow.appendChild(currentVersionEl);
@@ -4110,7 +5637,7 @@ if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHE
         latestRow.appendChild(latestVersionEl);
 
         const message = document.createElement("span");
-        message.textContent = `You are currently on version ${clientVersion || "Unknown"}. The latest version of AviaClient is ${latestVersion}.`;
+        message.textContent = `You are currently on version ${installedVersion || "Unknown"}. The latest version of AviaClient userscript is ${latestVersion}.`;
 
         body.appendChild(currentRow);
         body.appendChild(latestRow);
@@ -4144,43 +5671,50 @@ if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHE
 
     async function check() {
         if (!isEnabled()) return;
-        const clientVersion = getClientVersion();
+        const installedVersion = getInstalledVersion();
         const latestVersion = await fetchLatestVersion().catch(() => null);
         if (!latestVersion) return;
-        if (clientVersion === latestVersion) return;
-        showUpdateModal(clientVersion, latestVersion);
+        if (installedVersion === latestVersion) return;
+        showUpdateModal(installedVersion, latestVersion);
     }
 
     function applyToggleStyle(entry) {
-        const desc = entry.querySelector("[data-update-desc]");
+        const desc = entry.querySelector("span.lh_1rem");
         const checkbox = entry.querySelector("mdui-checkbox");
         if (isEnabled()) {
-            if (desc) desc.textContent = "Get notified when a new AviaClient version is available";
+            if (desc) desc.textContent = "Get notified when a new AviaClient userscript version is available";
             if (checkbox) checkbox.setAttribute("checked", "");
         } else {
-            if (desc) desc.textContent = "Get notified when a new AviaClient version is available";
+            if (desc) desc.textContent = "Get notified when a new AviaClient userscript version is available";
             if (checkbox) checkbox.removeAttribute("checked");
         }
     }
 
     function tryInject() {
-        if (document.querySelector("[data-update-checker-entry]")) return;
+        if (document.querySelector("[data-userscript-update-entry]")) return;
 
         const target = [...document.querySelectorAll("a.pos_relative")]
-            .find(a => a.innerText.includes(TARGET_TEXT));
+            .find(a => a.innerText.includes("Plugins v2 Placeholder"));
         if (!target) return;
 
         const entry = target.cloneNode(true);
-        entry.setAttribute("data-update-checker-entry", "true");
+        entry.setAttribute("data-userscript-update-entry", "true");
 
-        const iconEl = entry.querySelector("span.material-symbols-outlined, md-icon");
-        if (iconEl) iconEl.textContent = "update";
+        const iconWrap = entry.querySelector("div.w_36px.h_36px");
+        if (iconWrap) {
+            iconWrap.innerHTML = "";
+            const icon = document.createElement("span");
+            icon.className = "material-symbols-outlined";
+            icon.style.cssText = "display:block;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0;font-size:20px;";
+            icon.textContent = "system_update_alt";
+            iconWrap.appendChild(icon);
+        }
 
         const titleEl = entry.querySelector("div.d_flex.flex-g_1.flex-d_column > div");
-        if (titleEl) titleEl.textContent = "Update Checker";
+        if (titleEl) titleEl.textContent = "Userscript Update Checker";
 
-        const descEl = entry.querySelector("div.d_flex.flex-g_1.flex-d_column > span");
-        if (descEl) descEl.setAttribute("data-update-desc", "true");
+        const descEl = entry.querySelector("span.lh_1rem");
+        if (descEl) descEl.setAttribute("data-userscript-desc", "true");
 
         applyToggleStyle(entry);
 
@@ -4200,475 +5734,6 @@ if(window.__US_BUILDER_UPDATECHECKER_JS__){return;}window.__US_BUILDER_UPDATECHE
     observer.observe(document.body, { childList: true, subtree: true });
     tryInject();
 })();
-
-
-
-/* --- aviafavsystem.js --- */
-if(window.__US_BUILDER_AVIAFAVSYSTEM_JS__){return;}window.__US_BUILDER_AVIAFAVSYSTEM_JS__=true;
-
-(function () {
-    if (window.__AVIA_FAVORITES_LOADED__) return;
-    window.__AVIA_FAVORITES_LOADED__ = true;
-
-    const STORAGE_KEY = "avia_favorites";
-
-    const getFavorites = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    const setFavorites = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-    function extractYouTubeID(url) {
-        const reg = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([^&?/]+)/;
-        const match = url.match(reg);
-        return match ? match[1] : null;
-    }
-
-    function fallbackCopy(text) {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.cssText = "position:fixed;opacity:0;";
-        document.body.appendChild(ta);
-        ta.focus(); ta.select();
-        try { document.execCommand("copy"); } catch {}
-        document.body.removeChild(ta);
-    }
-
-    function updateBadge() {
-        const badge = document.getElementById("avia-favorites-badge");
-        if (!badge) return;
-        const count = getFavorites().length;
-        badge.textContent = count;
-        badge.style.display = count > 0 ? "flex" : "none";
-    }
-
-    function showToast(card, msg) {
-        const old = card.querySelector(".fav-toast");
-        if (old) old.remove();
-        const toast = document.createElement("div");
-        toast.className = "fav-toast";
-        toast.textContent = msg || "Copied!";
-        Object.assign(toast.style, {
-            position: "absolute",
-            bottom: "6px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(0,0,0,0.85)",
-            padding: "3px 8px",
-            borderRadius: "6px",
-            fontSize: "10px",
-            color: "#fff",
-            opacity: "0",
-            transition: "opacity 0.15s",
-            pointerEvents: "none",
-            whiteSpace: "nowrap",
-            zIndex: "3"
-        });
-        card.appendChild(toast);
-        requestAnimationFrame(() => toast.style.opacity = "1");
-        setTimeout(() => {
-            toast.style.opacity = "0";
-            setTimeout(() => toast.remove(), 150);
-        }, 1500);
-    }
-
-    function flashDupe(url) {
-        const card = document.querySelector(`[data-fav-url="${CSS.escape(url)}"]`);
-        if (!card) return;
-        card.style.outline = "2px solid rgba(255,80,80,0.9)";
-        setTimeout(() => { card.style.outline = ""; }, 700);
-        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-
-    function buildCard(item, onRemove) {
-        const card = document.createElement("div");
-        card.dataset.favUrl = item.url;
-        Object.assign(card.style, {
-            position: "relative",
-            width: "90px",
-            height: "90px",
-            borderRadius: "12px",
-            overflow: "hidden",
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            cursor: "pointer",
-            flexShrink: "0",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "border-color 0.2s, transform 0.15s"
-        });
-
-        const removeBtn = document.createElement("div");
-        removeBtn.textContent = "✕";
-        Object.assign(removeBtn.style, {
-            position: "absolute",
-            top: "4px",
-            right: "5px",
-            fontSize: "10px",
-            cursor: "pointer",
-            background: "rgba(0,0,0,0.7)",
-            color: "#fff",
-            padding: "1px 4px",
-            borderRadius: "4px",
-            zIndex: "2",
-            opacity: "0",
-            transition: "opacity 0.15s"
-        });
-        removeBtn.onclick = e => {
-            e.stopPropagation();
-            onRemove(item.url);
-        };
-        card.appendChild(removeBtn);
-
-        card.addEventListener("mouseenter", () => {
-            card.style.borderColor = "rgba(255,255,255,0.25)";
-            card.style.transform = "scale(1.04)";
-            removeBtn.style.opacity = "1";
-        });
-        card.addEventListener("mouseleave", () => {
-            card.style.borderColor = "rgba(255,255,255,0.08)";
-            card.style.transform = "scale(1)";
-            removeBtn.style.opacity = "0";
-        });
-
-        const ytID = extractYouTubeID(item.url);
-        if (ytID) {
-            const img = new Image();
-            img.draggable = false;
-            img.src = `https://img.youtube.com/vi/${ytID}/hqdefault.jpg`;
-            Object.assign(img.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
-            img.onerror = () => fallback();
-            card.appendChild(img);
-        } else {
-            const ext = item.url.split(".").pop().split("?")[0].toLowerCase();
-            const isVideo = ["mp4", "webm", "mov", "gifv"].includes(ext);
-
-            if (isVideo) {
-                const video = document.createElement("video");
-                video.src = item.url.replace(".gifv", ".mp4");
-                video.autoplay = true; video.loop = true;
-                video.muted = true; video.playsInline = true;
-                video.draggable = false;
-                Object.assign(video.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
-                video.onerror = () => fallback();
-                card.appendChild(video);
-            } else {
-                const img = new Image();
-                img.draggable = false;
-                img.src = item.url;
-                Object.assign(img.style, { width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" });
-                img.onerror = () => fallback();
-                card.appendChild(img);
-            }
-        }
-
-        function fallback() {
-            [...card.children].forEach(c => { if (c !== removeBtn) c.remove(); });
-            const inner = document.createElement("div");
-            Object.assign(inner.style, {
-                display: "flex", flexDirection: "column", alignItems: "center",
-                justifyContent: "center", gap: "4px", padding: "6px",
-                width: "100%", height: "100%", boxSizing: "border-box", pointerEvents: "none"
-            });
-            const icon = document.createElement("span");
-            icon.className = "material-symbols-outlined";
-            icon.textContent = "link";
-            icon.style.cssText = "font-size:20px;opacity:0.35;color:#fff;display:block;";
-            inner.appendChild(icon);
-            const label = document.createElement("div");
-            if (item.title) {
-                label.textContent = item.title;
-            } else {
-                try { label.textContent = new URL(item.url).hostname.replace("www.", ""); } catch { label.textContent = "link"; }
-            }
-            Object.assign(label.style, {
-                fontSize: "9px", color: "#fff", opacity: "0.55",
-                textAlign: "center", wordBreak: "break-word", overflow: "hidden",
-                maxHeight: "36px", lineHeight: "1.3", padding: "0 4px"
-            });
-            inner.appendChild(label);
-            card.appendChild(inner);
-        }
-
-        if (item.title) {
-            const titleOverlay = document.createElement("div");
-            titleOverlay.textContent = item.title;
-            Object.assign(titleOverlay.style, {
-                position: "absolute",
-                bottom: "0",
-                width: "100%",
-                background: "rgba(0,0,0,0.6)",
-                fontSize: "11px",
-                padding: "4px",
-                textAlign: "center",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                zIndex: "1",
-                pointerEvents: "none"
-            });
-            card.appendChild(titleOverlay);
-        }
-
-        card.addEventListener("click", () => {
-            const done = () => showToast(card, "Copied!");
-            if (navigator.clipboard?.writeText) {
-                navigator.clipboard.writeText(item.url).then(done).catch(() => { fallbackCopy(item.url); done(); });
-            } else {
-                fallbackCopy(item.url); done();
-            }
-        });
-
-        return card;
-    }
-
-    function toggleFavoritesPanel() {
-        let panel = document.getElementById("avia-favorites-panel");
-        if (panel) {
-            const isHidden = panel.style.display === "none";
-            panel.style.display = isHidden ? "flex" : "none";
-            if (isHidden) renderGrid();
-            return;
-        }
-
-        panel = document.createElement("div");
-        panel.id = "avia-favorites-panel";
-        Object.assign(panel.style, {
-            position: "fixed",
-            bottom: "24px",
-            right: "40px",
-            width: "460px",
-            height: "400px",
-            background: "var(--md-sys-color-surface, #141418)",
-            color: "var(--md-sys-color-on-surface, #fff)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-            zIndex: "999999",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(16px)"
-        });
-
-        const header = document.createElement("div");
-        Object.assign(header.style, {
-            padding: "13px 16px",
-            fontWeight: "600",
-            fontSize: "14px",
-            background: "var(--md-sys-color-surface-container, rgba(255,255,255,0.04))",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            cursor: "move",
-            userSelect: "none",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            flexShrink: "0"
-        });
-
-        const headerIcon = document.createElement("span");
-        headerIcon.className = "material-symbols-outlined";
-        headerIcon.textContent = "star";
-        headerIcon.style.cssText = "font-size:18px;opacity:0.7;display:block;font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0;";
-        header.appendChild(headerIcon);
-
-        const headerTitle = document.createElement("span");
-        headerTitle.textContent = "Favorites";
-        header.appendChild(headerTitle);
-
-        const closeBtn = document.createElement("div");
-        closeBtn.textContent = "✕";
-        Object.assign(closeBtn.style, {
-            marginLeft: "auto", cursor: "pointer", opacity: "0.5",
-            fontSize: "13px", lineHeight: "1"
-        });
-        closeBtn.onmouseenter = () => closeBtn.style.opacity = "1";
-        closeBtn.onmouseleave = () => closeBtn.style.opacity = "0.5";
-        closeBtn.onclick = () => panel.style.display = "none";
-        header.appendChild(closeBtn);
-
-        const inputRow = document.createElement("div");
-        Object.assign(inputRow.style, {
-            padding: "10px 14px", display: "flex", gap: "6px",
-            alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.06)",
-            flexShrink: "0"
-        });
-
-        const urlInput = document.createElement("input");
-        urlInput.placeholder = "Paste a link...";
-        Object.assign(urlInput.style, {
-            flex: "1", padding: "7px 10px", borderRadius: "8px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(255,255,255,0.05)",
-            color: "var(--md-sys-color-on-surface, #fff)",
-            fontSize: "12px", outline: "none", minWidth: "0"
-        });
-
-        const titleInput = document.createElement("input");
-        titleInput.placeholder = "Title (optional)";
-        Object.assign(titleInput.style, {
-            width: "110px", flexShrink: "0", padding: "7px 10px",
-            borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(255,255,255,0.05)",
-            color: "var(--md-sys-color-on-surface, #fff)",
-            fontSize: "12px", outline: "none"
-        });
-
-        const addBtn = document.createElement("button");
-        addBtn.textContent = "Add";
-        Object.assign(addBtn.style, {
-            padding: "7px 14px", borderRadius: "8px", border: "none",
-            background: "var(--md-sys-color-primary, rgba(255,255,255,0.15))",
-            color: "var(--md-sys-color-on-primary, #fff)",
-            fontSize: "12px", fontWeight: "600", cursor: "pointer",
-            flexShrink: "0", transition: "opacity 0.15s"
-        });
-        addBtn.onmouseenter = () => addBtn.style.opacity = "0.8";
-        addBtn.onmouseleave = () => addBtn.style.opacity = "1";
-
-        inputRow.appendChild(urlInput);
-        inputRow.appendChild(titleInput);
-        inputRow.appendChild(addBtn);
-
-        const gridWrapper = document.createElement("div");
-        Object.assign(gridWrapper.style, {
-            flex: "1", minHeight: "0", overflowY: "auto",
-            padding: "14px", boxSizing: "border-box"
-        });
-
-        const grid = document.createElement("div");
-        grid.id = "avia-favorites-grid";
-        Object.assign(grid.style, {
-            display: "flex", flexWrap: "wrap", gap: "10px", alignContent: "start"
-        });
-
-        gridWrapper.appendChild(grid);
-        panel.appendChild(header);
-        panel.appendChild(inputRow);
-        panel.appendChild(gridWrapper);
-        document.body.appendChild(panel);
-
-        let isPanelDragging = false, pOffsetX, pOffsetY;
-        header.addEventListener("mousedown", e => {
-            isPanelDragging = true;
-            const rect = panel.getBoundingClientRect();
-            pOffsetX = e.clientX - rect.left;
-            pOffsetY = e.clientY - rect.top;
-            panel.style.bottom = "auto"; panel.style.right = "auto";
-            panel.style.left = rect.left + "px"; panel.style.top = rect.top + "px";
-            document.body.style.userSelect = "none";
-        });
-        document.addEventListener("mouseup", () => {
-            isPanelDragging = false;
-            document.body.style.userSelect = "";
-        });
-        document.addEventListener("mousemove", e => {
-            if (!isPanelDragging) return;
-            panel.style.left = (e.clientX - pOffsetX) + "px";
-            panel.style.top = (e.clientY - pOffsetY) + "px";
-        });
-
-        function tryAdd() {
-            const url = urlInput.value.trim();
-            const title = titleInput.value.trim();
-            if (!url) return;
-            const favs = getFavorites();
-            if (favs.some(f => f.url === url)) { flashDupe(url); return; }
-            favs.push({ url, title, addedAt: Date.now() });
-            setFavorites(favs);
-            urlInput.value = ""; titleInput.value = "";
-            updateBadge(); renderGrid();
-        }
-
-        addBtn.onclick = tryAdd;
-        urlInput.addEventListener("keydown", e => { if (e.key === "Enter") tryAdd(); });
-        titleInput.addEventListener("keydown", e => { if (e.key === "Enter") tryAdd(); });
-
-        renderGrid();
-    }
-
-    function renderGrid() {
-        const grid = document.getElementById("avia-favorites-grid");
-        if (!grid) return;
-        grid.innerHTML = "";
-
-        const favs = getFavorites();
-
-        if (favs.length === 0) {
-            const empty = document.createElement("div");
-            Object.assign(empty.style, {
-                width: "100%", padding: "24px 0", textAlign: "center",
-                opacity: "0.35", fontSize: "13px",
-                color: "var(--md-sys-color-on-surface, #fff)"
-            });
-            const emptyIcon = document.createElement("span");
-            emptyIcon.className = "material-symbols-outlined";
-            emptyIcon.textContent = "star_border";
-            emptyIcon.style.cssText = "display:block;font-size:32px;margin-bottom:6px;";
-            empty.appendChild(emptyIcon);
-            const emptyText = document.createElement("div");
-            emptyText.textContent = "No favorites yet";
-            empty.appendChild(emptyText);
-            grid.appendChild(empty);
-            return;
-        }
-
-        const onRemove = (url) => {
-            setFavorites(getFavorites().filter(f => f.url !== url));
-            updateBadge();
-            renderGrid();
-        };
-
-        favs.forEach(item => grid.insertBefore(buildCard(item, onRemove), grid.firstChild));
-    }
-
-    function injectButton() {
-        if (document.getElementById("avia-favorites-btn")) return;
-        const gifSpan = [...document.querySelectorAll("span.material-symbols-outlined")]
-            .find(s => s.textContent.trim() === "gif");
-        if (!gifSpan) return;
-        const wrapper = gifSpan.closest("div.flex-sh_0");
-        if (!wrapper) return;
-        const clone = wrapper.cloneNode(true);
-        clone.id = "avia-favorites-btn";
-        clone.style.position = "relative";
-
-        const btn = clone.querySelector("button");
-        btn.onclick = toggleFavoritesPanel;
-
-        btn.style.position = "relative";
-
-        clone.querySelector("span.material-symbols-outlined").textContent = "star";
-
-        const badge = document.createElement("div");
-        badge.id = "avia-favorites-badge";
-        Object.assign(badge.style, {
-            position: "absolute",
-            top: "2px",
-            right: "2px",
-            background: "var(--md-sys-color-primary, #6750a4)",
-            color: "var(--md-sys-color-on-primary, #fff)",
-            borderRadius: "99px",
-            fontSize: "9px",
-            fontWeight: "700",
-            minWidth: "14px",
-            height: "14px",
-            display: "none",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "0 3px",
-            pointerEvents: "none",
-            zIndex: "1"
-        });
-
-        btn.appendChild(badge);
-
-        wrapper.parentElement.insertBefore(clone, wrapper.nextSibling);
-        updateBadge();
-    }
-
-    new MutationObserver(injectButton).observe(document.body, { childList: true, subtree: true });
-    injectButton();
-})();
-
 
 
 /* --- LoginWithToken.js --- */
@@ -5004,386 +6069,396 @@ if(window.__US_BUILDER_WHATSNEW_JS__){return;}window.__US_BUILDER_WHATSNEW_JS__=
 
 (function () {
 
-    if (window.__WHATS_NEW___) return;
-    window.__WHATS_NEW__ = true;
+if (window.__WHATS_NEW___) return;
+window.__WHATS_NEW__ = true;
 
-    const version = window.native.versions.aviaClient().replaceAll('.', '-');
-    const BACKEND_URL = "https://raw.githubusercontent.com/AvaLilac/aviaclient-backend-whatsnew/refs/heads/main/backend" + version + ".json";
+// I assume you are reading this 0simp. I created this const below this line just for you. if it is set to true. it will only work with desktop since it uses the json file that is compiled with avia_core. But if it is set to false. It will instead switch back to using a ONLINE url. I made this change for you. Instead of making it strictly offline. I added a config so you can still use this.
+const USE_LOCAL_JSON = false;
 
-    function injectStyles() {
-        if (document.getElementById("avia-whatsnew-styles")) return;
-        const style = document.createElement("style");
-        style.id = "avia-whatsnew-styles";
-        style.textContent = `
-            #avia-whatsnew-scrim {
-                position: fixed;
-                inset: 0;
-                z-index: 999999;
-                background: rgba(0,0,0,0.6);
-                display: grid;
-                place-items: center;
-                padding: 80px;
-                overflow-y: auto;
-                animation: aviaScrimIn 0.1s forwards;
-            }
-            @keyframes aviaScrimIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-            #avia-whatsnew-modal {
-                opacity: 1;
-                padding: 24px;
-                min-width: 280px;
-                max-width: 560px;
-                width: 100%;
-                border-radius: 28px;
-                display: flex;
-                flex-direction: column;
-                color: var(--md-sys-color-on-surface, #fff);
-                background: var(--md-sys-color-surface-container-high, #2a2a2a);
-                box-sizing: border-box;
-            }
-            #avia-whatsnew-modal * { box-sizing: border-box; }
-            .avia-wn-title {
-                line-height: 2rem;
-                font-size: 1.5rem;
-                letter-spacing: 0;
-                font-weight: 400;
-                margin-bottom: 16px;
-            }
-            .avia-wn-body {
-                color: var(--md-sys-color-on-surface-variant, rgba(255,255,255,0.7));
-                line-height: 1.25rem;
-                font-size: 0.875rem;
-                letter-spacing: 0.015625rem;
-                font-weight: 400;
-            }
-            .avia-wn-body > * + * { margin-top: 0; }
-            .avia-wn-date {
-                display: block;
-                margin-bottom: 12px;
-                font-size: 0.875rem;
-                color: var(--md-sys-color-on-surface-variant, rgba(255,255,255,0.5));
-            }
-            .avia-wn-h1 {
-                font-size: 2em;
-                font-weight: 600;
-                margin: 0 0 4px 0;
-                color: var(--md-sys-color-on-surface, #fff);
-            }
-            .avia-wn-h2 {
-                font-size: 1.6em;
-                font-weight: 600;
-                margin: 0 0 4px 0;
-                color: var(--md-sys-color-on-surface, #fff);
-            }
-            .avia-wn-h3 {
-                font-size: 1.4em;
-                font-weight: 600;
-                margin: 0 0 4px 0;
-                color: var(--md-sys-color-on-surface, #fff);
-            }
-            .avia-wn-p {
-                margin: 0;
-                line-height: 1.6;
-            }
-            .avia-wn-spacer { display: block; height: 0.75em; }
-            .avia-wn-img {
-                max-width: 100%;
-                height: auto;
-                border-radius: 12px;
-                display: block;
-            }
-            .avia-wn-ul {
-                padding-left: 1.5em;
-                margin: 0;
-                list-style-position: outside;
-            }
-            .avia-wn-ul li {
-                list-style-type: disc;
-                margin-bottom: 4px;
-                line-height: 1.5;
-            }
-            .avia-wn-ol {
-                padding-left: 1.5em;
-                margin: 0;
-                list-style-position: outside;
-            }
-            .avia-wn-ol li {
-                list-style-type: decimal;
-                margin-bottom: 4px;
-                line-height: 1.5;
-            }
-            .avia-wn-hr {
-                border: none;
-                border-top: 1px solid rgba(255,255,255,0.1);
-                margin: 4px 0;
-            }
-            .avia-wn-code {
-                font-family: var(--fonts-monospace, monospace);
-                font-size: 0.85em;
-                background: #0d1117;
-                color: #c9d1d9;
-                padding: 1px 4px;
-                border-radius: 4px;
-            }
-            .avia-wn-blockquote {
-                border-left: 3px solid rgba(255,255,255,0.2);
-                margin: 0;
-                padding: 4px 12px;
-                color: rgba(255,255,255,0.5);
-                font-style: italic;
-            }
-            .avia-wn-bold { font-weight: bold; }
-            .avia-wn-footer {
-                display: flex;
-                justify-content: flex-end;
-                gap: 8px;
-                margin-top: 24px;
-            }
-            .avia-wn-close-btn {
-                line-height: 1.25rem;
-                font-size: 0.875rem;
-                letter-spacing: 0.015625rem;
-                font-weight: 400;
-                position: relative;
-                padding: 0 16px;
-                flex-shrink: 0;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-family: inherit;
-                cursor: pointer;
-                border: none;
-                transition: opacity 0.15s;
-                color: var(--md-sys-color-primary, #90caf9);
-                background: transparent;
-                height: 40px;
-                border-radius: 9999px;
-            }
-            .avia-wn-close-btn:hover { opacity: 0.75; }
-        `;
-        document.head.appendChild(style);
-    }
+const LOCAL_JSON_FILE = "whatsnewbackend.json";
 
-    function renderBlock(block) {
-        switch (block.type) {
-            case "image": {
-                const img = document.createElement("img");
-                img.src = block.src;
-                img.alt = block.alt || "";
-                img.className = "avia-wn-img";
-                img.loading = "lazy";
-                return img;
-            }
-            case "spacer": {
-                const s = document.createElement("span");
-                s.className = "avia-wn-spacer";
-                return s;
-            }
-            case "h1": {
-                const el = document.createElement("h1");
-                el.className = "avia-wn-h1";
-                el.textContent = block.text || "";
-                return el;
-            }
-            case "h2": {
-                const el = document.createElement("h2");
-                el.className = "avia-wn-h2";
-                el.textContent = block.text || "";
-                return el;
-            }
-            case "h3": {
-                const el = document.createElement("h3");
-                el.className = "avia-wn-h3";
-                el.textContent = block.text || "";
-                return el;
-            }
-            case "paragraph": {
-                const el = document.createElement("p");
-                el.className = "avia-wn-p";
-                el.innerHTML = renderInline(block.text || "");
-                return el;
-            }
-            case "ul": {
-                const ul = document.createElement("ul");
-                ul.className = "avia-wn-ul";
-                (block.items || []).forEach(item => {
-                    const li = document.createElement("li");
-                    li.innerHTML = renderInline(item);
-                    ul.appendChild(li);
-                });
-                return ul;
-            }
-            case "ol": {
-                const ol = document.createElement("ol");
-                ol.className = "avia-wn-ol";
-                (block.items || []).forEach(item => {
-                    const li = document.createElement("li");
-                    li.innerHTML = renderInline(item);
-                    ol.appendChild(li);
-                });
-                return ol;
-            }
-            case "hr": {
-                const hr = document.createElement("hr");
-                hr.className = "avia-wn-hr";
-                return hr;
-            }
-            case "blockquote": {
-                const bq = document.createElement("blockquote");
-                bq.className = "avia-wn-blockquote";
-                bq.innerHTML = renderInline(block.text || "");
-                return bq;
-            }
-            default:
-                return null;
+const version = window.__USERSCRIPT_VERSION__.replaceAll('.', '-');
+const BACKEND_URL = "https://raw.githubusercontent.com/AvaLilac/aviaclient-backend-whatsnew/refs/heads/main/backend" + version + ".json";
+
+function injectStyles() {
+    if (document.getElementById("avia-whatsnew-styles")) return;
+    const style = document.createElement("style");
+    style.id = "avia-whatsnew-styles";
+    style.textContent = `
+        #avia-whatsnew-scrim {
+            position: fixed;
+            inset: 0;
+            z-index: 999999;
+            background: rgba(0,0,0,0.6);
+            display: grid;
+            place-items: center;
+            padding: 80px;
+            overflow-y: auto;
+            animation: aviaScrimIn 0.1s forwards;
         }
-    }
-
-    function renderInline(text) {
-        return text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/\*\*(.+?)\*\*/g, '<strong class="avia-wn-bold">$1</strong>')
-            .replace(/\*(.+?)\*/g, '<em>$1</em>')
-            .replace(/`(.+?)`/g, '<code class="avia-wn-code">$1</code>')
-            .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" style="color:inherit;text-decoration:underline;opacity:0.8;">$1</a>');
-    }
-
-    function openModal(entry) {
-        if (document.getElementById("avia-whatsnew-scrim")) return;
-
-        injectStyles();
-
-        const scrim = document.createElement("div");
-        scrim.id = "avia-whatsnew-scrim";
-        scrim.onclick = (e) => { if (e.target === scrim) scrim.remove(); };
-
-        const modal = document.createElement("div");
-        modal.id = "avia-whatsnew-modal";
-
-        const titleEl = document.createElement("span");
-        titleEl.className = "avia-wn-title";
-        titleEl.textContent = "What's new";
-        modal.appendChild(titleEl);
-
-        const body = document.createElement("div");
-        body.className = "avia-wn-body";
-
-        const inner = document.createElement("div");
-        inner.style.cssText = "display:flex;flex-direction:column;gap:0;";
-
-        if (entry.date) {
-            const dateEl = document.createElement("span");
-            dateEl.className = "avia-wn-date";
-            dateEl.textContent = entry.date;
-            inner.appendChild(dateEl);
+        @keyframes aviaScrimIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
-
-        (entry.content || []).forEach(block => {
-            const el = renderBlock(block);
-            if (el) inner.appendChild(el);
-        });
-
-        body.appendChild(inner);
-        modal.appendChild(body);
-
-        const footer = document.createElement("div");
-        footer.className = "avia-wn-footer";
-
-        const closeBtn = document.createElement("button");
-        closeBtn.className = "avia-wn-close-btn";
-        closeBtn.textContent = "Close";
-        closeBtn.onclick = () => scrim.remove();
-
-        footer.appendChild(closeBtn);
-        modal.appendChild(footer);
-        scrim.appendChild(modal);
-        document.body.appendChild(scrim);
-    }
-
-    async function fetchAndOpen() {
-        try {
-            const res = await fetch(BACKEND_URL);
-            const data = await res.json();
-            const entries = data.entries || [];
-            const latest = entries[0];
-            if (latest) openModal(latest);
-        } catch (e) {
-            injectStyles();
-            const scrim = document.createElement("div");
-            scrim.id = "avia-whatsnew-scrim";
-            scrim.onclick = (e) => { if (e.target === scrim) scrim.remove(); };
-            const modal = document.createElement("div");
-            modal.id = "avia-whatsnew-modal";
-            modal.innerHTML = `<div style="opacity:0.5;text-align:center;padding:24px 0;font-size:13px;">Failed to load What's New.</div>`;
-            const footer = document.createElement("div");
-            footer.className = "avia-wn-footer";
-            const closeBtn = document.createElement("button");
-            closeBtn.className = "avia-wn-close-btn";
-            closeBtn.textContent = "Close";
-            closeBtn.onclick = () => scrim.remove();
-            footer.appendChild(closeBtn);
-            modal.appendChild(footer);
-            scrim.appendChild(modal);
-            document.body.appendChild(scrim);
+        #avia-whatsnew-modal {
+            opacity: 1;
+            padding: 24px;
+            min-width: 280px;
+            max-width: 560px;
+            width: 100%;
+            border-radius: 28px;
+            display: flex;
+            flex-direction: column;
+            color: var(--md-sys-color-on-surface, #fff);
+            background: var(--md-sys-color-surface-container-high, #2a2a2a);
+            box-sizing: border-box;
         }
+        #avia-whatsnew-modal * { box-sizing: border-box; }
+        .avia-wn-title {
+            line-height: 2rem;
+            font-size: 1.5rem;
+            letter-spacing: 0;
+            font-weight: 400;
+            margin-bottom: 16px;
+        }
+        .avia-wn-body {
+            color: var(--md-sys-color-on-surface-variant, rgba(255,255,255,0.7));
+            line-height: 1.25rem;
+            font-size: 0.875rem;
+            letter-spacing: 0.015625rem;
+            font-weight: 400;
+        }
+        .avia-wn-body > * + * { margin-top: 0; }
+        .avia-wn-date {
+            display: block;
+            margin-bottom: 12px;
+            font-size: 0.875rem;
+            color: var(--md-sys-color-on-surface-variant, rgba(255,255,255,0.5));
+        }
+        .avia-wn-h1 {
+            font-size: 2em;
+            font-weight: 600;
+            margin: 0 0 4px 0;
+            color: var(--md-sys-color-on-surface, #fff);
+        }
+        .avia-wn-h2 {
+            font-size: 1.6em;
+            font-weight: 600;
+            margin: 0 0 4px 0;
+            color: var(--md-sys-color-on-surface, #fff);
+        }
+        .avia-wn-h3 {
+            font-size: 1.4em;
+            font-weight: 600;
+            margin: 0 0 4px 0;
+            color: var(--md-sys-color-on-surface, #fff);
+        }
+        .avia-wn-p {
+            margin: 0;
+            line-height: 1.6;
+        }
+        .avia-wn-spacer { display: block; height: 0.75em; }
+        .avia-wn-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            display: block;
+        }
+        .avia-wn-ul {
+            padding-left: 1.5em;
+            margin: 0;
+            list-style-position: outside;
+        }
+        .avia-wn-ul li {
+            list-style-type: disc;
+            margin-bottom: 4px;
+            line-height: 1.5;
+        }
+        .avia-wn-ol {
+            padding-left: 1.5em;
+            margin: 0;
+            list-style-position: outside;
+        }
+        .avia-wn-ol li {
+            list-style-type: decimal;
+            margin-bottom: 4px;
+            line-height: 1.5;
+        }
+        .avia-wn-hr {
+            border: none;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            margin: 4px 0;
+        }
+        .avia-wn-code {
+            font-family: var(--fonts-monospace, monospace);
+            font-size: 0.85em;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 1px 4px;
+            border-radius: 4px;
+        }
+        .avia-wn-blockquote {
+            border-left: 3px solid rgba(255,255,255,0.2);
+            margin: 0;
+            padding: 4px 12px;
+            color: rgba(255,255,255,0.5);
+            font-style: italic;
+        }
+        .avia-wn-bold { font-weight: bold; }
+        .avia-wn-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 24px;
+        }
+        .avia-wn-close-btn {
+            line-height: 1.25rem;
+            font-size: 0.875rem;
+            letter-spacing: 0.015625rem;
+            font-weight: 400;
+            position: relative;
+            padding: 0 16px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.15s;
+            color: var(--md-sys-color-primary, #90caf9);
+            background: transparent;
+            height: 40px;
+            border-radius: 9999px;
+        }
+        .avia-wn-close-btn:hover { opacity: 0.75; }
+    `;
+    document.head.appendChild(style);
+}
+
+function renderBlock(block) {
+    switch (block.type) {
+        case "image": {
+            const img = document.createElement("img");
+            img.src = block.src;
+            img.alt = block.alt || "";
+            img.className = "avia-wn-img";
+            img.loading = "lazy";
+            return img;
+        }
+        case "spacer": {
+            const s = document.createElement("span");
+            s.className = "avia-wn-spacer";
+            return s;
+        }
+        case "h1": {
+            const el = document.createElement("h1");
+            el.className = "avia-wn-h1";
+            el.textContent = block.text || "";
+            return el;
+        }
+        case "h2": {
+            const el = document.createElement("h2");
+            el.className = "avia-wn-h2";
+            el.textContent = block.text || "";
+            return el;
+        }
+        case "h3": {
+            const el = document.createElement("h3");
+            el.className = "avia-wn-h3";
+            el.textContent = block.text || "";
+            return el;
+        }
+        case "paragraph": {
+            const el = document.createElement("p");
+            el.className = "avia-wn-p";
+            el.innerHTML = renderInline(block.text || "");
+            return el;
+        }
+        case "ul": {
+            const ul = document.createElement("ul");
+            ul.className = "avia-wn-ul";
+            (block.items || []).forEach(item => {
+                const li = document.createElement("li");
+                li.innerHTML = renderInline(item);
+                ul.appendChild(li);
+            });
+            return ul;
+        }
+        case "ol": {
+            const ol = document.createElement("ol");
+            ol.className = "avia-wn-ol";
+            (block.items || []).forEach(item => {
+                const li = document.createElement("li");
+                li.innerHTML = renderInline(item);
+                ol.appendChild(li);
+            });
+            return ol;
+        }
+        case "hr": {
+            const hr = document.createElement("hr");
+            hr.className = "avia-wn-hr";
+            return hr;
+        }
+        case "blockquote": {
+            const bq = document.createElement("blockquote");
+            bq.className = "avia-wn-blockquote";
+            bq.innerHTML = renderInline(block.text || "");
+            return bq;
+        }
+        default:
+            return null;
     }
+}
 
-    function injectButton() {
-        if (document.getElementById("avia-whatsnew-btn")) return;
+function renderInline(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\*\*(.+?)\*\*/g, '<strong class="avia-wn-bold">$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`(.+?)`/g, '<code class="avia-wn-code">$1</code>')
+        .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" style="color:inherit;text-decoration:underline;opacity:0.8;">$1</a>');
+}
 
-        const appearanceBtn = [...document.querySelectorAll("a")]
-            .find(a => a.textContent.trim() === "Appearance");
-        const referenceNode = document.getElementById("stoat-fake-quickcss");
-        if (!appearanceBtn || !referenceNode) return;
-
-        const btn = appearanceBtn.cloneNode(true);
-        btn.id = "avia-whatsnew-btn";
-
-        const label = [...btn.querySelectorAll("div")].find(d => d.children.length === 0);
-        if (label) label.textContent = "(Avia) What's New";
-
-        const iconSpan = btn.querySelector("span.material-symbols-outlined");
-        if (iconSpan) iconSpan.remove();
-
-        const oldSvg = btn.querySelector("svg");
-        if (oldSvg) oldSvg.remove();
-
-        const svgNS = "http://www.w3.org/2000/svg";
-        const svg = document.createElementNS(svgNS, "svg");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("width", "20");
-        svg.setAttribute("height", "20");
-        svg.setAttribute("fill", "currentColor");
-        svg.style.cssText = "margin-right:8px;flex-shrink:0;";
-
-        const path = document.createElementNS(svgNS, "path");
-        path.setAttribute("d", "M18 11v2h4v-2zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61M20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4M4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9zm5.03 1.71L11 9.53v4.94l-1.97-1.18-.48-.29H4v-2h4.55zM15.5 12c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34");
-        svg.appendChild(path);
-
-        const firstChild = btn.firstChild;
-        btn.insertBefore(svg, firstChild);
-
-        btn.onclick = (e) => {
-            e.preventDefault();
-            fetchAndOpen();
-        };
-
-        referenceNode.parentElement.insertBefore(btn, referenceNode.nextSibling);
-    }
-
+function openModal(entry) {
+    if (document.getElementById("avia-whatsnew-scrim")) return;
     injectStyles();
 
-    new MutationObserver(() => injectButton())
-        .observe(document.body, { childList: true, subtree: true });
+    const scrim = document.createElement("div");
+    scrim.id = "avia-whatsnew-scrim";
+    scrim.onclick = (e) => { if (e.target === scrim) scrim.remove(); };
 
-    injectButton();
+    const modal = document.createElement("div");
+    modal.id = "avia-whatsnew-modal";
+
+    const titleEl = document.createElement("span");
+    titleEl.className = "avia-wn-title";
+    titleEl.textContent = "What's new";
+    modal.appendChild(titleEl);
+
+    const body = document.createElement("div");
+    body.className = "avia-wn-body";
+
+    const inner = document.createElement("div");
+    inner.style.cssText = "display:flex;flex-direction:column;gap:0;";
+
+    if (entry.date) {
+        const dateEl = document.createElement("span");
+        dateEl.className = "avia-wn-date";
+        dateEl.textContent = entry.date;
+        inner.appendChild(dateEl);
+    }
+
+    (entry.content || []).forEach(block => {
+        const el = renderBlock(block);
+        if (el) inner.appendChild(el);
+    });
+
+    body.appendChild(inner);
+    modal.appendChild(body);
+
+    const footer = document.createElement("div");
+    footer.className = "avia-wn-footer";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "avia-wn-close-btn";
+    closeBtn.textContent = "Close";
+    closeBtn.onclick = () => scrim.remove();
+    footer.appendChild(closeBtn);
+    modal.appendChild(footer);
+
+    scrim.appendChild(modal);
+    document.body.appendChild(scrim);
+}
+
+function showError() {
+    injectStyles();
+    const scrim = document.createElement("div");
+    scrim.id = "avia-whatsnew-scrim";
+    scrim.onclick = (e) => { if (e.target === scrim) scrim.remove(); };
+    const modal = document.createElement("div");
+    modal.id = "avia-whatsnew-modal";
+    modal.innerHTML = `<div style="opacity:0.5;text-align:center;padding:24px 0;font-size:13px;">Failed to load What's New.</div>`;
+    const footer = document.createElement("div");
+    footer.className = "avia-wn-footer";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "avia-wn-close-btn";
+    closeBtn.textContent = "Close";
+    closeBtn.onclick = () => scrim.remove();
+    footer.appendChild(closeBtn);
+    modal.appendChild(footer);
+    scrim.appendChild(modal);
+    document.body.appendChild(scrim);
+}
+
+async function fetchAndOpen() {
+    try {
+        let data;
+
+        if (USE_LOCAL_JSON) {
+            data = await window.aviaJSON.readJSON(LOCAL_JSON_FILE);
+        } else {
+            const res = await fetch(BACKEND_URL);
+            data = await res.json();
+        }
+
+        const entries = data.entries || [];
+        const latest = entries[0];
+        if (latest) openModal(latest);
+    } catch (e) {
+        showError();
+    }
+}
+
+function injectButton() {
+    if (document.getElementById("avia-whatsnew-btn")) return;
+
+    const appearanceBtn = [...document.querySelectorAll("a")]
+        .find(a => a.textContent.trim() === "Appearance");
+    const referenceNode = document.getElementById("stoat-fake-quickcss");
+    if (!appearanceBtn || !referenceNode) return;
+
+    const btn = appearanceBtn.cloneNode(true);
+    btn.id = "avia-whatsnew-btn";
+
+    const label = [...btn.querySelectorAll("div")].find(d => d.children.length === 0);
+    if (label) label.textContent = "(Avia) What's New";
+
+    const iconSpan = btn.querySelector("span.material-symbols-outlined");
+    if (iconSpan) iconSpan.remove();
+
+    const oldSvg = btn.querySelector("svg");
+    if (oldSvg) oldSvg.remove();
+
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "20");
+    svg.setAttribute("height", "20");
+    svg.setAttribute("fill", "currentColor");
+    svg.style.cssText = "margin-right:8px;flex-shrink:0;";
+    const path = document.createElementNS(svgNS, "path");
+    path.setAttribute("d", "M18 11v2h4v-2zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61M20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4M4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9zm5.03 1.71L11 9.53v4.94l-1.97-1.18-.48-.29H4v-2h4.55zM15.5 12c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34");
+    svg.appendChild(path);
+
+    const firstChild = btn.firstChild;
+    btn.insertBefore(svg, firstChild);
+
+    btn.onclick = (e) => {
+        e.preventDefault();
+        fetchAndOpen();
+    };
+
+    referenceNode.parentElement.insertBefore(btn, referenceNode.nextSibling);
+}
+
+injectStyles();
+new MutationObserver(() => injectButton())
+    .observe(document.body, { childList: true, subtree: true });
+injectButton();
+
 
 })();
-
-
 
 })();
